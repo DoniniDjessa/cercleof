@@ -80,6 +80,7 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
       if (error) {
         console.error('Navbar: Error fetching user profile:', error)
         setLoading(false)
+        // Keep userProfile null, will use user.email as fallback
         return
       }
 
@@ -97,10 +98,19 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
       }
 
       // User has valid pseudo or email - set profile
-      console.log('Navbar: Profile data received:', data)
-      console.log('Navbar: Pseudo:', data.pseudo, 'Email:', data.email)
-      setUserProfile(data)
-      setLoading(false)
+      console.log('Navbar: Profile data received:', JSON.stringify(data, null, 2))
+      console.log('Navbar: Pseudo:', data.pseudo, '(type:', typeof data.pseudo, ')')
+      console.log('Navbar: Email:', data.email, '(type:', typeof data.email, ')')
+      
+      // Verify data structure
+      if (data.pseudo || data.email) {
+        console.log('Navbar: Setting userProfile with pseudo/email')
+        setUserProfile(data)
+        setLoading(false)
+      } else {
+        console.error('Navbar: Data received but no pseudo or email:', data)
+        setLoading(false)
+      }
     } catch (error) {
       console.error('Navbar: Exception fetching user profile:', error)
       setLoading(false)
@@ -122,8 +132,23 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
   }
 
   const handleSignOut = async () => {
-    setShowUserMenu(false)
-    await signOut()
+    try {
+      setShowUserMenu(false)
+      console.log('Navbar: handleSignOut called, user:', user)
+      await signOut()
+      // Ensure redirect even if signOut doesn't redirect
+      if (typeof window !== 'undefined') {
+        setTimeout(() => {
+          window.location.href = '/login'
+        }, 100)
+      }
+    } catch (error) {
+      console.error('Navbar: Error in handleSignOut:', error)
+      // Force redirect on error
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login'
+      }
+    }
   }
 
   return (
@@ -189,14 +214,19 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
               </div>
               <div className="hidden sm:block text-left">
                 <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  {loading 
-                    ? 'Chargement...' 
-                    : (userProfile?.pseudo || userProfile?.email || user?.email?.split('@')[0] || 'Utilisateur')}
+                  {(() => {
+                    // Show loading only if we don't have any data yet
+                    if (loading && !userProfile && !user?.email) {
+                      return 'Chargement...'
+                    }
+                    // Prefer profile data, fallback to auth user email
+                    return userProfile?.pseudo || userProfile?.email || user?.email?.split('@')[0] || user?.email || 'Utilisateur'
+                  })()}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   {userProfile 
                     ? `Travail sur ${userProfile.pseudo || userProfile.email}` 
-                    : (loading ? 'Chargement...' : t('nav.online'))}
+                    : (loading && !user?.email ? 'Chargement...' : t('nav.online'))}
                 </p>
               </div>
               <ChevronDown className="h-4 w-4 text-gray-400" />
@@ -213,14 +243,19 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
               >
                 <div className="px-4 py-3 border-b-0 shadow-sm">
                   <p className="text-sm font-medium text-gray-900 dark:text-white">
-                    {loading 
-                      ? 'Chargement...' 
-                      : (userProfile?.pseudo || userProfile?.email || user?.email?.split('@')[0] || 'Utilisateur')}
+                    {(() => {
+                      // Show loading only if we don't have any data yet
+                      if (loading && !userProfile && !user?.email) {
+                        return 'Chargement...'
+                      }
+                      // Prefer profile data, fallback to auth user email
+                      return userProfile?.pseudo || userProfile?.email || user?.email?.split('@')[0] || user?.email || 'Utilisateur'
+                    })()}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     {userProfile 
                       ? `Travail sur ${userProfile.pseudo || userProfile.email}` 
-                      : (loading ? 'Chargement...' : t('nav.online'))}
+                      : (loading && !user?.email ? 'Chargement...' : t('nav.online'))}
                   </p>
                   {userProfile?.pseudo && userProfile?.email && (
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">

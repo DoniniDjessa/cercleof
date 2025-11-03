@@ -23,18 +23,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Add a timeout to prevent infinite loading
-    const timeoutId = setTimeout(() => {
-      console.log('AuthContext: Timeout reached, stopping loading...')
-      setLoading(false)
-    }, 10000) // 10 second timeout
-
+    let timeoutId: NodeJS.Timeout | null = null
+    
     // Get initial session
     const getInitialSession = async () => {
       try {
         console.log('AuthContext: Getting initial session...')
         const { session, error } = await auth.getSession()
         console.log('AuthContext: Session result:', { session: !!session, error })
+        
+        if (error) {
+          console.error('AuthContext: Error getting session:', error)
+          setSession(null)
+          setUser(null)
+          setLoading(false)
+          if (timeoutId) clearTimeout(timeoutId)
+          // Redirect to login on error
+          if (typeof window !== 'undefined') {
+            window.location.href = '/login'
+          }
+          return
+        }
+
+        if (!session || !session.user) {
+          console.log('AuthContext: No session found, redirecting to login...')
+          setSession(null)
+          setUser(null)
+          setLoading(false)
+          if (timeoutId) clearTimeout(timeoutId)
+          // Redirect to login
+          if (typeof window !== 'undefined') {
+            window.location.href = '/login'
+          }
+          return
+        }
         
         if (session?.user) {
           try {
@@ -45,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setSession(null)
               setUser(null)
               setLoading(false)
-              clearTimeout(timeoutId)
+              if (timeoutId) clearTimeout(timeoutId)
               await auth.signOut()
               // Redirect to login page
               if (typeof window !== 'undefined') {
@@ -62,15 +84,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(session)
         setUser(session?.user ?? null)
         setLoading(false)
-        clearTimeout(timeoutId)
+        if (timeoutId) clearTimeout(timeoutId)
       } catch (error) {
         console.error('AuthContext: Error getting session:', error)
+        setSession(null)
+        setUser(null)
         setLoading(false)
-        clearTimeout(timeoutId)
+        if (timeoutId) clearTimeout(timeoutId)
+        // Redirect to login on error
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login'
+        }
       }
     }
 
     getInitialSession()
+    
+    // Add a timeout to prevent infinite loading
+    timeoutId = setTimeout(() => {
+      console.log('AuthContext: Timeout reached (10s), checking session status...')
+      // Check if we're still loading - if yes and no session, redirect
+      if (loading) {
+        console.log('AuthContext: Still loading after timeout, checking session...')
+        getInitialSession().then(() => {
+          // Wait a bit then check again
+          setTimeout(() => {
+            if (typeof window !== 'undefined') {
+              const currentPath = window.location.pathname
+              if (currentPath !== '/login' && currentPath !== '/register' && currentPath !== '/setup') {
+                console.log('AuthContext: No valid session after timeout, redirecting to login...')
+                setSession(null)
+                setUser(null)
+                setLoading(false)
+                window.location.href = '/login'
+              }
+            }
+          }, 1000)
+        })
+      }
+    }, 10000) // 10 second timeout
 
     // Listen for auth changes
     const { data: { subscription } } = auth.onAuthStateChange(async (event, session) => {
@@ -107,7 +159,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
 
     return () => {
-      clearTimeout(timeoutId)
+      if (timeoutId) clearTimeout(timeoutId)
       subscription.unsubscribe()
     }
   }, [])
@@ -179,19 +231,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
+      console.log('AuthContext: signOut called')
       // Immediately clear local state
       setSession(null)
       setUser(null)
       
-      // Sign out from Supabase
-      const { error } = await auth.signOut()
-      
-      if (error) {
-        console.error('Error signing out:', error)
-        return { error }
+      // Sign out from Supabase (even if user is null)
+      try {
+        const { error } = await auth.signOut()
+        if (error) {
+          console.error('Error signing out from Supabase:', error)
+        }
+      } catch (signOutError) {
+        console.error('Exception signing out from Supabase:', signOutError)
       }
       
-      // Redirect to login page
+      // Always redirect to login page, even if signOut fails
       if (typeof window !== 'undefined') {
         window.location.href = '/login'
       }
@@ -199,7 +254,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { error: null }
     } catch (error) {
       console.error('Error signing out:', error)
-      // Even if there's an error, clear local state
+      // Even if there's an error, clear local state and redirect
       setSession(null)
       setUser(null)
       if (typeof window !== 'undefined') {
