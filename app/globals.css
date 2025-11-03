@@ -1,0 +1,96 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  --primary: #ec4899;
+  --primary-dark: #be185d;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-dark: var(--primary-dark);
+  --font-sans: var(--font-poppins);
+  --font-mono: var(--font-roboto-condensed);
+  --font-display: var(--font-bebas-neue);
+}
+
+/* Dark mode */
+.dark {
+  --background: #1a0f1a;
+  --foreground: #fce7f3;
+  --card: #2d1b2d;
+  --card-foreground: #fce7f3;
+  --border: #4a2c4a;
+  --input: #2d1b2d;
+  --muted: #4a2c4a;
+  --muted-foreground: #d8b4d8;
+}
+
+/* Light mode (default) */
+.light {
+  --background: #fafafa;
+  --foreground: #171717;
+  --card: #ffffff;
+  --card-foreground: #171717;
+  --border: #e5e7eb;
+  --input: #ffffff;
+  --muted: #f9fafb;
+  --muted-foreground: #6b7280;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-poppins), Arial, Helvetica, sans-serif;
+}
+
+/* Custom font classes */
+.font-display {
+  font-family: var(--font-bebas-neue), sans-serif;
+}
+
+.font-title {
+  font-family: var(--font-roboto-condensed), sans-serif;
+}
+
+.font-body {
+  font-family: var(--font-poppins), sans-serif;
+}
+
+/* Custom gradient button styles */
+.btn-gradient {
+  background: linear-gradient(135deg, #ec4899 0%, #be185d 100%);
+  border: none;
+  color: white;
+  transition: all 0.3s ease;
+}
+
+.btn-gradient:hover {
+  background: linear-gradient(135deg, #be185d 0%, #9d174d 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 25px rgba(236, 72, 153, 0.3);
+}
+
+.btn-gradient:active {
+  transform: translateY(0);
+}
+
+/* Custom card styles */
+.card-rounded {
+  border-radius: 2rem;
+}
+
+/* Custom input styles */
+.input-rounded {
+  border-radius: 1rem;
+  border: 2px solid #e5e7eb;
+  transition: all 0.3s ease;
+}
+
+.input-rounded:focus {
+  border-color: #ec4899;
+  box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.1);
+}
