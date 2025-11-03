@@ -295,23 +295,27 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
               <CardTitle className="text-gray-900 dark:text-white">Prix et Inventaire</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className={`grid gap-4 ${canManageProducts ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-1'}`}>
                 <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
                   <p className="text-xs text-muted-foreground dark:text-gray-400">Prix de Vente</p>
                   <p className="text-xl font-bold text-gray-900 dark:text-white">{product.price.toFixed(2)} XOF</p>
                 </div>
-                <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
-                  <p className="text-xs text-muted-foreground dark:text-gray-400">Prix de Revient</p>
-                  <p className="text-xl font-bold text-gray-900 dark:text-white">{product.cost.toFixed(2)} XOF</p>
-                </div>
-                <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-green-50 dark:bg-green-900/20">
-                  <p className="text-xs text-muted-foreground dark:text-gray-400">Bénéfice</p>
-                  <p className="text-xl font-bold text-green-600 dark:text-green-400">{profit.toFixed(2)} XOF</p>
-                </div>
-                <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
-                  <p className="text-xs text-muted-foreground dark:text-gray-400">Marge</p>
-                  <p className="text-xl font-bold text-gray-900 dark:text-white">{margin}%</p>
-                </div>
+                {canManageProducts && (
+                  <>
+                    <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
+                      <p className="text-xs text-muted-foreground dark:text-gray-400">Prix de Revient</p>
+                      <p className="text-xl font-bold text-gray-900 dark:text-white">{product.cost.toFixed(2)} XOF</p>
+                    </div>
+                    <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-green-50 dark:bg-green-900/20">
+                      <p className="text-xs text-muted-foreground dark:text-gray-400">Bénéfice</p>
+                      <p className="text-xl font-bold text-green-600 dark:text-green-400">{profit.toFixed(2)} XOF</p>
+                    </div>
+                    <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
+                      <p className="text-xs text-muted-foreground dark:text-gray-400">Marge</p>
+                      <p className="text-xl font-bold text-gray-900 dark:text-white">{margin}%</p>
+                    </div>
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -402,12 +406,14 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
                   {(product.price * product.stock_quantity).toFixed(2)} XOF
                 </p>
               </div>
-              <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                <p className="text-xs text-muted-foreground dark:text-gray-400">Bénéfice Potentiel</p>
-                <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                  {(profit * product.stock_quantity).toFixed(2)} XOF
-                </p>
-              </div>
+              {canManageProducts && (
+                <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                  <p className="text-xs text-muted-foreground dark:text-gray-400">Bénéfice Potentiel</p>
+                  <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                    {(profit * product.stock_quantity).toFixed(2)} XOF
+                  </p>
+                </div>
+              )}
               <div className="text-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
                 <p className="text-xs text-muted-foreground dark:text-gray-400">Date de Création</p>
                 <p className="text-sm font-medium text-purple-600 dark:text-purple-400">

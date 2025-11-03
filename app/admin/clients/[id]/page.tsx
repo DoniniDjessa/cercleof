@@ -93,6 +93,9 @@ export default function ClientDetailsPage() {
     }
   }
 
+  // Check if user can edit/delete clients (admin, manager, superadmin)
+  const canEditClients = currentUserRole === 'admin' || currentUserRole === 'manager' || currentUserRole === 'superadmin'
+
   const fetchClient = async () => {
     try {
       const { data, error } = await supabase
@@ -131,6 +134,11 @@ export default function ClientDetailsPage() {
   }
 
   const handleUpdateClient = async () => {
+    if (!canEditClients) {
+      toast.error('You do not have permission to edit clients')
+      return
+    }
+
     setLoading(true)
     try {
       const { error } = await supabase
@@ -173,10 +181,7 @@ export default function ClientDetailsPage() {
   }
 
   const deleteClient = async () => {
-    if (!client) return
-    
-    // Check if user can delete (admin, manager, superadmin)
-    if (!['admin', 'manager', 'superadmin'].includes(currentUserRole)) {
+    if (!client || !canEditClients) {
       toast.error('You do not have permission to delete clients')
       return
     }
@@ -247,12 +252,12 @@ export default function ClientDetailsPage() {
           >
             {client.is_active ? 'Deactivate' : 'Activate'}
           </Button>
-          {!editing ? (
+          {canEditClients && !editing ? (
             <Button onClick={() => setEditing(true)} className="flex items-center space-x-2">
               <Edit className="w-4 h-4" />
               <span>Edit</span>
             </Button>
-          ) : (
+          ) : canEditClients && editing ? (
             <div className="flex space-x-2">
               <Button onClick={handleUpdateClient} disabled={loading} className="flex items-center space-x-2">
                 {loading ? <ButtonLoadingSpinner /> : <Save className="w-4 h-4" />}
@@ -263,8 +268,8 @@ export default function ClientDetailsPage() {
                 <span>Cancel</span>
               </Button>
             </div>
-          )}
-          {['admin', 'manager', 'superadmin'].includes(currentUserRole) && (
+          ) : null}
+          {canEditClients && (
             <Button
               variant="outline"
               onClick={deleteClient}

@@ -88,6 +88,12 @@ export default function ClientsPage() {
     }
   }
 
+  // Check if user can add clients (admin, manager, caissiere, superadmin)
+  const canAddClients = currentUserRole === 'admin' || currentUserRole === 'manager' || currentUserRole === 'caissiere' || currentUserRole === 'superadmin'
+  
+  // Check if user can edit/delete clients (admin, manager, superadmin)
+  const canEditClients = currentUserRole === 'admin' || currentUserRole === 'manager' || currentUserRole === 'superadmin'
+
   const fetchClients = async () => {
     setLoading(true)
     try {
@@ -113,10 +119,7 @@ export default function ClientsPage() {
   }
 
   const deleteClient = async (clientId: string, clientName: string) => {
-    // Check if user has permission to delete clients
-    const canDelete = currentUserRole === 'admin' || currentUserRole === 'manager' || currentUserRole === 'superadmin'
-    
-    if (!canDelete) {
+    if (!canEditClients) {
       toast.error('You do not have permission to delete clients')
       return
     }
@@ -171,15 +174,17 @@ export default function ClientsPage() {
           <h1 className="text-3xl font-bold text-foreground dark:text-white">Clients</h1>
           <p className="text-muted-foreground dark:text-gray-400">Manage your client database.</p>
         </div>
-        <AnimatedButton onClick={() => {
-          setShowCreateForm(!showCreateForm)
-          if (showCreateForm) {
-            // Clear URL parameters when canceling
-            window.history.replaceState({}, '', '/admin/clients')
-          }
-        }} delay={0.1}>
-          {showCreateForm ? 'Cancel' : 'Add Client'}
-        </AnimatedButton>
+        {canAddClients && (
+          <AnimatedButton onClick={() => {
+            setShowCreateForm(!showCreateForm)
+            if (showCreateForm) {
+              // Clear URL parameters when canceling
+              window.history.replaceState({}, '', '/admin/clients')
+            }
+          }} delay={0.1}>
+            {showCreateForm ? 'Cancel' : 'Add Client'}
+          </AnimatedButton>
+        )}
       </div>
 
       {/* Create Client Form */}
@@ -292,7 +297,7 @@ export default function ClientsPage() {
                                 <Eye className="w-4 h-4" />
                               </Button>
                             </Link>
-                            {(currentUserRole === 'admin' || currentUserRole === 'manager' || currentUserRole === 'superadmin') && (
+                            {canEditClients && (
                               <Button 
                                 size="sm" 
                                 variant="ghost" 

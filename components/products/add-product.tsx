@@ -22,6 +22,8 @@ interface AddProductProps {
 export function AddProduct({ onProductCreated }: AddProductProps) {
   const { user: authUser } = useAuth()
   const [loading, setLoading] = useState(false)
+  const [currentUserRole, setCurrentUserRole] = useState<string>('')
+  const [checkingRole, setCheckingRole] = useState(true)
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -42,7 +44,36 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
 
   useEffect(() => {
     fetchCategories()
+    fetchCurrentUserRole()
   }, [])
+
+  const fetchCurrentUserRole = async () => {
+    try {
+      setCheckingRole(true)
+      const { data, error } = await supabase
+        .from('dd-users')
+        .select('role')
+        .eq('auth_user_id', authUser?.id)
+        .single()
+
+      if (error && error.code === 'PGRST116') {
+        setCurrentUserRole('')
+        setCheckingRole(false)
+        return
+      }
+
+      if (error) throw error
+      setCurrentUserRole(data?.role || '')
+    } catch (error) {
+      console.error('Error fetching user role:', error)
+      setCurrentUserRole('')
+    } finally {
+      setCheckingRole(false)
+    }
+  }
+
+  // Check if user can manage products (admin, manager, superadmin)
+  const canManageProducts = currentUserRole === 'admin' || currentUserRole === 'manager' || currentUserRole === 'superadmin'
 
   // Auto-generate SKU and barcode when category or product name changes
   useEffect(() => {
@@ -242,6 +273,41 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Check if user has permission
+  if (checkingRole) {
+    return (
+      <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+        <CardContent className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600 dark:text-gray-400">Vérification des permissions...</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (!canManageProducts) {
+    return (
+      <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+        <CardContent className="py-12">
+          <div className="flex flex-col items-center justify-center text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
+              <X className="w-8 h-8 text-red-600 dark:text-red-400" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Accès Interdit</h2>
+              <p className="text-gray-600 dark:text-gray-400 max-w-md">
+                Vous n'avez pas les permissions nécessaires pour ajouter des produits.
+                Seuls les administrateurs et les managers peuvent créer des produits.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
