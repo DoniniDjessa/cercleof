@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { AnimatedButton } from '@/components/ui/animated-button'
 import { ButtonLoadingSpinner } from '@/components/ui/context-loaders'
 import { AddPromotion } from '@/components/promotions/add-promotion'
+import { X } from 'lucide-react'
 import { 
   Tag, 
   Search, 
@@ -44,14 +46,53 @@ interface Promotion {
 }
 
 export default function PromotionsPage() {
+  const { user: authUser } = useAuth()
   const [promotions, setPromotions] = useState<Promotion[]>([])
   const [loading, setLoading] = useState(true)
+  const [checkingRole, setCheckingRole] = useState(true)
+  const [currentUserRole, setCurrentUserRole] = useState<string>('')
   const [searchTerm, setSearchTerm] = useState('')
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const itemsPerPage = 20
   const searchParams = useSearchParams()
+
+  // Check if user can manage promotions (admin, manager, superadmin)
+  const canManagePromotions = currentUserRole === 'admin' || currentUserRole === 'manager' || currentUserRole === 'superadmin'
+
+  useEffect(() => {
+    fetchCurrentUserRole()
+  }, [authUser])
+
+  const fetchCurrentUserRole = async () => {
+    try {
+      if (!authUser?.id) {
+        setCheckingRole(false)
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('dd-users')
+        .select('role')
+        .eq('auth_user_id', authUser.id)
+        .single()
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching current user role:', error)
+        setCurrentUserRole('')
+        setCheckingRole(false)
+        return
+      }
+
+      setCurrentUserRole(data?.role || '')
+    } catch (error) {
+      console.error('Error:', error)
+      setCurrentUserRole('')
+    } finally {
+      setCheckingRole(false)
+    }
+  }
 
   useEffect(() => {
     if (searchParams.get('action') === 'create') {
@@ -187,8 +228,30 @@ export default function PromotionsPage() {
     }).length
   }
 
-  if (loading) {
+  if (checkingRole || loading) {
     return <ButtonLoadingSpinner />
+  }
+
+  // Access control: only admins and managers can access this page
+  if (!canManagePromotions) {
+    return (
+      <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+        <CardContent className="py-12">
+          <div className="flex flex-col items-center justify-center text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
+              <X className="w-8 h-8 text-red-600 dark:text-red-400" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Accès Interdit</h2>
+              <p className="text-gray-600 dark:text-gray-400 max-w-md">
+                Vous n'avez pas les permissions nécessaires pour accéder à cette page.
+                Seuls les administrateurs et les managers peuvent gérer les promotions.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
@@ -217,13 +280,15 @@ export default function PromotionsPage() {
                 Gérez toutes les promotions et offres spéciales
               </p>
             </div>
-            <AnimatedButton
-              onClick={() => setShowCreateForm(true)}
-              className="bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white px-6 py-3 rounded-full font-medium transition-all duration-200"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Nouvelle Promotion
-            </AnimatedButton>
+            {canManagePromotions && (
+              <AnimatedButton
+                onClick={() => setShowCreateForm(true)}
+                className="bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white px-6 py-3 rounded-full font-medium transition-all duration-200"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Nouvelle Promotion
+              </AnimatedButton>
+            )}
           </div>
 
           {/* Stats Cards */}
@@ -375,19 +440,21 @@ export default function PromotionsPage() {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <Button size="sm" variant="outline">
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button size="sm" variant="outline">
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => handleDeletePromotion(promotion.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            {canManagePromotions && (
+                              <>
+                                <Button size="sm" variant="outline">
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => handleDeletePromotion(promotion.id)}
+                                  className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
