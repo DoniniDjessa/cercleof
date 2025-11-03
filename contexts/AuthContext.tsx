@@ -17,6 +17,62 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+// Function to clean up app-specific data from localStorage
+const cleanupAppData = async () => {
+  if (typeof window === 'undefined') return
+  
+  try {
+    console.log('AuthContext: Cleaning up app data...')
+    
+    // Get Supabase URL to identify app-specific keys
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    if (supabaseUrl) {
+      const url = new URL(supabaseUrl)
+      const host = url.hostname
+      
+      // Remove all localStorage keys related to Supabase/auth for this app
+      const keysToRemove: string[] = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key) {
+          // Remove Supabase auth tokens and session data
+          if (
+            key.includes('supabase') ||
+            key.includes('auth-token') ||
+            key.includes('sb-') ||
+            key.includes(host)
+          ) {
+            keysToRemove.push(key)
+          }
+        }
+      }
+      
+      keysToRemove.forEach(key => {
+        localStorage.removeItem(key)
+        console.log('AuthContext: Removed localStorage key:', key)
+      })
+    }
+    
+    // Clean sessionStorage too (app-specific)
+    const sessionKeysToRemove: string[] = []
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i)
+      if (key && (key.includes('supabase') || key.includes('auth-token') || key.includes('sb-'))) {
+        sessionKeysToRemove.push(key)
+      }
+    }
+    
+    sessionKeysToRemove.forEach(key => {
+      sessionStorage.removeItem(key)
+      console.log('AuthContext: Removed sessionStorage key:', key)
+    })
+    
+    console.log('AuthContext: App data cleanup complete')
+  } catch (error) {
+    console.error('AuthContext: Error cleaning up app data:', error)
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
@@ -51,33 +107,72 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(null)
           setLoading(false)
           if (timeoutId) clearTimeout(timeoutId)
-          // Redirect to login
+          // Force redirect to login
           if (typeof window !== 'undefined') {
-            window.location.href = '/login'
+            const currentPath = window.location.pathname
+            if (currentPath !== '/login' && currentPath !== '/register' && currentPath !== '/setup') {
+              window.location.replace('/login')
+            }
           }
           return
         }
         
         if (session?.user) {
           try {
-            // Check if user exists in our dd-users table
-            const userExists = await checkUserExists(session.user.id)
+            // Check if user exists in our dd-users table with a shorter timeout (2 seconds)
+            const checkPromise = checkUserExists(session.user.id)
+            const timeoutPromise = new Promise<boolean>((resolve) => 
+              setTimeout(() => {
+                console.log('AuthContext: User check timeout (2s), user not verifiable')
+                resolve(false)
+              }, 2000) // 2 second timeout for faster disconnection
+            )
+            
+            const userExists = await Promise.race([checkPromise, timeoutPromise])
+            
             if (!userExists) {
-              console.log('AuthContext: User not found in dd-users, redirecting to login...')
+              console.log('AuthContext: User not found in dd-users or timeout, disconnecting immediately...')
+              // Clear state immediately
               setSession(null)
               setUser(null)
               setLoading(false)
               if (timeoutId) clearTimeout(timeoutId)
-              await auth.signOut()
-              // Redirect to login page
+              
+              // Force redirect immediately
               if (typeof window !== 'undefined') {
-                window.location.href = '/login'
+                const currentPath = window.location.pathname
+                if (currentPath !== '/login' && currentPath !== '/register' && currentPath !== '/setup') {
+                  window.location.replace('/login')
+                }
               }
+              
+              // Clean up in background
+              cleanupAppData().catch(err => console.error('Error cleaning up:', err))
+              auth.signOut().catch(err => console.error('Error signing out:', err))
               return
             }
           } catch (checkError) {
             console.error('AuthContext: Error checking user existence:', checkError)
-            // Continue with session even if check fails
+            // On error, disconnect to be safe
+            console.log('AuthContext: Error during check, disconnecting...')
+            // Clear state immediately
+            setSession(null)
+            setUser(null)
+            setLoading(false)
+            if (timeoutId) clearTimeout(timeoutId)
+            
+            // Force redirect immediately
+            if (typeof window !== 'undefined') {
+              const currentPath = window.location.pathname
+              if (currentPath !== '/login' && currentPath !== '/register' && currentPath !== '/setup') {
+                window.location.replace('/login')
+              }
+            }
+            
+            // Clean up in background
+            cleanupAppData().catch(err => console.error('Error cleaning up:', err))
+            auth.signOut().catch(err => console.error('Error signing out:', err))
+            return
           }
         }
         
@@ -100,29 +195,117 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     getInitialSession()
     
-    // Add a timeout to prevent infinite loading
-    timeoutId = setTimeout(() => {
-      console.log('AuthContext: Timeout reached (10s), checking session status...')
-      // Check if we're still loading - if yes and no session, redirect
-      if (loading) {
-        console.log('AuthContext: Still loading after timeout, checking session...')
-        getInitialSession().then(() => {
-          // Wait a bit then check again
-          setTimeout(() => {
+    // Add a timeout to prevent infinite loading (reduced to 5 seconds for faster response)
+    timeoutId = setTimeout(async () => {
+      console.log('AuthContext: Timeout reached (5s), checking session and user status...')
+      
+      // Re-check session after timeout
+      try {
+        const { session: currentSession } = await auth.getSession()
+        
+        // If no session after timeout, user is not verifiable - disconnect immediately
+        if (!currentSession || !currentSession.user) {
+          console.log('AuthContext: No session after timeout, disconnecting immediately...')
+          // Clear state immediately
+          setSession(null)
+          setUser(null)
+          setLoading(false)
+          
+          // Force redirect immediately
+          if (typeof window !== 'undefined') {
+            const currentPath = window.location.pathname
+            if (currentPath !== '/login' && currentPath !== '/register' && currentPath !== '/setup') {
+              window.location.replace('/login')
+            }
+          }
+          
+          // Clean up in background
+          cleanupAppData().catch(err => console.error('Error cleaning up:', err))
+          auth.signOut().catch(err => console.error('Error signing out:', err))
+          return
+        }
+        
+        // Always verify user exists in dd-users, even if we have a session
+        if (currentSession.user) {
+          try {
+            // Quick check with 2 second timeout
+            const checkPromise = checkUserExists(currentSession.user.id)
+            const timeoutPromise = new Promise<boolean>((resolve) => 
+              setTimeout(() => {
+                console.log('AuthContext: User check timeout in timeout handler, user not verifiable')
+                resolve(false)
+              }, 2000)
+            )
+            const userExists = await Promise.race([checkPromise, timeoutPromise])
+            
+            // If user doesn't exist, disconnect immediately
+            if (!userExists) {
+              console.log('AuthContext: User not found in dd-users after timeout - disconnecting immediately...')
+              // Clear state immediately
+              setSession(null)
+              setUser(null)
+              setLoading(false)
+              
+              // Force redirect immediately
+              if (typeof window !== 'undefined') {
+                const currentPath = window.location.pathname
+                if (currentPath !== '/login' && currentPath !== '/register' && currentPath !== '/setup') {
+                  window.location.replace('/login')
+                }
+              }
+              
+              // Clean up in background
+              cleanupAppData().catch(err => console.error('Error cleaning up:', err))
+              auth.signOut().catch(err => console.error('Error signing out:', err))
+              return
+            }
+          } catch (checkError) {
+            console.error('AuthContext: Error checking user after timeout:', checkError)
+            // If check fails, disconnect to be safe
+            // Clear state immediately
+            setSession(null)
+            setUser(null)
+            setLoading(false)
+            
+            // Force redirect immediately
             if (typeof window !== 'undefined') {
               const currentPath = window.location.pathname
               if (currentPath !== '/login' && currentPath !== '/register' && currentPath !== '/setup') {
-                console.log('AuthContext: No valid session after timeout, redirecting to login...')
-                setSession(null)
-                setUser(null)
-                setLoading(false)
-                window.location.href = '/login'
+                window.location.replace('/login')
               }
             }
-          }, 1000)
-        })
+            
+            // Clean up in background
+            cleanupAppData().catch(err => console.error('Error cleaning up:', err))
+            auth.signOut().catch(err => console.error('Error signing out:', err))
+            return
+          }
+        }
+        
+        // If we reach here, we have a valid session and verified user - just stop loading
+        console.log('AuthContext: Valid session and verified user found after timeout, stopping loading...')
+        setLoading(false)
+      } catch (timeoutError) {
+        console.error('AuthContext: Error checking session after timeout:', timeoutError)
+        // On error, disconnect to be safe
+        // Clear state immediately
+        setSession(null)
+        setUser(null)
+        setLoading(false)
+        
+        // Force redirect immediately
+        if (typeof window !== 'undefined') {
+          const currentPath = window.location.pathname
+          if (currentPath !== '/login' && currentPath !== '/register' && currentPath !== '/setup') {
+            window.location.replace('/login')
+          }
+        }
+        
+        // Clean up in background
+        cleanupAppData().catch(err => console.error('Error cleaning up:', err))
+        auth.signOut().catch(err => console.error('Error signing out:', err))
       }
-    }, 10000) // 10 second timeout
+    }, 5000) // 5 second timeout (reduced from 10s for faster response)
 
     // Listen for auth changes
     const { data: { subscription } } = auth.onAuthStateChange(async (event, session) => {
@@ -137,18 +320,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       
       if (session?.user) {
-        // Check if user exists in our dd-users table
-        const userExists = await checkUserExists(session.user.id)
-        if (!userExists) {
-          console.log('AuthContext: User not found in dd-users, redirecting to login...')
+        try {
+          // Check if user exists in our dd-users table with timeout
+          const checkPromise = checkUserExists(session.user.id)
+          const timeoutPromise = new Promise<boolean>((resolve) => 
+            setTimeout(() => {
+              console.log('AuthContext: User check timeout in onAuthStateChange, user not verifiable')
+              resolve(false)
+            }, 2000) // 2 second timeout
+          )
+          
+          const userExists = await Promise.race([checkPromise, timeoutPromise])
+          
+          if (!userExists) {
+            console.log('AuthContext: User not found in dd-users (SIGNED_IN), disconnecting immediately...')
+            // Clear state immediately
+            setSession(null)
+            setUser(null)
+            setLoading(false)
+            
+            // Force redirect immediately (don't wait for cleanup)
+            if (typeof window !== 'undefined') {
+              const currentPath = window.location.pathname
+              if (currentPath !== '/login' && currentPath !== '/register' && currentPath !== '/setup') {
+                // Redirect immediately without waiting
+                window.location.replace('/login')
+              }
+            }
+            
+            // Clean up in background
+            cleanupAppData().catch(err => console.error('Error cleaning up:', err))
+            auth.signOut().catch(err => console.error('Error signing out:', err))
+            return
+          }
+        } catch (checkError) {
+          console.error('AuthContext: Error checking user in onAuthStateChange:', checkError)
+          // On error, disconnect to be safe
+          console.log('AuthContext: Error during check in onAuthStateChange, disconnecting...')
+          // Clear state immediately
           setSession(null)
           setUser(null)
           setLoading(false)
-          await auth.signOut()
-          // Redirect to login page
+          
+          // Force redirect immediately
           if (typeof window !== 'undefined') {
-            window.location.href = '/login'
+            const currentPath = window.location.pathname
+            if (currentPath !== '/login' && currentPath !== '/register' && currentPath !== '/setup') {
+              window.location.replace('/login')
+            }
           }
+          
+          // Clean up in background
+          cleanupAppData().catch(err => console.error('Error cleaning up:', err))
+          auth.signOut().catch(err => console.error('Error signing out:', err))
           return
         }
       }
@@ -236,6 +460,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(null)
       setUser(null)
       
+      // Clean up app data
+      await cleanupAppData()
+      
       // Sign out from Supabase (even if user is null)
       try {
         const { error } = await auth.signOut()
@@ -257,6 +484,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Even if there's an error, clear local state and redirect
       setSession(null)
       setUser(null)
+      await cleanupAppData()
       if (typeof window !== 'undefined') {
         window.location.href = '/login'
       }
