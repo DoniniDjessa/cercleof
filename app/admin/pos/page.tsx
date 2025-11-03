@@ -27,9 +27,13 @@ interface Product {
 
 interface Service {
   id: string
-  nom: string
-  prix_base: number
-  duree: number
+  name: string  // English DB column (primary)
+  nom?: string  // French (for backward compatibility)
+  price: number  // English DB column (primary)
+  prix_base?: number  // French (for backward compatibility)
+  duration_minutes: number  // English DB column (primary)
+  duration?: number  // Alternative name
+  duree?: number  // French (for backward compatibility)
   category?: {
     id: string
     name: string
@@ -41,9 +45,10 @@ interface Client {
   first_name: string
   last_name: string
   email: string
-  phones: string[]
-  loyalty_level: string
-  points_fidelite: number
+  phone?: string  // Single phone number
+  phones?: string[]  // Multiple phone numbers (if exists)
+  loyalty_level?: string  // Optional - may not exist in database
+  points_fidelite?: number  // Optional - may not exist in database
 }
 
 interface CartItem {
@@ -60,14 +65,19 @@ export default function POSPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [services, setServices] = useState<Service[]>([])
   const [clients, setClients] = useState<Client[]>([])
+  const [categories, setCategories] = useState<Array<{id: string, name: string}>>([])
   const [cart, setCart] = useState<CartItem[]>([])
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
+  const [clientSearchTerm, setClientSearchTerm] = useState("")
   const [searchTerm, setSearchTerm] = useState("")
+  const [selectedProductCategory, setSelectedProductCategory] = useState<string>("all")
+  const [selectedServiceCategory, setSelectedServiceCategory] = useState<string>("all")
   const [activeTab, setActiveTab] = useState<'products' | 'services'>('products')
   const [discount, setDiscount] = useState(0)
   const [discountType, setDiscountType] = useState<'percentage' | 'amount'>('percentage')
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'carte' | 'mobile_money'>('cash')
   const [loading, setLoading] = useState(false)
+  const [showClientDropdown, setShowClientDropdown] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -86,7 +96,6 @@ export default function POSPage() {
         `)
         .eq('is_active', true)
         .eq('status', 'active')
-        .eq('visible_en_pos', true)
 
       if (productsError) throw productsError
 
@@ -97,22 +106,41 @@ export default function POSPage() {
           *,
           category:dd-categories(id, name)
         `)
-        .eq('actif', true)
+        .eq('is_active', true)
 
       if (servicesError) throw servicesError
 
-      // Fetch clients
+      // Fetch clients (only fields that exist in base table)
       const { data: clientsData, error: clientsError } = await supabase
         .from('dd-clients')
-        .select('id, first_name, last_name, email, phones, loyalty_level, points_fidelite')
+        .select('id, first_name, last_name, email, phone')
         .eq('is_active', true)
         .limit(100)
 
       if (clientsError) throw clientsError
 
-      setProducts(productsData || [])
-      setServices(servicesData || [])
+      // Fetch categories
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from('dd-categories')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name')
+
+      if (categoriesError) {
+        console.error('Error fetching categories:', categoriesError)
+      }
+
+      console.log('POS Data fetched:', {
+        productsCount: productsData?.length || 0,
+        servicesCount: servicesData?.length || 0,
+        clientsCount: clientsData?.length || 0,
+        categoriesCount: categoriesData?.length || 0
+      })
+
+      setProducts((productsData || []) as unknown as Product[])
+      setServices((servicesData || []) as unknown as Service[])
       setClients(clientsData || [])
+      setCategories(categoriesData || [])
     } catch (error) {
       console.error('Error fetching data:', error)
       toast.error('Erreur lors du chargement des données')
@@ -127,13 +155,15 @@ export default function POSPage() {
     if (existingItem) {
       updateCartQuantity(existingItem.id, existingItem.type, existingItem.quantity + 1)
     } else {
+      const service = type === 'service' ? item as Service : null
+      const product = type === 'product' ? item as Product : null
       const cartItem: CartItem = {
         id: item.id,
         type,
-        name: type === 'product' ? item.name : item.nom,
-        price: type === 'product' ? item.price : item.prix_base,
+        name: type === 'product' ? product!.name : (service!.name || service!.nom || 'Service'),
+        price: type === 'product' ? product!.price : (service!.price || service!.prix_base || 0),
         quantity: 1,
-        total: type === 'product' ? item.price : item.prix_base,
+        total: type === 'product' ? product!.price : (service!.price || service!.prix_base || 0),
         data: item
       }
       setCart([...cart, cartItem])
@@ -258,14 +288,14 @@ export default function POSPage() {
         }
       }
 
-      // Update client loyalty points if client is selected
-      if (selectedClient) {
+      // Update client loyalty points if client is selected (only if loyalty system exists)
+      if (selectedClient && selectedClient.points_fidelite !== undefined) {
         const pointsEarned = Math.floor(total / 1000) // 1 point per 1000 XOF
         const { error: loyaltyError } = await supabase
           .from('dd-cartes-fidelite')
           .upsert([{
             client_id: selectedClient.id,
-            points: selectedClient.points_fidelite + pointsEarned,
+            points: (selectedClient.points_fidelite || 0) + pointsEarned,
             statut: 'active'
           }])
 
@@ -290,16 +320,36 @@ export default function POSPage() {
     }
   }
 
-  const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.sku?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.category?.name.toLowerCase().includes(searchTerm.toLowerCase())
+  // Filter clients based on search term
+  const filteredClients = clients.filter(client =>
+    client.first_name.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
+    client.last_name.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
+    client.email.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
+    client.phone?.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
+    client.phones?.some(phone => phone.toLowerCase().includes(clientSearchTerm.toLowerCase()))
   )
 
-  const filteredServices = services.filter(service =>
-    service.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    service.category?.name.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  // Filter products with category filter
+  const filteredProducts = products.filter(product => {
+    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.sku?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.category?.name.toLowerCase().includes(searchTerm.toLowerCase())
+    
+    const matchesCategory = selectedProductCategory === 'all' || product.category?.id === selectedProductCategory
+    
+    return matchesSearch && matchesCategory
+  })
+
+  // Filter services with category filter
+  const filteredServices = services.filter(service => {
+    const serviceName = service.name || service.nom || ''
+    const matchesSearch = serviceName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      service.category?.name.toLowerCase().includes(searchTerm.toLowerCase())
+    
+    const matchesCategory = selectedServiceCategory === 'all' || service.category?.id === selectedServiceCategory
+    
+    return matchesSearch && matchesCategory
+  })
 
   return (
     <div className="p-6 space-y-6">
@@ -312,7 +362,7 @@ export default function POSPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Products & Services Selection */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Client Selection */}
+          {/* Client Selection - Combobox */}
           <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <CardHeader>
               <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
@@ -321,31 +371,72 @@ export default function POSPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <Select
-                value={selectedClient?.id || ''}
-                onValueChange={(value) => {
-                  const client = clients.find(c => c.id === value)
-                  setSelectedClient(client || null)
-                }}
-              >
-                <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
-                  <SelectValue placeholder="Sélectionner un client (optionnel)" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clients.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.first_name} {client.last_name} - {client.points_fidelite} pts
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Input
+                  placeholder="Rechercher ou sélectionner un client..."
+                  value={selectedClient ? `${selectedClient.first_name} ${selectedClient.last_name}` : clientSearchTerm}
+                  onChange={(e) => {
+                    setClientSearchTerm(e.target.value)
+                    setShowClientDropdown(true)
+                    if (!e.target.value) {
+                      setSelectedClient(null)
+                    }
+                  }}
+                  onFocus={() => setShowClientDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowClientDropdown(false), 200)}
+                  className="pl-10 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                />
+                {showClientDropdown && filteredClients.length > 0 && clientSearchTerm && (
+                  <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    {filteredClients.map((client) => (
+                      <div
+                        key={client.id}
+                        onClick={() => {
+                          setSelectedClient(client)
+                          setClientSearchTerm('')
+                          setShowClientDropdown(false)
+                        }}
+                        className="p-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-200 dark:border-gray-600 last:border-b-0"
+                      >
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {client.first_name} {client.last_name}
+                        </p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {client.email} {client.points_fidelite ? `• ${client.points_fidelite} pts` : ''}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
               {selectedClient && (
                 <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                  <p className="text-sm text-blue-800 dark:text-blue-400">
-                    {selectedClient.first_name} {selectedClient.last_name} - 
-                    Niveau: {selectedClient.loyalty_level} - 
-                    Points: {selectedClient.points_fidelite}
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-blue-800 dark:text-blue-400">
+                        {selectedClient.first_name} {selectedClient.last_name}
+                      </p>
+                      {selectedClient.loyalty_level || selectedClient.points_fidelite ? (
+                        <p className="text-xs text-blue-600 dark:text-blue-300">
+                          {selectedClient.loyalty_level ? `Niveau: ${selectedClient.loyalty_level}` : ''}
+                          {selectedClient.loyalty_level && selectedClient.points_fidelite ? ' • ' : ''}
+                          {selectedClient.points_fidelite ? `Points: ${selectedClient.points_fidelite}` : ''}
+                        </p>
+                      ) : null}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedClient(null)
+                        setClientSearchTerm('')
+                      }}
+                      className="text-blue-600 dark:text-blue-400"
+                    >
+                      ×
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -369,7 +460,7 @@ export default function POSPage() {
           {/* Tabs */}
           <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <CardHeader>
-              <div className="flex gap-2">
+              <div className="flex gap-2 mb-4">
                 <Button
                   variant={activeTab === 'products' ? 'default' : 'outline'}
                   onClick={() => setActiveTab('products')}
@@ -387,11 +478,60 @@ export default function POSPage() {
                   Services
                 </Button>
               </div>
+              {/* Category Filter */}
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  variant={activeTab === 'products' ? (selectedProductCategory === 'all' ? 'default' : 'outline') : 'outline'}
+                  size="sm"
+                  onClick={() => setSelectedProductCategory('all')}
+                  className="text-xs"
+                >
+                  Tous
+                </Button>
+                {categories
+                  .filter(cat => activeTab === 'products' 
+                    ? products.some(p => p.category?.id === cat.id)
+                    : services.some(s => s.category?.id === cat.id))
+                  .map((category) => (
+                    <Button
+                      key={category.id}
+                      variant={activeTab === 'products' 
+                        ? (selectedProductCategory === category.id ? 'default' : 'outline')
+                        : (selectedServiceCategory === category.id ? 'default' : 'outline')
+                      }
+                      size="sm"
+                      onClick={() => {
+                        if (activeTab === 'products') {
+                          setSelectedProductCategory(category.id)
+                        } else {
+                          setSelectedServiceCategory(category.id)
+                        }
+                      }}
+                      className="text-xs"
+                    >
+                      {category.name}
+                    </Button>
+                  ))}
+              </div>
             </CardHeader>
             <CardContent>
               {activeTab === 'products' ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredProducts.map((product) => (
+                filteredProducts.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-500 dark:text-gray-400">
+                      {searchTerm || selectedProductCategory !== 'all' 
+                        ? 'Aucun produit trouvé avec ces filtres' 
+                        : 'Aucun produit disponible'}
+                    </p>
+                    {products.length > 0 && (
+                      <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
+                        Total produits: {products.length} • Filtrés: {filteredProducts.length}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredProducts.map((product) => (
                     <div
                       key={product.id}
                       className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
@@ -418,10 +558,25 @@ export default function POSPage() {
                       </div>
                     </div>
                   ))}
-                </div>
+                  </div>
+                )
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredServices.map((service) => (
+                filteredServices.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-500 dark:text-gray-400">
+                      {searchTerm || selectedServiceCategory !== 'all' 
+                        ? 'Aucun service trouvé avec ces filtres' 
+                        : 'Aucun service disponible'}
+                    </p>
+                    {services.length > 0 && (
+                      <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
+                        Total services: {services.length} • Filtrés: {filteredServices.length}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredServices.map((service) => (
                     <div
                       key={service.id}
                       className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
@@ -432,15 +587,16 @@ export default function POSPage() {
                           <Scissors className="w-6 h-6 text-gray-400" />
                         </div>
                         <div className="flex-1">
-                          <p className="font-medium text-gray-900 dark:text-white">{service.nom}</p>
+                          <p className="font-medium text-gray-900 dark:text-white">{service.name || service.nom}</p>
                           <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {service.prix_base.toFixed(0)} XOF • {service.duree} min
+                            {(service.price || service.prix_base || 0).toFixed(0)} XOF • {service.duration_minutes || service.duration || service.duree || 0} min
                           </p>
                         </div>
                       </div>
                     </div>
                   ))}
-                </div>
+                  </div>
+                )
               )}
             </CardContent>
           </Card>

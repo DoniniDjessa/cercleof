@@ -13,19 +13,29 @@ import { Search, Eye, Trash2, Package, Clock, DollarSign, Users, Scissors } from
 import { AddService } from "@/components/services/add-service"
 import { supabase } from "@/lib/supabase"
 import toast from "react-hot-toast"
+import { useAuth } from "@/contexts/AuthContext"
 
 interface Service {
   id: string
-  nom: string
+  name: string  // English DB column (primary - actual column name)
+  nom?: string  // French (for backward compatibility)
   description?: string
-  prix_base: number
-  duree: number
-  employe_type?: string
-  commission_employe: number
-  actif: boolean
-  popularite: number
+  price: number  // English DB column (primary - actual column name)
+  prix_base?: number  // French (for backward compatibility)
+  duration_minutes: number  // English DB column (primary - actual column name)
+  duration?: number  // Alternative name
+  duree?: number  // French (for backward compatibility)
+  employe_type?: string  // May not exist in actual DB
+  employee_type?: string  // Alternative name
+  commission_employe?: number  // May not exist in actual DB
+  commission_rate?: number  // Alternative name
+  is_active: boolean  // DB column (primary - actual column name)
+  actif?: boolean  // French (for backward compatibility)
+  popularite?: number  // May not exist in actual DB
+  popularity?: number  // Alternative name
   tags: string[]
-  photo?: string
+  images?: string[]  // JSONB array (primary - actual column name)
+  photo?: string  // French (for backward compatibility)
   created_at: string
   category?: {
     id: string
@@ -34,6 +44,7 @@ interface Service {
 }
 
 export default function ServicesPage() {
+  const { user: authUser } = useAuth()
   const searchParams = useSearchParams()
   const [services, setServices] = useState<Service[]>([])
   const [loading, setLoading] = useState(true)
@@ -42,6 +53,7 @@ export default function ServicesPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const itemsPerPage = 20
+  const [currentUserRole, setCurrentUserRole] = useState<string>('')
 
   useEffect(() => {
     const action = searchParams.get('action')
@@ -54,7 +66,32 @@ export default function ServicesPage() {
 
   useEffect(() => {
     fetchServices()
+    fetchCurrentUserRole()
   }, [currentPage])
+
+  const fetchCurrentUserRole = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('dd-users')
+        .select('role')
+        .eq('auth_user_id', authUser?.id)
+        .single()
+
+      if (error && error.code === 'PGRST116') {
+        setCurrentUserRole('')
+        return
+      }
+
+      if (error) throw error
+      setCurrentUserRole(data?.role || '')
+    } catch (error) {
+      console.error('Error fetching user role:', error)
+      setCurrentUserRole('')
+    }
+  }
+
+  // Check if user can manage services (admin, manager, superadmin)
+  const canManageServices = currentUserRole === 'admin' || currentUserRole === 'manager' || currentUserRole === 'superadmin'
 
   const fetchServices = async () => {
     try {
@@ -73,7 +110,7 @@ export default function ServicesPage() {
 
       if (error) throw error
 
-      setServices(data || [])
+      setServices((data || []) as unknown as Service[])
       setTotalPages(Math.ceil((count || 0) / itemsPerPage))
     } catch (error) {
       console.error('Error fetching services:', error)
@@ -84,6 +121,11 @@ export default function ServicesPage() {
   }
 
   const deleteService = async (serviceId: string) => {
+    if (!canManageServices) {
+      toast.error('Vous n\'avez pas la permission de supprimer des services')
+      return
+    }
+
     if (!confirm('Êtes-vous sûr de vouloir supprimer ce service ? Cette action ne peut pas être annulée.')) {
       return
     }
@@ -125,17 +167,19 @@ export default function ServicesPage() {
     }
   }
 
-  const filteredServices = services.filter(service =>
-    service.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    service.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    service.category?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    service.employe_type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    service.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
-  )
+  const filteredServices = services.filter(service => {
+    const serviceName = service.name || service.nom || ''
+    const employeeType = service.employee_type || service.employe_type || ''
+    return serviceName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      service.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      service.category?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      employeeType.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      service.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
+  })
 
   const totalServices = services.length
-  const activeServices = services.filter(s => s.actif).length
-  const totalRevenue = services.reduce((sum, service) => sum + service.prix_base, 0)
+  const activeServices = services.filter(s => s.is_active || s.actif).length
+  const totalRevenue = services.reduce((sum, service) => sum + (service.price || service.prix_base || 0), 0)
   const averagePrice = totalServices > 0 ? totalRevenue / totalServices : 0
 
   if (showCreateForm) {
@@ -150,18 +194,20 @@ export default function ServicesPage() {
           <h1 className="text-3xl font-bold text-foreground dark:text-white">Services</h1>
           <p className="text-muted-foreground dark:text-gray-400">Gérez tous vos services et prestations</p>
         </div>
-        <AnimatedButton
-          onClick={() => {
-            const url = new URL(window.location.href)
-            url.searchParams.set('action', 'create')
-            window.history.pushState({}, '', url.toString())
-            setShowCreateForm(true)
-          }}
-          className="bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white"
-        >
-          <Scissors className="w-4 h-4 mr-2" />
-          Ajouter un Service
-        </AnimatedButton>
+        {canManageServices && (
+          <AnimatedButton
+            onClick={() => {
+              const url = new URL(window.location.href)
+              url.searchParams.set('action', 'create')
+              window.history.pushState({}, '', url.toString())
+              setShowCreateForm(true)
+            }}
+            className="bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white"
+          >
+            <Scissors className="w-4 h-4 mr-2" />
+            Ajouter un Service
+          </AnimatedButton>
+        )}
       </div>
 
       {/* Stats Cards */}
@@ -217,7 +263,7 @@ export default function ServicesPage() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Durée Moyenne</p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {totalServices > 0 ? Math.round(services.reduce((sum, s) => sum + s.duree, 0) / totalServices) : 0} min
+                  {totalServices > 0 ? Math.round(services.reduce((sum, s) => sum + (s.duration_minutes || s.duration || s.duree || 0), 0) / totalServices) : 0} min
                 </p>
               </div>
             </div>
@@ -268,10 +314,10 @@ export default function ServicesPage() {
                   {filteredServices.map((service) => (
                     <TableRow key={service.id} className="border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
                       <TableCell>
-                        {service.photo ? (
+                        {(service.images && service.images.length > 0) || service.photo ? (
                           <img
-                            src={service.photo}
-                            alt={service.nom}
+                            src={(service.images && service.images[0]) || service.photo}
+                            alt={service.name || service.nom || 'Service'}
                             className="w-10 h-10 rounded-lg object-cover"
                           />
                         ) : (
@@ -282,7 +328,7 @@ export default function ServicesPage() {
                       </TableCell>
                       <TableCell>
                         <div>
-                          <p className="font-medium text-gray-900 dark:text-white">{service.nom}</p>
+                          <p className="font-medium text-gray-900 dark:text-white">{service.name || service.nom}</p>
                           {service.description && (
                             <p className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-xs">
                               {service.description}
@@ -297,27 +343,27 @@ export default function ServicesPage() {
                       </TableCell>
                       <TableCell>
                         <span className="font-medium text-gray-900 dark:text-white">
-                          {service.prix_base.toFixed(0)} XOF
+                          {(service.price || service.prix_base || 0).toFixed(0)} XOF
                         </span>
                       </TableCell>
                       <TableCell>
                         <span className="text-gray-900 dark:text-white">
-                          {service.duree} min
+                          {service.duration_minutes || service.duration || service.duree || 0} min
                         </span>
                       </TableCell>
                       <TableCell>
                         <span className="text-gray-900 dark:text-white">
-                          {getEmployeeTypeText(service.employe_type)}
+                          {getEmployeeTypeText(service.employee_type || service.employe_type || '')}
                         </span>
                       </TableCell>
                       <TableCell>
                         <span className="text-gray-900 dark:text-white">
-                          {service.commission_employe}%
+                          {(service.commission_rate || service.commission_employe || 0)}%
                         </span>
                       </TableCell>
                       <TableCell>
-                        <Badge className={getStatusColor(service.actif)}>
-                          {getStatusText(service.actif)}
+                        <Badge className={getStatusColor(service.is_active ?? service.actif ?? false)}>
+                          {getStatusText(service.is_active ?? service.actif ?? false)}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -333,14 +379,16 @@ export default function ServicesPage() {
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => deleteService(service.id)}
-                            className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          {canManageServices && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => deleteService(service.id)}
+                              className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

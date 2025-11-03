@@ -49,6 +49,7 @@ export default function ProductsPage() {
   const [stockIncreaseDialog, setStockIncreaseDialog] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null })
   const [stockQuantity, setStockQuantity] = useState('')
   const [increasingStock, setIncreasingStock] = useState(false)
+  const [lowStockFilter, setLowStockFilter] = useState(false)
 
   useEffect(() => {
     fetchProducts()
@@ -185,14 +186,19 @@ export default function ProductsPage() {
     }
   }
 
-  // Filter products based on search term
-  const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.sku?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.brand?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (product.show_to_website && 'site web'.includes(searchTerm.toLowerCase())) ||
-    (!product.show_to_website && 'non site web'.includes(searchTerm.toLowerCase()))
-  )
+  // Filter products based on search term and low stock filter
+  const filteredProducts = products.filter(product => {
+    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.sku?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.brand?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (product.show_to_website && 'site web'.includes(searchTerm.toLowerCase())) ||
+      (!product.show_to_website && 'non site web'.includes(searchTerm.toLowerCase()))
+    
+    if (lowStockFilter) {
+      return matchesSearch && product.stock_quantity < 10
+    }
+    return matchesSearch
+  })
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -299,6 +305,14 @@ export default function ProductsPage() {
                     className="pl-10 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
                   />
                 </div>
+                <Button
+                  variant={lowStockFilter ? "default" : "outline"}
+                  onClick={() => setLowStockFilter(!lowStockFilter)}
+                  className={lowStockFilter ? "bg-red-600 hover:bg-red-700 text-white" : "bg-transparent border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"}
+                >
+                  <Package className="w-4 h-4 mr-2" />
+                  Stock Faibles
+                </Button>
               </div>
             </CardContent>
           </Card>

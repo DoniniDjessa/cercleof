@@ -7,21 +7,31 @@ import { Badge } from "@/components/ui/badge"
 import { Edit, Trash2, ArrowLeft, Scissors, Clock, DollarSign, Users, Package } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { ButtonLoadingSpinner } from "@/components/ui/context-loaders"
+import { useAuth } from "@/contexts/AuthContext"
 import toast from "react-hot-toast"
 
 interface Service {
   id: string
-  nom: string
+  name: string  // English DB column (primary - actual column name)
+  nom?: string  // French (for backward compatibility)
   description?: string
   category_id?: string
-  prix_base: number
-  duree: number
-  employe_type?: string
-  commission_employe: number
-  actif: boolean
-  popularite: number
+  price: number  // English DB column (primary - actual column name)
+  prix_base?: number  // French (for backward compatibility)
+  duration_minutes: number  // English DB column (primary - actual column name)
+  duration?: number  // Alternative name
+  duree?: number  // French (for backward compatibility)
+  employe_type?: string  // May not exist in actual DB
+  employee_type?: string  // Alternative name
+  commission_employe?: number  // May not exist in actual DB
+  commission_rate?: number  // Alternative name
+  is_active: boolean  // DB column (primary - actual column name)
+  actif?: boolean  // French (for backward compatibility)
+  popularite?: number  // May not exist in actual DB
+  popularity?: number  // Alternative name
   tags: string[]
-  photo?: string
+  images?: string[]  // JSONB array (primary - actual column name)
+  photo?: string  // French (for backward compatibility)
   created_at: string
   category?: {
     id: string
@@ -48,16 +58,43 @@ interface ServiceDetailsProps {
 }
 
 export function ServiceDetails({ serviceId }: ServiceDetailsProps) {
+  const { user: authUser } = useAuth()
   const [service, setService] = useState<Service | null>(null)
   const [serviceProducts, setServiceProducts] = useState<ServiceProduct[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [currentUserRole, setCurrentUserRole] = useState<string>('')
 
   useEffect(() => {
     if (serviceId) {
       fetchService()
+      fetchCurrentUserRole()
     }
   }, [serviceId])
+
+  const fetchCurrentUserRole = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('dd-users')
+        .select('role')
+        .eq('auth_user_id', authUser?.id)
+        .single()
+
+      if (error && error.code === 'PGRST116') {
+        setCurrentUserRole('')
+        return
+      }
+
+      if (error) throw error
+      setCurrentUserRole(data?.role || '')
+    } catch (error) {
+      console.error('Error fetching user role:', error)
+      setCurrentUserRole('')
+    }
+  }
+
+  // Check if user can manage services (admin, manager, superadmin)
+  const canManageServices = currentUserRole === 'admin' || currentUserRole === 'manager' || currentUserRole === 'superadmin'
 
   const fetchService = async () => {
     try {
@@ -73,7 +110,14 @@ export function ServiceDetails({ serviceId }: ServiceDetailsProps) {
         .eq('id', serviceId)
         .single()
 
-      if (serviceError) throw serviceError
+      if (serviceError) {
+        console.error('Error fetching service:', serviceError)
+        throw serviceError
+      }
+
+      if (!serviceData) {
+        throw new Error('Service not found')
+      }
 
       // Fetch service products
       const { data: productsData, error: productsError } = await supabase
@@ -86,8 +130,8 @@ export function ServiceDetails({ serviceId }: ServiceDetailsProps) {
 
       if (productsError) throw productsError
 
-      setService(serviceData)
-      setServiceProducts(productsData || [])
+      setService(serviceData as unknown as Service)
+      setServiceProducts((productsData || []) as unknown as ServiceProduct[])
     } catch (error) {
       console.error('Error fetching service:', error)
       setError('Erreur lors de la récupération du service')
@@ -98,9 +142,12 @@ export function ServiceDetails({ serviceId }: ServiceDetailsProps) {
   }
 
   const deleteService = async () => {
-    if (!service) return
+    if (!service || !canManageServices) {
+      toast.error('Vous n\'avez pas la permission de supprimer des services')
+      return
+    }
     
-    if (!confirm(`Êtes-vous sûr de vouloir supprimer le service "${service.nom}"? Cette action ne peut pas être annulée.`)) {
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer le service "${service.name || service.nom || 'Service'}"? Cette action ne peut pas être annulée.`)) {
       return
     }
 
@@ -173,9 +220,9 @@ export function ServiceDetails({ serviceId }: ServiceDetailsProps) {
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div>
-          <h1 className="text-3xl font-bold text-foreground dark:text-white">{service.nom}</h1>
+          <h1 className="text-3xl font-bold text-foreground dark:text-white">{service.name || service.nom}</h1>
           <p className="text-muted-foreground dark:text-gray-400">
-            {service.category?.name || 'Non catégorisé'} • {service.duree} minutes
+            {service.category?.name || 'Non catégorisé'} • {service.duration_minutes || service.duration || service.duree || 0} minutes
           </p>
         </div>
       </div>
@@ -184,7 +231,7 @@ export function ServiceDetails({ serviceId }: ServiceDetailsProps) {
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-6">
           {/* Service Image */}
-          {service.photo && (
+          {((service.images && service.images.length > 0) || service.photo) && (
             <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
               <CardHeader>
                 <CardTitle className="text-gray-900 dark:text-white">Image du Service</CardTitle>
@@ -192,8 +239,8 @@ export function ServiceDetails({ serviceId }: ServiceDetailsProps) {
               <CardContent>
                 <div className="flex justify-center">
                   <img
-                    src={service.photo}
-                    alt={service.nom}
+                    src={(service.images && service.images[0]) || service.photo}
+                    alt={service.name || service.nom || 'Service'}
                     className="w-full max-w-md h-64 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
                   />
                 </div>
@@ -215,20 +262,20 @@ export function ServiceDetails({ serviceId }: ServiceDetailsProps) {
                 <div>
                   <p className="text-sm text-muted-foreground dark:text-gray-400">Statut</p>
                   <Badge className={
-                    service.actif 
+                    (service.is_active ?? service.actif ?? false)
                       ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
                       : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
                   }>
-                    {service.actif ? 'Actif' : 'Inactif'}
+                    {(service.is_active ?? service.actif ?? false) ? 'Actif' : 'Inactif'}
                   </Badge>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground dark:text-gray-400">Type d'Employé</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{getEmployeeTypeText(service.employe_type)}</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{getEmployeeTypeText(service.employee_type || service.employe_type || '')}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground dark:text-gray-400">Popularité</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{service.popularite} points</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{service.popularity || service.popularite || 0} points</p>
                 </div>
               </div>
               {service.description && (
@@ -249,15 +296,15 @@ export function ServiceDetails({ serviceId }: ServiceDetailsProps) {
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
                   <p className="text-xs text-muted-foreground dark:text-gray-400">Prix de Base</p>
-                  <p className="text-xl font-bold text-gray-900 dark:text-white">{service.prix_base.toFixed(0)} XOF</p>
+                  <p className="text-xl font-bold text-gray-900 dark:text-white">{(service.price || service.prix_base || 0).toFixed(0)} XOF</p>
                 </div>
                 <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
                   <p className="text-xs text-muted-foreground dark:text-gray-400">Durée</p>
-                  <p className="text-xl font-bold text-gray-900 dark:text-white">{service.duree} min</p>
+                  <p className="text-xl font-bold text-gray-900 dark:text-white">{service.duration_minutes || service.duration || service.duree || 0} min</p>
                 </div>
                 <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
                   <p className="text-xs text-muted-foreground dark:text-gray-400">Commission Employé</p>
-                  <p className="text-xl font-bold text-gray-900 dark:text-white">{service.commission_employe}%</p>
+                  <p className="text-xl font-bold text-gray-900 dark:text-white">{(service.commission_rate || service.commission_employe || 0)}%</p>
                 </div>
               </div>
             </CardContent>
@@ -327,18 +374,22 @@ export function ServiceDetails({ serviceId }: ServiceDetailsProps) {
               <CardTitle className="text-gray-900 dark:text-white">Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <Button className="w-full gap-2 bg-blue-600 hover:bg-blue-700 text-white">
-                <Edit className="w-4 h-4" />
-                Modifier le Service
-              </Button>
-              <Button 
-                variant="destructive" 
-                className="w-full gap-2"
-                onClick={deleteService}
-              >
-                <Trash2 className="w-4 h-4" />
-                Supprimer le Service
-              </Button>
+              {canManageServices && (
+                <>
+                  <Button className="w-full gap-2 bg-blue-600 hover:bg-blue-700 text-white">
+                    <Edit className="w-4 h-4" />
+                    Modifier le Service
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    className="w-full gap-2"
+                    onClick={deleteService}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Supprimer le Service
+                  </Button>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -351,13 +402,13 @@ export function ServiceDetails({ serviceId }: ServiceDetailsProps) {
               <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                 <p className="text-xs text-muted-foreground dark:text-gray-400">Prix de Base</p>
                 <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                  {service.prix_base.toFixed(0)} XOF
+                  {(service.price || service.prix_base || 0).toFixed(0)} XOF
                 </p>
               </div>
               <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
                 <p className="text-xs text-muted-foreground dark:text-gray-400">Commission Employé</p>
                 <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                  {service.commission_employe}%
+                  {(service.commission_rate || service.commission_employe || 0)}%
                 </p>
               </div>
               <div className="text-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
