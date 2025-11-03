@@ -41,6 +41,11 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
+  // Debug: Log when userProfile changes
+  useEffect(() => {
+    console.log('Navbar: userProfile state changed:', userProfile)
+  }, [userProfile])
+
   const fetchUserProfile = async () => {
     if (!user?.id) {
       setLoading(false)
@@ -50,11 +55,14 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
     try {
       setLoading(true)
       const supabase = createClient()
+      console.log('Navbar: Fetching profile for auth_user_id:', user.id)
       const { data, error } = await supabase
         .from('dd-users')
         .select('pseudo, email')
         .eq('auth_user_id', user.id)
         .single()
+
+      console.log('Navbar: Query result - data:', data, 'error:', error)
 
       if (error && error.code === 'PGRST116') {
         // User not found in dd-users - redirect after a delay
@@ -89,6 +97,8 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
       }
 
       // User has valid pseudo or email - set profile
+      console.log('Navbar: Profile data received:', data)
+      console.log('Navbar: Pseudo:', data.pseudo, 'Email:', data.email)
       setUserProfile(data)
       setLoading(false)
     } catch (error) {
@@ -98,12 +108,17 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
   }
 
   const getUserDisplayName = () => {
+    console.log('Navbar: getUserDisplayName called - userProfile:', userProfile)
     // Prefer profile pseudo/email, fallback to auth user email
     if (userProfile) {
-      return userProfile.pseudo || userProfile.email || null
+      const displayName = userProfile.pseudo || userProfile.email || null
+      console.log('Navbar: Display name from profile:', displayName)
+      return displayName
     }
     // Fallback to auth user email while loading
-    return user?.email?.split('@')[0] || null
+    const fallback = user?.email?.split('@')[0] || null
+    console.log('Navbar: Fallback to auth email:', fallback)
+    return fallback
   }
 
   const handleSignOut = async () => {
@@ -174,10 +189,14 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
               </div>
               <div className="hidden sm:block text-left">
                 <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  {loading ? 'Chargement...' : (getUserDisplayName() || user?.email?.split('@')[0] || 'Utilisateur')}
+                  {loading 
+                    ? 'Chargement...' 
+                    : (userProfile?.pseudo || userProfile?.email || user?.email?.split('@')[0] || 'Utilisateur')}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {userProfile ? `Travail sur ${getUserDisplayName()}` : (loading ? 'Chargement...' : t('nav.online'))}
+                  {userProfile 
+                    ? `Travail sur ${userProfile.pseudo || userProfile.email}` 
+                    : (loading ? 'Chargement...' : t('nav.online'))}
                 </p>
               </div>
               <ChevronDown className="h-4 w-4 text-gray-400" />
@@ -194,10 +213,14 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
               >
                 <div className="px-4 py-3 border-b-0 shadow-sm">
                   <p className="text-sm font-medium text-gray-900 dark:text-white">
-                    {loading ? 'Chargement...' : (getUserDisplayName() || user?.email?.split('@')[0] || 'Utilisateur')}
+                    {loading 
+                      ? 'Chargement...' 
+                      : (userProfile?.pseudo || userProfile?.email || user?.email?.split('@')[0] || 'Utilisateur')}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {userProfile ? `Travail sur ${getUserDisplayName()}` : (loading ? 'Chargement...' : t('nav.online'))}
+                    {userProfile 
+                      ? `Travail sur ${userProfile.pseudo || userProfile.email}` 
+                      : (loading ? 'Chargement...' : t('nav.online'))}
                   </p>
                   {userProfile?.pseudo && userProfile?.email && (
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
