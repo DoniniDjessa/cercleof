@@ -249,7 +249,7 @@ export default function ServicesPage() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Prix Moyen</p>
-                <p className="text-base font-bold text-gray-900 dark:text-white">{averagePrice.toFixed(0)} XOF</p>
+                <p className="text-base font-bold text-gray-900 dark:text-white">{averagePrice.toFixed(0)}f</p>
               </div>
             </div>
           </CardContent>
@@ -346,7 +346,7 @@ export default function ServicesPage() {
                       </TableCell>
                       <TableCell>
                         <span className="font-medium text-gray-900 dark:text-white">
-                          {(service.price || service.prix_base || 0).toFixed(0)} XOF
+                          {(service.price || service.prix_base || 0).toFixed(0)}f
                         </span>
                       </TableCell>
                       <TableCell>

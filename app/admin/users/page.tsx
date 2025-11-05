@@ -699,7 +699,7 @@ export default function UsersManagementPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="trav_taux_horaire" className="text-gray-700 dark:text-gray-300">Taux Horaire (XOF)</Label>
+                  <Label htmlFor="trav_taux_horaire" className="text-gray-700 dark:text-gray-300">Taux Horaire (f)</Label>
                   <Input
                     id="trav_taux_horaire"
                     type="number"
@@ -1036,7 +1036,7 @@ export default function UsersManagementPage() {
                             </TableCell>
                             <TableCell>
                               <span className="text-gray-900 dark:text-white text-xs">
-                                {travailleur.taux_horaire ? `${travailleur.taux_horaire.toFixed(0)} XOF/h` : '—'}
+                                {travailleur.taux_horaire ? `${travailleur.taux_horaire.toFixed(0)}f/h` : '—'}
                               </span>
                             </TableCell>
                             <TableCell>

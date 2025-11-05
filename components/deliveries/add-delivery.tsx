@@ -300,7 +300,7 @@ export function AddDelivery({ onDeliveryCreated }: AddDeliveryProps) {
                   <SelectContent>
                     {sales.map((sale) => (
                       <SelectItem key={sale.id} value={sale.id}>
-                        #{sale.id.slice(-8)} - {sale.client ? `${sale.client.first_name} ${sale.client.last_name}` : 'Client anonyme'} - {sale.total_net.toFixed(0)} XOF
+                        #{sale.id.slice(-8)} - {sale.client ? `${sale.client.first_name} ${sale.client.last_name}` : 'Client anonyme'} - {sale.total_net.toFixed(0)}f
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -419,7 +419,7 @@ export function AddDelivery({ onDeliveryCreated }: AddDeliveryProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="frais" className="text-gray-700 dark:text-gray-300">Frais de Livraison (XOF)</Label>
+                  <Label htmlFor="frais" className="text-gray-700 dark:text-gray-300">Frais de Livraison (f)</Label>
                   <Input
                     id="frais"
                     name="frais"
@@ -551,7 +551,7 @@ export function AddDelivery({ onDeliveryCreated }: AddDeliveryProps) {
                 <div>
                   <p className="text-muted-foreground dark:text-gray-400">Frais</p>
                   <p className="font-medium text-gray-900 dark:text-white">
-                    {formData.frais.toFixed(0)} XOF
+                    {formData.frais.toFixed(0)}f
                   </p>
                 </div>
               </div>

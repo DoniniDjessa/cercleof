@@ -420,12 +420,12 @@ export default function PromotionsPage() {
                           <div className="font-medium">
                             {promotion.type === 'percentage' 
                               ? `${promotion.value}%`
-                              : `${promotion.value.toLocaleString()} XOF`
+                              : `${promotion.value.toLocaleString()}f`
                             }
                           </div>
                           {promotion.min_purchase_amount && (
                             <div className="text-xs text-gray-500">
-                              Min: {promotion.min_purchase_amount.toLocaleString()} XOF
+                              Min: {promotion.min_purchase_amount.toLocaleString()}f
                             </div>
                           )}
                         </TableCell>

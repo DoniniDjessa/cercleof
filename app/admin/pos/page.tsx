@@ -605,7 +605,7 @@ export default function POSPage() {
         }
       } else {
         // Fallback
-        actionDescription = `${timePrefix}: Vente effectuée: ${total.toFixed(0)} XOF - ${cart.length} article(s) - vendu par ${userDisplayName}`
+        actionDescription = `${timePrefix}: Vente effectuée: ${total.toFixed(0)}f - ${cart.length} article(s) - vendu par ${userDisplayName}`
       }
 
       // Create action entry (audit trail) - only if not already created for services
@@ -644,7 +644,7 @@ export default function POSPage() {
 
       // Update client loyalty points and last visit if client is selected
       if (selectedClient) {
-        const pointsEarned = Math.floor(total / 1000) // 1 point per 1000 XOF
+        const pointsEarned = Math.floor(total / 1000) // 1 point per 1000f
         
         // Update loyalty card
         const { error: loyaltyError } = await supabase
@@ -683,7 +683,7 @@ export default function POSPage() {
         }
       }
 
-      toast.success(`Vente effectuée avec succès! Total: ${total.toFixed(0)} XOF`)
+      toast.success(`Vente effectuée avec succès! Total: ${total.toFixed(0)}f`)
       
       // Reset form
       setCart([])
@@ -941,7 +941,7 @@ export default function POSPage() {
                         <div className="flex-1">
                           <p className="font-medium text-gray-900 dark:text-white text-xs">{product.name}</p>
                           <p className="text-[10px] text-gray-500 dark:text-gray-400">
-                            {product.price.toFixed(0)} XOF • Stock: {product.stock_quantity}
+                            {product.price.toFixed(0)}f • Stock: {product.stock_quantity}
                           </p>
                         </div>
                       </div>
@@ -978,7 +978,7 @@ export default function POSPage() {
                         <div className="flex-1">
                           <p className="font-medium text-gray-900 dark:text-white text-xs">{service.name || service.nom}</p>
                           <p className="text-[10px] text-gray-500 dark:text-gray-400">
-                            {(service.price || service.prix_base || 0).toFixed(0)} XOF • {service.duration_minutes || service.duration || service.duree || 0} min
+                            {(service.price || service.prix_base || 0).toFixed(0)}f • {service.duration_minutes || service.duration || service.duree || 0} min
                           </p>
                         </div>
                       </div>
@@ -1013,7 +1013,7 @@ export default function POSPage() {
                       <div className="flex-1">
                         <p className="font-medium text-gray-900 dark:text-white text-[10px]">{item.name}</p>
                         <p className="text-[9px] text-gray-500 dark:text-gray-400">
-                          {item.price.toFixed(0)} XOF × {item.quantity}
+                          {item.price.toFixed(0)}f × {item.quantity}
                         </p>
                       </div>
                       <div className="flex items-center gap-1">
@@ -1098,7 +1098,7 @@ export default function POSPage() {
                   {appliedPromotion && (
                     <div className="p-1.5 bg-green-50 dark:bg-green-900/20 rounded-sm">
                       <p className="text-[10px] text-green-800 dark:text-green-400">
-                        ✓ Promotion "{appliedPromotion.nom}" appliquée ({appliedPromotion.valeur}{appliedPromotion.valeur_type === 'pourcentage' ? '%' : ' XOF'})
+                        ✓ Promotion "{appliedPromotion.nom}" appliquée ({appliedPromotion.valeur}{appliedPromotion.valeur_type === 'pourcentage' ? '%' : 'f'})
                       </p>
                     </div>
                   )}
@@ -1128,7 +1128,7 @@ export default function POSPage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="percentage">%</SelectItem>
-                          <SelectItem value="amount">XOF</SelectItem>
+                          <SelectItem value="amount">f</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1208,17 +1208,17 @@ export default function POSPage() {
                 <div className="space-y-1.5 pt-3 border-t border-gray-200 dark:border-gray-600">
                   <div className="flex justify-between">
                     <span className="text-gray-600 dark:text-gray-400 text-xs">Sous-total:</span>
-                    <span className="text-gray-900 dark:text-white text-xs">{calculateSubtotal().toFixed(0)} XOF</span>
+                    <span className="text-gray-900 dark:text-white text-xs">{calculateSubtotal().toFixed(0)}f</span>
                   </div>
                   {(appliedPromotion || (discount > 0 && canManageDiscounts)) && (
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400 text-xs">Réduction:</span>
-                      <span className="text-red-600 dark:text-red-400 text-xs">-{calculateDiscountAmount().toFixed(0)} XOF</span>
+                      <span className="text-red-600 dark:text-red-400 text-xs">-{calculateDiscountAmount().toFixed(0)}f</span>
                     </div>
                   )}
                   <div className="flex justify-between font-bold">
                     <span className="text-gray-900 dark:text-white text-xs">Total:</span>
-                    <span className="text-gray-900 dark:text-white text-xs">{calculateTotal().toFixed(0)} XOF</span>
+                    <span className="text-gray-900 dark:text-white text-xs">{calculateTotal().toFixed(0)}f</span>
                   </div>
                 </div>
 

@@ -316,7 +316,7 @@ export default function AppointmentsPage() {
                             {appointment.service?.nom}
                           </p>
                           <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {appointment.service?.prix_base.toFixed(0)} XOF
+                            {appointment.service?.prix_base.toFixed(0)}f
                           </p>
                         </div>
                       </TableCell>

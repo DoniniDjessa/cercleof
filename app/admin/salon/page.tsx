@@ -640,7 +640,7 @@ export default function SalonPage() {
                         <p className="font-medium text-gray-900 dark:text-white">{service.service_name}</p>
                       </TableCell>
                       <TableCell>
-                        <span className="text-gray-900 dark:text-white">{service.service_price.toFixed(0)} XOF</span>
+                        <span className="text-gray-900 dark:text-white">{service.service_price.toFixed(0)}f</span>
                       </TableCell>
                       <TableCell>
                         {service.travailleurs && service.travailleurs.length > 0 ? (

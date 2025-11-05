@@ -62,7 +62,7 @@ export function MainLayout({ children }: MainLayoutProps) {
         />
 
         {/* Page content */}
-        <main className="flex-1 p-6 lg:p-8 bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+        <main className="flex-1 p-6 lg:p-8 bg-slate-50 dark:bg-gray-900 transition-colors duration-300">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

@@ -450,7 +450,7 @@ export default function ActionsPage() {
                                     </div>
                                     <div>
                                       <span className="text-gray-500">Total:</span>{' '}
-                                      <span>{actionDetails[action.id].sale?.total_net?.toFixed(0)} XOF</span>
+                                      <span>{actionDetails[action.id].sale?.total_net?.toFixed(0)}f</span>
                                     </div>
                                     <div>
                                       <span className="text-gray-500">Méthode:</span>{' '}
@@ -467,7 +467,7 @@ export default function ActionsPage() {
                                           <span>
                                             {item.product ? item.product.name : item.service ? item.service.name : 'N/A'} x {item.quantite}
                                           </span>
-                                          <span>{item.total?.toFixed(0)} XOF</span>
+                                          <span>{item.total?.toFixed(0)}f</span>
                                         </div>
                                       ))}
                                     </div>

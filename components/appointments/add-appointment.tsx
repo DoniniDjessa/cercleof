@@ -262,7 +262,7 @@ export function AddAppointment({ onAppointmentCreated }: AddAppointmentProps) {
                   <SelectContent>
                     {services.map((service) => (
                       <SelectItem key={service.id} value={service.id}>
-                        {service.nom} - {service.prix_base.toFixed(0)} XOF ({service.duree} min)
+                        {service.nom} - {service.prix_base.toFixed(0)}f ({service.duree} min)
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -435,7 +435,7 @@ export function AddAppointment({ onAppointmentCreated }: AddAppointmentProps) {
                   <div>
                     <p className="text-muted-foreground dark:text-gray-400">Prix</p>
                     <p className="font-medium text-gray-900 dark:text-white">
-                      {selectedService.prix_base.toFixed(0)} XOF
+                      {selectedService.prix_base.toFixed(0)}f
                     </p>
                   </div>
                 )}

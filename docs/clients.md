@@ -110,7 +110,7 @@ Allergies	Parfum fort
 Services fréquents	Nettoyage visage, tresses
 Employée préférée	Mariam
 Dernière visite	2025-10-15
-Montant cumulé	186 000 FCFA
+Montant cumulé	186 000 f
 Statut	Gold
 Tags	#soins_visage #anti_acné
 Canal d’acquisition	Instagram

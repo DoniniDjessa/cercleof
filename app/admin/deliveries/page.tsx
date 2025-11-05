@@ -55,6 +55,8 @@ export default function DeliveriesPage() {
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [dateFilter, setDateFilter] = useState<string>('all')
+  const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: '', end: '' })
   const itemsPerPage = 20
 
   useEffect(() => {
@@ -68,7 +70,7 @@ export default function DeliveriesPage() {
 
   useEffect(() => {
     fetchDeliveries()
-  }, [currentPage])
+  }, [currentPage, dateFilter, dateRange])
 
   const fetchDeliveries = async () => {
     try {
@@ -76,7 +78,7 @@ export default function DeliveriesPage() {
       const from = (currentPage - 1) * itemsPerPage
       const to = from + itemsPerPage - 1
 
-      const { data, error, count } = await supabase
+      let query = supabase
         .from('dd-livraisons')
         .select(`
           *,
@@ -84,6 +86,38 @@ export default function DeliveriesPage() {
           client:dd-clients(id, first_name, last_name, email, phones),
           livreur:dd-users(id, first_name, last_name, role)
         `, { count: 'exact' })
+
+      // Apply date filters
+      if (dateFilter === 'today') {
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const tomorrow = new Date(today)
+        tomorrow.setDate(tomorrow.getDate() + 1)
+        query = query.gte('created_at', today.toISOString()).lt('created_at', tomorrow.toISOString())
+      } else if (dateFilter === 'yesterday') {
+        const yesterday = new Date()
+        yesterday.setDate(yesterday.getDate() - 1)
+        yesterday.setHours(0, 0, 0, 0)
+        const today = new Date(yesterday)
+        today.setDate(today.getDate() + 1)
+        query = query.gte('created_at', yesterday.toISOString()).lt('created_at', today.toISOString())
+      } else if (dateFilter === 'week') {
+        const weekAgo = new Date()
+        weekAgo.setDate(weekAgo.getDate() - 7)
+        query = query.gte('created_at', weekAgo.toISOString())
+      } else if (dateFilter === 'month') {
+        const monthAgo = new Date()
+        monthAgo.setMonth(monthAgo.getMonth() - 1)
+        query = query.gte('created_at', monthAgo.toISOString())
+      } else if (dateFilter === 'range' && dateRange.start && dateRange.end) {
+        const start = new Date(dateRange.start)
+        start.setHours(0, 0, 0, 0)
+        const end = new Date(dateRange.end)
+        end.setHours(23, 59, 59, 999)
+        query = query.gte('created_at', start.toISOString()).lte('created_at', end.toISOString())
+      }
+
+      const { data, error, count } = await query
         .range(from, to)
         .order('created_at', { ascending: false })
 
@@ -266,24 +300,61 @@ export default function DeliveriesPage() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Frais Total</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalFees.toFixed(0)} XOF</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalFees.toFixed(0)}f</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Search */}
+      {/* Search and Filters */}
       <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-        <CardContent className="p-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <Input
-              placeholder="Rechercher des livraisons..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
-            />
+        <CardContent className="p-4">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                placeholder="Rechercher des livraisons..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-gray-400" />
+              <select
+                value={dateFilter}
+                onChange={(e) => {
+                  setDateFilter(e.target.value)
+                  setCurrentPage(1)
+                }}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-xs"
+              >
+                <option value="all">Toutes les dates</option>
+                <option value="today">Aujourd'hui</option>
+                <option value="yesterday">Hier</option>
+                <option value="week">7 derniers jours</option>
+                <option value="month">30 derniers jours</option>
+                <option value="range">Période personnalisée</option>
+              </select>
+              {dateFilter === 'range' && (
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="date"
+                    value={dateRange.start}
+                    onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+                    className="text-xs h-8"
+                  />
+                  <span className="text-xs text-gray-500">à</span>
+                  <Input
+                    type="date"
+                    value={dateRange.end}
+                    onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                    className="text-xs h-8"
+                  />
+                </div>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -373,7 +444,7 @@ export default function DeliveriesPage() {
                       </TableCell>
                       <TableCell>
                         <span className="font-medium text-gray-900 dark:text-white">
-                          {delivery.frais.toFixed(0)} XOF
+                          {delivery.frais.toFixed(0)}f
                         </span>
                       </TableCell>
                       <TableCell>

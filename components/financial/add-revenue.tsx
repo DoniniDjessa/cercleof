@@ -157,7 +157,7 @@ export function AddRevenue({ onRevenueCreated }: AddRevenueProps) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="montant" className="text-gray-700 dark:text-gray-300">Montant (XOF) *</Label>
+                <Label htmlFor="montant" className="text-gray-700 dark:text-gray-300">Montant (f) *</Label>
                 <Input
                   id="montant"
                   name="montant"
@@ -215,7 +215,7 @@ export function AddRevenue({ onRevenueCreated }: AddRevenueProps) {
                 </div>
                 <div>
                   <p className="text-muted-foreground dark:text-gray-400">Montant</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{formData.montant.toFixed(0)} XOF</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{formData.montant.toFixed(0)}f</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground dark:text-gray-400">Date</p>

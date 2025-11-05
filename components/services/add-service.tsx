@@ -589,7 +589,7 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="prix_base" className="text-gray-700 dark:text-gray-300">Prix de Base (XOF) *</Label>
+                  <Label htmlFor="prix_base" className="text-gray-700 dark:text-gray-300">Prix de Base (f) *</Label>
                   <Input
                     id="prix_base"
                     name="prix_base"
@@ -701,7 +701,7 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
                       <SelectContent>
                         {products.map((product) => (
                           <SelectItem key={product.id} value={product.id}>
-                            {product.name} - {product.price} XOF
+                            {product.name} - {product.price}f
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -766,7 +766,7 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
                 </div>
                 <div>
                   <p className="text-muted-foreground dark:text-gray-400">Prix</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{formData.prix_base} XOF</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{formData.prix_base}f</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground dark:text-gray-400">Durée</p>

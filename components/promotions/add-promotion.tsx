@@ -295,7 +295,7 @@ export function AddPromotion({ onPromotionCreated, onCancel }: AddPromotionProps
                   />
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  {formData.type === 'percentage' ? 'Pourcentage de réduction (ex: 10 pour 10%)' : 'Montant en XOF'}
+                  {formData.type === 'percentage' ? 'Pourcentage de réduction (ex: 10 pour 10%)' : 'Montant en f'}
                 </p>
               </div>
               <div>
@@ -413,7 +413,7 @@ export function AddPromotion({ onPromotionCreated, onCancel }: AddPromotionProps
                           }}
                         />
                         <label htmlFor={`product-${product.id}`} className="text-sm text-gray-700 dark:text-gray-300">
-                          {product.name} - {product.price} XOF
+                          {product.name} - {product.price}f
                         </label>
                       </div>
                     ))}
@@ -435,7 +435,7 @@ export function AddPromotion({ onPromotionCreated, onCancel }: AddPromotionProps
                           }}
                         />
                         <label htmlFor={`service-${service.id}`} className="text-sm text-gray-700 dark:text-gray-300">
-                          {service.name} - {service.price} XOF
+                          {service.name} - {service.price}f
                         </label>
                       </div>
                     ))}

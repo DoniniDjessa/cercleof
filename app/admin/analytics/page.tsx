@@ -170,11 +170,9 @@ export default function AnalyticsPage() {
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(amount)
+    }).format(amount) + 'f'
   }
 
   const formatPercentage = (value: number) => {
@@ -195,16 +193,16 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="min-h-screen bg-slate-50 dark:bg-gray-900 p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground dark:text-white">Analytics & Rapports</h1>
-          <p className="text-muted-foreground dark:text-gray-400">Tableau de bord et indicateurs de performance</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Analytics & Rapports</h1>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Tableau de bord et indicateurs de performance</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <Select value={timeRange} onValueChange={setTimeRange}>
-            <SelectTrigger className="w-40 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
+            <SelectTrigger className="w-40 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-200 dark:border-gray-700 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -214,7 +212,7 @@ export default function AnalyticsPage() {
               <SelectItem value="365">1 an</SelectItem>
             </SelectContent>
           </Select>
-          <Button onClick={fetchAnalytics} variant="outline">
+          <Button onClick={fetchAnalytics} variant="outline" size="sm" className="text-xs">
             Actualiser
           </Button>
         </div>
@@ -222,182 +220,210 @@ export default function AnalyticsPage() {
 
       {analyticsData && (
         <>
-          {/* Financial Overview */}
+          {/* Key Metrics - Top Row */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-lg">
-                    <TrendingUp className="w-6 h-6 text-green-600 dark:text-green-400" />
+            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Clients</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{analyticsData.totalClients}</p>
                   </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Revenus Total</p>
+                  <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                    <Users className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Ventes</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{analyticsData.totalSales}</p>
+                  </div>
+                  <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                    <ShoppingCart className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Revenus</p>
                     <p className="text-2xl font-bold text-gray-900 dark:text-white">
                       {formatCurrency(analyticsData.totalRevenue)}
                     </p>
-                    <p className={`text-xs ${analyticsData.revenueGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {formatPercentage(analyticsData.revenueGrowth)} vs période précédente
-                    </p>
+                  </div>
+                  <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                    <DollarSign className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-red-100 dark:bg-red-900/20 rounded-lg">
-                    <TrendingDown className="w-6 h-6 text-red-600 dark:text-red-400" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Dépenses Total</p>
+            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Croissance</p>
                     <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {formatPercentage(analyticsData.revenueGrowth)}
+                    </p>
+                  </div>
+                  <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                    <BarChart3 className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Middle Row - Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Revenue Chart */}
+            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Revenus par Période</CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="text-center">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Aujourd'hui</p>
+                      <p className="text-lg font-bold text-gray-900 dark:text-white">
+                        {formatCurrency(analyticsData.totalRevenue / 30)}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Cette Semaine</p>
+                      <p className="text-lg font-bold text-gray-900 dark:text-white">
+                        {formatCurrency(analyticsData.totalRevenue / 4)}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Ce Mois</p>
+                      <p className="text-lg font-bold text-gray-900 dark:text-white">
+                        {formatCurrency(analyticsData.totalRevenue)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Stats Overview */}
+            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Vue d'ensemble</CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                        <Package className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Produits</p>
+                        <p className="text-sm font-bold text-gray-900 dark:text-white">{analyticsData.totalProducts}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                        <Scissors className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Services</p>
+                        <p className="text-sm font-bold text-gray-900 dark:text-white">{analyticsData.totalServices}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                        <Calendar className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Rendez-vous</p>
+                        <p className="text-sm font-bold text-gray-900 dark:text-white">{analyticsData.totalAppointments}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                        <Truck className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Livraisons</p>
+                        <p className="text-sm font-bold text-gray-900 dark:text-white">{analyticsData.totalDeliveries}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Bottom Row - Financial Details */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Dépenses</p>
+                    <p className="text-xl font-bold text-gray-900 dark:text-white">
                       {formatCurrency(analyticsData.totalExpenses)}
                     </p>
-                    <p className={`text-xs ${analyticsData.expenseGrowth <= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {formatPercentage(analyticsData.expenseGrowth)} vs période précédente
-                    </p>
+                  </div>
+                  <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                    <TrendingDown className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                   </div>
                 </div>
+                <p className={`text-xs ${analyticsData.expenseGrowth <= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatPercentage(analyticsData.expenseGrowth)} vs période précédente
+                </p>
               </CardContent>
             </Card>
 
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
               <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
-                    <DollarSign className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Bénéfice Net</p>
-                    <p className={`text-2xl font-bold ${analyticsData.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Bénéfice Net</p>
+                    <p className={`text-xl font-bold ${analyticsData.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       {formatCurrency(analyticsData.netProfit)}
                     </p>
                   </div>
+                  <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                    <DollarSign className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  </div>
                 </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Revenus - Dépenses
+                </p>
               </CardContent>
             </Card>
 
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
               <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                    <ShoppingCart className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Panier Moyen</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Panier Moyen</p>
+                    <p className="text-xl font-bold text-gray-900 dark:text-white">
                       {formatCurrency(analyticsData.averageSale)}
                     </p>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Business Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
-                    <Users className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Nouveaux Clients</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{analyticsData.totalClients}</p>
+                  <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                    <ShoppingCart className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-orange-100 dark:bg-orange-900/20 rounded-lg">
-                    <Package className="w-6 h-6 text-orange-600 dark:text-orange-400" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Produits Actifs</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{analyticsData.totalProducts}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-pink-100 dark:bg-pink-900/20 rounded-lg">
-                    <Scissors className="w-6 h-6 text-pink-600 dark:text-pink-400" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Services Actifs</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{analyticsData.totalServices}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-lg">
-                    <Calendar className="w-6 h-6 text-green-600 dark:text-green-400" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Rendez-vous</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{analyticsData.totalAppointments}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Operations Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-indigo-100 dark:bg-indigo-900/20 rounded-lg">
-                    <CreditCard className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Ventes</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{analyticsData.totalSales}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-teal-100 dark:bg-teal-900/20 rounded-lg">
-                    <Truck className="w-6 h-6 text-teal-600 dark:text-teal-400" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Livraisons</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{analyticsData.totalDeliveries}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-amber-100 dark:bg-amber-900/20 rounded-lg">
-                    <BarChart3 className="w-6 h-6 text-amber-600 dark:text-amber-400" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Taux de Conversion</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {analyticsData.totalClients > 0 ? 
-                        ((analyticsData.totalSales / analyticsData.totalClients) * 100).toFixed(1) : 0}%
-                    </p>
-                  </div>
-                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Par transaction
+                </p>
               </CardContent>
             </Card>
           </div>

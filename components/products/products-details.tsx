@@ -298,17 +298,17 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
               <div className={`grid gap-4 ${canManageProducts ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-1'}`}>
                 <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
                   <p className="text-xs text-muted-foreground dark:text-gray-400">Prix de Vente</p>
-                  <p className="text-xl font-bold text-gray-900 dark:text-white">{product.price.toFixed(2)} XOF</p>
+                  <p className="text-xl font-bold text-gray-900 dark:text-white">{product.price.toFixed(2)}f</p>
                 </div>
                 {canManageProducts && (
                   <>
                     <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
                       <p className="text-xs text-muted-foreground dark:text-gray-400">Prix de Revient</p>
-                      <p className="text-xl font-bold text-gray-900 dark:text-white">{product.cost.toFixed(2)} XOF</p>
+                      <p className="text-xl font-bold text-gray-900 dark:text-white">{product.cost.toFixed(2)}f</p>
                     </div>
                     <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-green-50 dark:bg-green-900/20">
                       <p className="text-xs text-muted-foreground dark:text-gray-400">Bénéfice</p>
-                      <p className="text-xl font-bold text-green-600 dark:text-green-400">{profit.toFixed(2)} XOF</p>
+                      <p className="text-xl font-bold text-green-600 dark:text-green-400">{profit.toFixed(2)}f</p>
                     </div>
                     <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
                       <p className="text-xs text-muted-foreground dark:text-gray-400">Marge</p>
@@ -403,14 +403,14 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
               <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                 <p className="text-xs text-muted-foreground dark:text-gray-400">Valeur du Stock</p>
                 <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                  {(product.price * product.stock_quantity).toFixed(2)} XOF
+                  {(product.price * product.stock_quantity).toFixed(2)}f
                 </p>
               </div>
               {canManageProducts && (
                 <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
                   <p className="text-xs text-muted-foreground dark:text-gray-400">Bénéfice Potentiel</p>
                   <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                    {(profit * product.stock_quantity).toFixed(2)} XOF
+                    {(profit * product.stock_quantity).toFixed(2)}f
                   </p>
                 </div>
               )}

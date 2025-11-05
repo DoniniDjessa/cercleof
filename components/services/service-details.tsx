@@ -296,7 +296,7 @@ export function ServiceDetails({ serviceId }: ServiceDetailsProps) {
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-sm">
                   <p className="text-xs text-muted-foreground dark:text-gray-400">Prix de Base</p>
-                  <p className="text-xl font-bold text-gray-900 dark:text-white">{(service.price || service.prix_base || 0).toFixed(0)} XOF</p>
+                  <p className="text-xl font-bold text-gray-900 dark:text-white">{(service.price || service.prix_base || 0).toFixed(0)}f</p>
                 </div>
                 <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-sm">
                   <p className="text-xs text-muted-foreground dark:text-gray-400">Durée</p>
@@ -334,7 +334,7 @@ export function ServiceDetails({ serviceId }: ServiceDetailsProps) {
                       <div className="text-right">
                         <p className="font-medium text-gray-900 dark:text-white">{item.quantite} unité(s)</p>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {item.product.price.toFixed(0)} XOF/unité
+                          {item.product.price.toFixed(0)}f/unité
                         </p>
                       </div>
                     </div>
@@ -402,7 +402,7 @@ export function ServiceDetails({ serviceId }: ServiceDetailsProps) {
               <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-sm">
                 <p className="text-xs text-muted-foreground dark:text-gray-400">Prix de Base</p>
                 <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                  {(service.price || service.prix_base || 0).toFixed(0)} XOF
+                  {(service.price || service.prix_base || 0).toFixed(0)}f
                 </p>
               </div>
               <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-sm">

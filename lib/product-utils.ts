@@ -111,13 +111,11 @@ export function shouldShowOnWebsite(product: {
 /**
  * Format product price for display
  */
-export function formatProductPrice(price: number, currency: string = 'XOF'): string {
+export function formatProductPrice(price: number, currency: string = 'f'): string {
   return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
-  }).format(price)
+  }).format(price) + (currency === 'f' ? 'f' : '')
 }
 
 /**
