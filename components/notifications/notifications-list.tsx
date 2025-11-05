@@ -26,19 +26,23 @@ import { toast } from 'react-hot-toast'
 
 interface Notification {
   id: string
-  title: string
+  type: string // vente, rdv, stock, promo, depense
   message: string
-  type: 'info' | 'warning' | 'error' | 'success'
-  priority: 'low' | 'medium' | 'high' | 'urgent'
-  status: 'unread' | 'read' | 'archived'
-  target_user_id?: string
-  target_role?: string
-  related_entity_type?: string
-  related_entity_id?: string
-  metadata?: any
-  created_at: string
-  read_at?: string
+  cible_type: 'client' | 'user' | 'all'
+  cible_id?: string
+  lu: boolean
+  date: string
   created_by?: string
+  client?: {
+    id: string
+    first_name: string
+    last_name: string
+  }
+  user?: {
+    id: string
+    first_name: string
+    last_name: string
+  }
 }
 
 interface NotificationsListProps {
@@ -64,17 +68,22 @@ export function NotificationsList({ onNotificationRead, onNotificationArchived }
     try {
       setLoading(true)
       
+      // Fetch notifications with related data based on cible_type
       let query = supabase
         .from('dd-notifications')
         .select('*', { count: 'exact' })
-        .order('created_at', { ascending: false })
+        .order('date', { ascending: false })
 
       // Apply filters
       if (filterType !== 'all') {
         query = query.eq('type', filterType)
       }
       if (filterStatus !== 'all') {
-        query = query.eq('status', filterStatus)
+        if (filterStatus === 'unread') {
+          query = query.eq('lu', false)
+        } else if (filterStatus === 'read') {
+          query = query.eq('lu', true)
+        }
       }
 
       // Apply pagination
@@ -90,7 +99,33 @@ export function NotificationsList({ onNotificationRead, onNotificationArchived }
         return
       }
 
-      setNotifications(data || [])
+      // Fetch related client/user data separately
+      const notificationsWithRelations = await Promise.all(
+        (data || []).map(async (notif) => {
+          let client = null
+          let user = null
+          
+          if (notif.cible_type === 'client' && notif.cible_id) {
+            const { data: clientData } = await supabase
+              .from('dd-clients')
+              .select('id, first_name, last_name')
+              .eq('id', notif.cible_id)
+              .single()
+            client = clientData
+          } else if (notif.cible_type === 'user' && notif.cible_id) {
+            const { data: userData } = await supabase
+              .from('dd-users')
+              .select('id, first_name, last_name')
+              .eq('id', notif.cible_id)
+              .single()
+            user = userData
+          }
+          
+          return { ...notif, client, user }
+        })
+      )
+      
+      setNotifications(notificationsWithRelations)
       setTotalPages(Math.ceil((count || 0) / itemsPerPage))
     } catch (error) {
       console.error('Error:', error)
@@ -105,8 +140,7 @@ export function NotificationsList({ onNotificationRead, onNotificationArchived }
       const { error } = await supabase
         .from('dd-notifications')
         .update({ 
-          status: 'read',
-          read_at: new Date().toISOString()
+          lu: true
         })
         .eq('id', notificationId)
 
@@ -119,7 +153,7 @@ export function NotificationsList({ onNotificationRead, onNotificationArchived }
       setNotifications(prev => 
         prev.map(notif => 
           notif.id === notificationId 
-            ? { ...notif, status: 'read' as const, read_at: new Date().toISOString() }
+            ? { ...notif, lu: true }
             : notif
         )
       )
@@ -134,84 +168,83 @@ export function NotificationsList({ onNotificationRead, onNotificationArchived }
 
   const handleArchive = async (notificationId: string) => {
     try {
+      // For now, we'll just delete the notification since there's no archive field
       const { error } = await supabase
         .from('dd-notifications')
-        .update({ status: 'archived' })
+        .delete()
         .eq('id', notificationId)
 
       if (error) {
-        console.error('Error archiving notification:', error)
-        toast.error('Erreur lors de l\'archivage')
+        console.error('Error deleting notification:', error)
+        toast.error('Erreur lors de la suppression')
         return
       }
 
-      setNotifications(prev => 
-        prev.map(notif => 
-          notif.id === notificationId 
-            ? { ...notif, status: 'archived' as const }
-            : notif
-        )
-      )
+      setNotifications(prev => prev.filter(notif => notif.id !== notificationId))
       
       onNotificationArchived?.(notificationId)
-      toast.success('Notification archivée')
+      toast.success('Notification supprimée')
     } catch (error) {
       console.error('Error:', error)
-      toast.error('Erreur lors de l\'archivage')
+      toast.error('Erreur lors de la suppression')
     }
   }
 
   const getTypeIcon = (type: string) => {
     switch (type) {
-      case 'success': return <CheckCircle className="h-4 w-4 text-green-500" />
-      case 'warning': return <AlertCircle className="h-4 w-4 text-yellow-500" />
-      case 'error': return <XCircle className="h-4 w-4 text-red-500" />
-      case 'info': return <Info className="h-4 w-4 text-blue-500" />
+      case 'vente': return <CheckCircle className="h-4 w-4 text-green-500" />
+      case 'rdv': return <Calendar className="h-4 w-4 text-blue-500" />
+      case 'stock': return <AlertCircle className="h-4 w-4 text-yellow-500" />
+      case 'promo': return <Info className="h-4 w-4 text-purple-500" />
+      case 'depense': return <XCircle className="h-4 w-4 text-red-500" />
       default: return <Bell className="h-4 w-4 text-gray-500" />
     }
   }
 
   const getTypeColor = (type: string) => {
     switch (type) {
-      case 'success': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-      case 'warning': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
-      case 'error': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
-      case 'info': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
+      case 'vente': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+      case 'rdv': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
+      case 'stock': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
+      case 'promo': return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300'
+      case 'depense': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
       default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300'
     }
   }
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'urgent': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
-      case 'high': return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300'
-      case 'medium': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
-      case 'low': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300'
+  const getTypeText = (type: string) => {
+    switch (type) {
+      case 'vente': return 'Vente'
+      case 'rdv': return 'Rendez-vous'
+      case 'stock': return 'Stock'
+      case 'promo': return 'Promotion'
+      case 'depense': return 'Dépense'
+      default: return type
     }
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'unread': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
-      case 'read': return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300'
-      case 'archived': return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300'
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300'
-    }
+  const getStatusColor = (lu: boolean) => {
+    return lu 
+      ? 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300'
+      : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
   }
 
   const filteredNotifications = notifications.filter(notification =>
-    notification.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    notification.message.toLowerCase().includes(searchTerm.toLowerCase())
+    notification.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    notification.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    notification.client?.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    notification.client?.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    notification.user?.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    notification.user?.last_name.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   const stats = {
     total: notifications.length,
-    unread: notifications.filter(n => n.status === 'unread').length,
-    urgent: notifications.filter(n => n.priority === 'urgent').length,
+    unread: notifications.filter(n => !n.lu).length,
     today: notifications.filter(n => 
-      new Date(n.created_at).toDateString() === new Date().toDateString()
-    ).length
+      new Date(n.date).toDateString() === new Date().toDateString()
+    ).length,
+    clients: notifications.filter(n => n.cible_type === 'client').length
   }
 
   if (loading) {
@@ -263,12 +296,12 @@ export function NotificationsList({ onNotificationRead, onNotificationArchived }
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center">
-              <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
-                <XCircle className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+              <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
+                <User className="h-6 w-6 text-purple-600 dark:text-purple-400" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Urgentes</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.urgent}</p>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Clients</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.clients}</p>
               </div>
             </div>
           </CardContent>
@@ -307,24 +340,30 @@ export function NotificationsList({ onNotificationRead, onNotificationArchived }
             <div className="flex gap-2">
               <select
                 value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
+                onChange={(e) => {
+                  setFilterType(e.target.value)
+                  setCurrentPage(1)
+                }}
                 className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
               >
                 <option value="all">Tous les types</option>
-                <option value="info">Info</option>
-                <option value="warning">Avertissement</option>
-                <option value="error">Erreur</option>
-                <option value="success">Succès</option>
+                <option value="vente">Vente</option>
+                <option value="rdv">Rendez-vous</option>
+                <option value="stock">Stock</option>
+                <option value="promo">Promotion</option>
+                <option value="depense">Dépense</option>
               </select>
               <select
                 value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
+                onChange={(e) => {
+                  setFilterStatus(e.target.value)
+                  setCurrentPage(1)
+                }}
                 className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
               >
                 <option value="all">Tous les statuts</option>
                 <option value="unread">Non lues</option>
                 <option value="read">Lues</option>
-                <option value="archived">Archivées</option>
               </select>
             </div>
           </div>
@@ -345,72 +384,94 @@ export function NotificationsList({ onNotificationRead, onNotificationArchived }
               <TableHeader>
                 <TableRow>
                   <TableHead>Type</TableHead>
-                  <TableHead>Titre</TableHead>
                   <TableHead>Message</TableHead>
-                  <TableHead>Priorité</TableHead>
+                  <TableHead>Cible</TableHead>
                   <TableHead>Statut</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredNotifications.map((notification) => (
-                  <TableRow key={notification.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {getTypeIcon(notification.type)}
-                        <Badge className={getTypeColor(notification.type)}>
-                          {notification.type}
+                {filteredNotifications.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-gray-500 dark:text-gray-400">
+                      Aucune notification trouvée
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredNotifications.map((notification) => (
+                    <TableRow key={notification.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {getTypeIcon(notification.type)}
+                          <Badge className={getTypeColor(notification.type)}>
+                            {getTypeText(notification.type)}
+                          </Badge>
+                        </div>
+                      </TableCell>
+                      <TableCell className="max-w-xs truncate">
+                        {notification.message}
+                      </TableCell>
+                      <TableCell>
+                        {notification.cible_type === 'client' && notification.client ? (
+                          <div>
+                            <p className="font-medium">{notification.client.first_name} {notification.client.last_name}</p>
+                            <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+                              Client
+                            </Badge>
+                          </div>
+                        ) : notification.cible_type === 'user' && notification.user ? (
+                          <div>
+                            <p className="font-medium">{notification.user.first_name} {notification.user.last_name}</p>
+                            <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300">
+                              Utilisateur
+                            </Badge>
+                          </div>
+                        ) : (
+                          <Badge className="bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300">
+                            Tous
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={getStatusColor(notification.lu)}>
+                          {notification.lu ? 'Lue' : 'Non lue'}
                         </Badge>
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {notification.title}
-                    </TableCell>
-                    <TableCell className="max-w-xs truncate">
-                      {notification.message}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getPriorityColor(notification.priority)}>
-                        {notification.priority}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={getStatusColor(notification.status)}>
-                        {notification.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {new Date(notification.created_at).toLocaleDateString('fr-FR', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {notification.status === 'unread' && (
+                      </TableCell>
+                      <TableCell>
+                        {new Date(notification.date).toLocaleDateString('fr-FR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {!notification.lu && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleMarkAsRead(notification.id)}
+                              className="text-blue-600 border-blue-200 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-900/20"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => handleMarkAsRead(notification.id)}
+                            onClick={() => handleArchive(notification.id)}
+                            className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
                           >
-                            <Eye className="h-4 w-4" />
+                            <Trash2 className="h-4 w-4" />
                           </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleArchive(notification.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>

@@ -31,12 +31,31 @@ interface User {
   created_at: string
 }
 
+interface Travailleur {
+  id: string
+  first_name: string
+  last_name: string
+  phone?: string
+  email?: string
+  specialite?: string
+  competence?: string[]
+  taux_horaire?: number
+  commission_rate?: number
+  is_active: boolean
+  date_embauche?: string
+  notes?: string
+  created_at: string
+}
+
 export default function UsersManagementPage() {
   const { user: authUser } = useAuth()
   const searchParams = useSearchParams()
+  const [activeTab, setActiveTab] = useState<'users' | 'travailleurs'>('users')
   const [users, setUsers] = useState<User[]>([])
+  const [travailleurs, setTravailleurs] = useState<Travailleur[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const [showCreateTravailleurForm, setShowCreateTravailleurForm] = useState(false)
   const [currentUserRole, setCurrentUserRole] = useState<string>('')
   const [currentUserId, setCurrentUserId] = useState<string>('')
   const [searchTerm, setSearchTerm] = useState('')
@@ -49,19 +68,42 @@ export default function UsersManagementPage() {
     phone: '',
     role: 'employe'
   })
+  const [travailleurFormData, setTravailleurFormData] = useState({
+    first_name: '',
+    last_name: '',
+    phone: '',
+    email: '',
+    specialite: '',
+    taux_horaire: 0,
+    commission_rate: 0,
+    date_embauche: '',
+    notes: ''
+  })
 
   useEffect(() => {
-    fetchUsers()
     fetchCurrentUserRole()
     
     // Check if we should show the create form based on URL params
     const action = searchParams.get('action')
     if (action === 'create') {
-      setShowCreateForm(true)
+      if (activeTab === 'users') {
+        setShowCreateForm(true)
+      } else {
+        setShowCreateTravailleurForm(true)
+      }
     } else {
       setShowCreateForm(false)
+      setShowCreateTravailleurForm(false)
     }
-  }, [searchParams])
+  }, [searchParams, activeTab])
+
+  useEffect(() => {
+    if (activeTab === 'users') {
+      fetchUsers()
+    } else {
+      fetchTravailleurs()
+    }
+  }, [activeTab])
 
   const fetchCurrentUserRole = async () => {
     try {
@@ -147,6 +189,7 @@ export default function UsersManagementPage() {
 
   const fetchUsers = async () => {
     try {
+      setLoading(true)
       const { data, error } = await supabase
         .from('dd-users')
         .select('*')
@@ -161,6 +204,117 @@ export default function UsersManagementPage() {
       setLoading(false)
     }
   }
+
+  const fetchTravailleurs = async () => {
+    try {
+      setLoading(true)
+      const { data, error } = await supabase
+        .from('dd-travailleurs')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      setTravailleurs(data || [])
+    } catch (error) {
+      console.error('Error fetching travailleurs:', error)
+      toast.error('Error fetching travailleurs')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCreateTravailleur = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+
+    try {
+      const { data, error } = await supabase
+        .from('dd-travailleurs')
+        .insert([{
+          first_name: travailleurFormData.first_name,
+          last_name: travailleurFormData.last_name,
+          phone: travailleurFormData.phone || null,
+          email: travailleurFormData.email || null,
+          specialite: travailleurFormData.specialite || null,
+          taux_horaire: travailleurFormData.taux_horaire || 0,
+          commission_rate: travailleurFormData.commission_rate || 0,
+          date_embauche: travailleurFormData.date_embauche || null,
+          notes: travailleurFormData.notes || null,
+          is_active: true,
+          created_by: currentUserId
+        }])
+        .select()
+        .single()
+
+      if (error) throw error
+
+      setTravailleurFormData({
+        first_name: '',
+        last_name: '',
+        phone: '',
+        email: '',
+        specialite: '',
+        taux_horaire: 0,
+        commission_rate: 0,
+        date_embauche: '',
+        notes: ''
+      })
+      setShowCreateTravailleurForm(false)
+      window.history.replaceState({}, '', '/admin/users')
+      fetchTravailleurs()
+      toast.success('Travailleur créé avec succès!')
+    } catch (error) {
+      console.error('Error creating travailleur:', error)
+      toast.error('Error creating travailleur: ' + (error as Error).message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const toggleTravailleurStatus = async (travailleurId: string, currentStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('dd-travailleurs')
+        .update({ is_active: !currentStatus })
+        .eq('id', travailleurId)
+
+      if (error) throw error
+      fetchTravailleurs()
+      toast.success(`Travailleur ${!currentStatus ? 'activé' : 'désactivé'} avec succès!`)
+    } catch (error) {
+      console.error('Error updating travailleur status:', error)
+      toast.error('Error updating travailleur status')
+    }
+  }
+
+  const deleteTravailleur = async (travailleurId: string, travailleurName: string) => {
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer ${travailleurName}? Cette action ne peut pas être annulée.`)) {
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('dd-travailleurs')
+        .delete()
+        .eq('id', travailleurId)
+
+      if (error) throw error
+
+      fetchTravailleurs()
+      toast.success('Travailleur supprimé avec succès!')
+    } catch (error) {
+      console.error('Error deleting travailleur:', error)
+      toast.error('Error deleting travailleur: ' + (error as Error).message)
+    }
+  }
+
+  const filteredTravailleurs = travailleurs.filter(travailleur =>
+    travailleur.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    travailleur.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    travailleur.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    travailleur.phone?.includes(searchTerm) ||
+    travailleur.specialite?.toLowerCase().includes(searchTerm.toLowerCase())
+  )
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -332,26 +486,54 @@ export default function UsersManagementPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground dark:text-white">Users</h1>
+          <h1 className="text-lg font-bold text-foreground dark:text-white">Gestion des Utilisateurs</h1>
           <p className="text-muted-foreground dark:text-gray-400">
-            Manage staff members and their roles
-            {currentUserRole === 'superadmin' && (
-              <span className="ml-2 text-sm bg-red-100 text-red-800 px-2 py-1 rounded dark:bg-red-900/20 dark:text-red-400">
-                Superadmin Access
-              </span>
-            )}
+            Gérez les utilisateurs de l'application et les travailleurs
           </p>
         </div>
         <AnimatedButton onClick={() => {
-          setShowCreateForm(!showCreateForm)
-          if (showCreateForm) {
-            // Clear URL parameters when canceling
-            window.history.replaceState({}, '', '/admin/users')
+          if (activeTab === 'users') {
+            setShowCreateForm(!showCreateForm)
+            if (showCreateForm) {
+              window.history.replaceState({}, '', '/admin/users')
+            }
+          } else {
+            setShowCreateTravailleurForm(!showCreateTravailleurForm)
+            if (showCreateTravailleurForm) {
+              window.history.replaceState({}, '', '/admin/users')
+            }
           }
         }} delay={0.1}>
-          {showCreateForm ? 'Cancel' : 'Add User'}
+          {activeTab === 'users' 
+            ? (showCreateForm ? 'Annuler' : 'Ajouter Utilisateur')
+            : (showCreateTravailleurForm ? 'Annuler' : 'Ajouter Travailleur')
+          }
         </AnimatedButton>
       </div>
+
+      {/* Tabs */}
+      <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+        <CardHeader>
+          <div className="flex gap-2">
+            <Button
+              variant={activeTab === 'users' ? 'default' : 'outline'}
+              onClick={() => setActiveTab('users')}
+              className="flex items-center gap-2"
+            >
+              <Users className="w-4 h-4" />
+              Utilisateurs
+            </Button>
+            <Button
+              variant={activeTab === 'travailleurs' ? 'default' : 'outline'}
+              onClick={() => setActiveTab('travailleurs')}
+              className="flex items-center gap-2"
+            >
+              <Briefcase className="w-4 h-4" />
+              Travailleurs
+            </Button>
+          </div>
+        </CardHeader>
+      </Card>
 
       {/* Create User Form */}
       {showCreateForm && (
@@ -449,8 +631,119 @@ export default function UsersManagementPage() {
         </AnimatedCard>
       )}
 
-      {/* Only show users list when not in create mode */}
-      {!showCreateForm && (
+      {/* Create Travailleur Form */}
+      {showCreateTravailleurForm && (
+        <AnimatedCard className="border-2 border-gray-200 dark:border-gray-700" delay={0.3}>
+          <div className="p-6">
+            <h2 className="text-base font-semibold mb-2 text-gray-900 dark:text-white">Créer un Nouveau Travailleur</h2>
+            <p className="text-xs text-gray-600 dark:text-gray-400 mb-4">Ajoutez un nouveau travailleur (maquilleuse, tresseuse, etc.). Les travailleurs n'ont pas accès à l'application.</p>
+            <form onSubmit={handleCreateTravailleur} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="trav_first_name" className="text-gray-700 dark:text-gray-300">Prénom *</Label>
+                  <Input
+                    id="trav_first_name"
+                    value={travailleurFormData.first_name}
+                    onChange={(e) => setTravailleurFormData({ ...travailleurFormData, first_name: e.target.value })}
+                    required
+                    className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="trav_last_name" className="text-gray-700 dark:text-gray-300">Nom *</Label>
+                  <Input
+                    id="trav_last_name"
+                    value={travailleurFormData.last_name}
+                    onChange={(e) => setTravailleurFormData({ ...travailleurFormData, last_name: e.target.value })}
+                    required
+                    className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="trav_phone" className="text-gray-700 dark:text-gray-300">Téléphone</Label>
+                  <Input
+                    id="trav_phone"
+                    value={travailleurFormData.phone}
+                    onChange={(e) => setTravailleurFormData({ ...travailleurFormData, phone: e.target.value })}
+                    className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="trav_email" className="text-gray-700 dark:text-gray-300">Email</Label>
+                  <Input
+                    id="trav_email"
+                    type="email"
+                    value={travailleurFormData.email}
+                    onChange={(e) => setTravailleurFormData({ ...travailleurFormData, email: e.target.value })}
+                    className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="trav_specialite" className="text-gray-700 dark:text-gray-300">Spécialité</Label>
+                  <Input
+                    id="trav_specialite"
+                    placeholder="Ex: Maquillage, Tressage, Manucure..."
+                    value={travailleurFormData.specialite}
+                    onChange={(e) => setTravailleurFormData({ ...travailleurFormData, specialite: e.target.value })}
+                    className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="trav_date_embauche" className="text-gray-700 dark:text-gray-300">Date d'Embauche</Label>
+                  <Input
+                    id="trav_date_embauche"
+                    type="date"
+                    value={travailleurFormData.date_embauche}
+                    onChange={(e) => setTravailleurFormData({ ...travailleurFormData, date_embauche: e.target.value })}
+                    className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="trav_taux_horaire" className="text-gray-700 dark:text-gray-300">Taux Horaire (XOF)</Label>
+                  <Input
+                    id="trav_taux_horaire"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={travailleurFormData.taux_horaire}
+                    onChange={(e) => setTravailleurFormData({ ...travailleurFormData, taux_horaire: parseFloat(e.target.value) || 0 })}
+                    className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="trav_commission_rate" className="text-gray-700 dark:text-gray-300">Taux de Commission (%)</Label>
+                  <Input
+                    id="trav_commission_rate"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={travailleurFormData.commission_rate}
+                    onChange={(e) => setTravailleurFormData({ ...travailleurFormData, commission_rate: parseFloat(e.target.value) || 0 })}
+                    className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="trav_notes" className="text-gray-700 dark:text-gray-300">Notes</Label>
+                <textarea
+                  id="trav_notes"
+                  value={travailleurFormData.notes}
+                  onChange={(e) => setTravailleurFormData({ ...travailleurFormData, notes: e.target.value })}
+                  className="flex min-h-[80px] w-full rounded-md border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 px-3 py-2 text-xs text-gray-900 dark:text-white"
+                  placeholder="Notes supplémentaires..."
+                />
+              </div>
+              <AnimatedButton type="submit" disabled={loading} delay={0.1}>
+                {loading ? <ButtonLoadingSpinner /> : 'Créer Travailleur'}
+              </AnimatedButton>
+            </form>
+          </div>
+        </AnimatedCard>
+      )}
+
+      {/* Content based on active tab */}
+      {activeTab === 'users' && !showCreateForm && (
         <>
           {/* Stats */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -607,6 +900,190 @@ export default function UsersManagementPage() {
                   </div>
                 )}
               </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {/* Travailleurs Tab Content */}
+      {activeTab === 'travailleurs' && !showCreateTravailleurForm && (
+        <>
+          {/* Stats for Travailleurs */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-xs font-medium text-muted-foreground dark:text-gray-400">Total Travailleurs</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-base font-bold text-gray-900 dark:text-white">{travailleurs.length}</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-xs font-medium text-muted-foreground dark:text-gray-400">Actifs</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-base font-bold text-gray-900 dark:text-white">
+                  {travailleurs.filter(t => t.is_active).length}
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-xs font-medium text-muted-foreground dark:text-gray-400">Inactifs</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-base font-bold text-gray-900 dark:text-white">
+                  {travailleurs.filter(t => !t.is_active).length}
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-xs font-medium text-muted-foreground dark:text-gray-400">Spécialités</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-base font-bold text-gray-900 dark:text-white">
+                  {new Set(travailleurs.filter(t => t.specialite).map(t => t.specialite)).size}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Search for Travailleurs */}
+          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <CardContent className="p-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Input
+                  placeholder="Rechercher des travailleurs..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Travailleurs Table */}
+          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <CardHeader>
+              <CardTitle className="text-gray-900 dark:text-white">Liste des Travailleurs ({filteredTravailleurs.length})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <TableLoadingState />
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-gray-200 dark:border-gray-700">
+                        <TableHead className="text-gray-600 dark:text-gray-400">Nom</TableHead>
+                        <TableHead className="text-gray-600 dark:text-gray-400">Contact</TableHead>
+                        <TableHead className="text-gray-600 dark:text-gray-400">Spécialité</TableHead>
+                        <TableHead className="text-gray-600 dark:text-gray-400">Taux Horaire</TableHead>
+                        <TableHead className="text-gray-600 dark:text-gray-400">Commission</TableHead>
+                        <TableHead className="text-gray-600 dark:text-gray-400">Statut</TableHead>
+                        <TableHead className="text-gray-600 dark:text-gray-400">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredTravailleurs.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center py-8 text-gray-500 dark:text-gray-400">
+                            Aucun travailleur trouvé
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredTravailleurs.map((travailleur) => (
+                          <TableRow key={travailleur.id} className="border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <TableCell>
+                              <div>
+                                <p className="font-medium text-gray-900 dark:text-white">
+                                  {travailleur.first_name} {travailleur.last_name}
+                                </p>
+                                {travailleur.date_embauche && (
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    Embauché le {new Date(travailleur.date_embauche).toLocaleDateString('fr-FR')}
+                                  </p>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="space-y-1">
+                                {travailleur.phone && (
+                                  <div className="flex items-center gap-2 text-xs text-gray-900 dark:text-white">
+                                    <Phone className="w-3 h-3" />
+                                    {travailleur.phone}
+                                  </div>
+                                )}
+                                {travailleur.email && (
+                                  <div className="flex items-center gap-2 text-xs text-gray-900 dark:text-white">
+                                    <Mail className="w-3 h-3" />
+                                    {travailleur.email}
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {travailleur.specialite ? (
+                                <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400">
+                                  {travailleur.specialite}
+                                </Badge>
+                              ) : (
+                                <span className="text-gray-500 dark:text-gray-400 text-xs">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-gray-900 dark:text-white text-xs">
+                                {travailleur.taux_horaire ? `${travailleur.taux_horaire.toFixed(0)} XOF/h` : '—'}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-gray-900 dark:text-white text-xs">
+                                {travailleur.commission_rate ? `${travailleur.commission_rate.toFixed(1)}%` : '—'}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={travailleur.is_active 
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                                : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+                              }>
+                                {travailleur.is_active ? 'Actif' : 'Inactif'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => toggleTravailleurStatus(travailleur.id, travailleur.is_active)}
+                                  className={travailleur.is_active 
+                                    ? 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20'
+                                    : 'text-green-600 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/20'
+                                  }
+                                >
+                                  {travailleur.is_active ? 'Désactiver' : 'Activer'}
+                                </Button>
+                                {hasAdminAccess && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => deleteTravailleur(travailleur.id, `${travailleur.first_name} ${travailleur.last_name}`)}
+                                    className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                                  >
+                                    Supprimer
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </>
