@@ -191,7 +191,7 @@ export default function ServicesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground dark:text-white">Services</h1>
+          <h1 className="text-lg font-bold text-foreground dark:text-white">Services</h1>
           <p className="text-muted-foreground dark:text-gray-400">Gérez tous vos services et prestations</p>
         </div>
         {canManageServices && (
@@ -220,7 +220,7 @@ export default function ServicesPage() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Services</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalServices}</p>
+                <p className="text-base font-bold text-gray-900 dark:text-white">{totalServices}</p>
               </div>
             </div>
           </CardContent>
@@ -234,7 +234,7 @@ export default function ServicesPage() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Services Actifs</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{activeServices}</p>
+                <p className="text-base font-bold text-gray-900 dark:text-white">{activeServices}</p>
               </div>
             </div>
           </CardContent>
@@ -248,7 +248,7 @@ export default function ServicesPage() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Prix Moyen</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{averagePrice.toFixed(0)} XOF</p>
+                <p className="text-base font-bold text-gray-900 dark:text-white">{averagePrice.toFixed(0)} XOF</p>
               </div>
             </div>
           </CardContent>
@@ -262,7 +262,7 @@ export default function ServicesPage() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Durée Moyenne</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                <p className="text-base font-bold text-gray-900 dark:text-white">
                   {totalServices > 0 ? Math.round(services.reduce((sum, s) => sum + (s.duration_minutes || s.duration || s.duree || 0), 0) / totalServices) : 0} min
                 </p>
               </div>

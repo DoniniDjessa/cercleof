@@ -12,7 +12,8 @@ import { AnimatedCard } from "@/components/ui/animated-card"
 import { ButtonLoadingSpinner } from "@/components/ui/context-loaders"
 import { useAuth } from "@/contexts/AuthContext"
 import { supabase } from "@/lib/supabase"
-import { Upload, X, Image as ImageIcon, Plus, Trash2 } from "lucide-react"
+import { Upload, X, Image as ImageIcon, Plus, Trash2, Camera } from "lucide-react"
+import { compressImage } from "@/lib/image-utils"
 import toast from "react-hot-toast"
 
 interface Service {
@@ -155,27 +156,52 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
     setFormData((prev) => ({ ...prev, [name]: checked }))
   }
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      if (!file.type.startsWith('image/')) {
-        toast.error('Veuillez sélectionner un fichier image valide')
-        return
-      }
+  const handleImageUpload = async (file: File | null, compress: boolean = true) => {
+    if (!file) return
+    
+    if (!file.type.startsWith('image/')) {
+      toast.error('Veuillez sélectionner un fichier image valide')
+      return
+    }
+    
+    try {
+      // Compress image before setting it
+      const processedFile = compress 
+        ? await compressImage(file, { maxWidth: 1920, maxHeight: 1920, quality: 0.8, maxSizeMB: 2 })
+        : file
       
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error('La taille du fichier ne doit pas dépasser 5MB')
-        return
-      }
-      
-      setServiceImage(file)
+      setServiceImage(processedFile)
       
       const reader = new FileReader()
       reader.onload = (e) => {
         setImagePreview(e.target?.result as string)
       }
-      reader.readAsDataURL(file)
+      reader.readAsDataURL(processedFile)
+      
+      toast.success(`Image ajoutée${compress ? ' (compressée)' : ''}`)
+    } catch (error) {
+      console.error('Error processing image:', error)
+      toast.error('Erreur lors du traitement de l\'image')
     }
+  }
+
+  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null
+    await handleImageUpload(file, true)
+    // Reset input to allow selecting same file again
+    e.target.value = ''
+  }
+
+  const handleCameraCapture = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.capture = 'environment' // Use back camera on mobile
+    input.onchange = async (e) => {
+      const target = e.target as HTMLInputElement
+      await handleImageUpload(target.files?.[0] || null, true)
+    }
+    input.click()
   }
 
   const removeImage = () => {
@@ -438,7 +464,7 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
                     type="file"
                     id="serviceImage"
                     accept="image/*"
-                    onChange={handleImageUpload}
+                    onChange={handleFileInputChange}
                     className="hidden"
                   />
                   <div className="flex gap-2">
@@ -446,10 +472,21 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
                       type="button"
                       variant="outline"
                       onClick={() => document.getElementById('serviceImage')?.click()}
-                      className="text-blue-600 border-blue-200 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-900/20"
+                      className="flex-1 text-blue-600 border-blue-200 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-900/20"
+                      disabled={uploadingImage}
                     >
-                      <Upload className="w-4 h-4 mr-2" />
-                      {serviceImage ? 'Changer' : 'Ajouter Image'}
+                      <ImageIcon className="w-4 h-4 mr-2" />
+                      {uploadingImage ? <ButtonLoadingSpinner /> : serviceImage ? 'Changer' : 'Galerie'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleCameraCapture}
+                      className="flex-1 text-blue-600 border-blue-200 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-900/20"
+                      disabled={uploadingImage}
+                    >
+                      <Camera className="w-4 h-4 mr-2" />
+                      Caméra
                     </Button>
                     {serviceImage && (
                       <Button
@@ -464,7 +501,7 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
                     )}
                   </div>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Formats acceptés: JPG, PNG, WebP (max 5MB)
+                    Formats acceptés: JPG, PNG, WebP (compressé automatiquement)
                   </p>
                 </div>
               </div>

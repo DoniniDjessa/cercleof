@@ -59,23 +59,33 @@ export default function Home() {
     }
   }
 
-  if (loading || profileLoading) {
+  // Show loading screen only if auth is still loading
+  // Don't block if we have a user but profile is still loading
+  if (loading) {
     return <AuthLoadingScreen />
   }
 
+  // If no user after auth loads, show loading (will redirect via AuthContext)
   if (!user) {
     return <AuthLoadingScreen />
   }
 
+  // If we have a user but profile is still loading, show dashboard with loading state
+  // Don't block the entire page - let the user see the dashboard
+  if (profileLoading) {
+    return (
+      <div className="space-y-8">
+        <DashboardCards userRole={undefined} />
+      </div>
+    )
+  }
+
+  // If we have a user but no profile, don't block - might be temporary
+  // Show dashboard anyway - AuthContext will handle disconnection if needed
   if (!userProfile) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <AuthLoadingScreen />
-          <div className="mt-8">
-            <p className="text-gray-600 mb-4">{t('loading.settingUp')}</p>
-          </div>
-        </div>
+      <div className="space-y-8">
+        <DashboardCards userRole={undefined} />
       </div>
     )
   }

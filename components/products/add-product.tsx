@@ -8,11 +8,12 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Upload, RefreshCw, X, Image as ImageIcon } from "lucide-react"
+import { Upload, RefreshCw, X, Image as ImageIcon, Camera } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { supabase } from "@/lib/supabase"
 import { ButtonLoadingSpinner } from "@/components/ui/context-loaders"
 import { generateSKU, generateBarcode } from "@/lib/code-generators"
+import { compressImages } from "@/lib/image-utils"
 import toast from "react-hot-toast"
 
 interface AddProductProps {
@@ -124,9 +125,10 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
     setFormData((prev) => ({ ...prev, [name]: checked }))
   }
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || [])
-    const imageFiles = files.filter(file => file.type.startsWith('image/'))
+  const handleImageUpload = async (files: FileList | null, compress: boolean = true) => {
+    if (!files) return
+    
+    const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'))
     
     if (imageFiles.length === 0) {
       toast.error('Veuillez sélectionner des fichiers image valides')
@@ -139,7 +141,36 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
       return
     }
 
-    setImages(prev => [...prev, ...imageFiles])
+    try {
+      // Compress images before adding them
+      const processedFiles = compress 
+        ? await compressImages(imageFiles, { maxWidth: 1920, maxHeight: 1920, quality: 0.8, maxSizeMB: 2 })
+        : imageFiles
+      
+      setImages(prev => [...prev, ...processedFiles])
+      toast.success(`${processedFiles.length} image(s) ajoutée(s)${compress ? ' (compressée(s))' : ''}`)
+    } catch (error) {
+      console.error('Error processing images:', error)
+      toast.error('Erreur lors du traitement des images')
+    }
+  }
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleImageUpload(e.target.files, true)
+    // Reset input to allow selecting same file again
+    e.target.value = ''
+  }
+
+  const handleCameraCapture = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.capture = 'environment' // Use back camera on mobile
+    input.onchange = (e) => {
+      const target = e.target as HTMLInputElement
+      handleImageUpload(target.files, true)
+    }
+    input.click()
   }
 
   const removeImage = (index: number) => {
@@ -508,24 +539,37 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
                     </div>
                   </div>
                   
-                  {/* File Input */}
+                  {/* File Inputs */}
                   <input
                     type="file"
                     id="image-upload"
                     multiple
                     accept="image/*"
-                    onChange={handleImageUpload}
+                    onChange={handleFileInputChange}
                     className="hidden"
                   />
-                  <Button 
-                    type="button"
-                    variant="outline" 
-                    className="w-full bg-transparent border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                    onClick={() => document.getElementById('image-upload')?.click()}
-                    disabled={uploadingImages}
-                  >
-                    {uploadingImages ? <ButtonLoadingSpinner /> : 'Choisir des Fichiers'}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      type="button"
+                      variant="outline" 
+                      className="flex-1 bg-transparent border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                      onClick={() => document.getElementById('image-upload')?.click()}
+                      disabled={uploadingImages}
+                    >
+                      <ImageIcon className="w-4 h-4 mr-2" />
+                      {uploadingImages ? <ButtonLoadingSpinner /> : 'Galerie'}
+                    </Button>
+                    <Button 
+                      type="button"
+                      variant="outline" 
+                      className="flex-1 bg-transparent border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                      onClick={handleCameraCapture}
+                      disabled={uploadingImages}
+                    >
+                      <Camera className="w-4 h-4 mr-2" />
+                      Caméra
+                    </Button>
+                  </div>
 
                   {/* Image Preview */}
                   {images.length > 0 && (

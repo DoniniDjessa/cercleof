@@ -231,7 +231,7 @@ export default function ProductsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground dark:text-white">Produits</h1>
+          <h1 className="text-sm font-bold text-foreground dark:text-white">Produits</h1>
           <p className="text-muted-foreground dark:text-gray-400">Gérez votre inventaire de produits.</p>
         </div>
         {canManageProducts && (
@@ -260,7 +260,7 @@ export default function ProductsPage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Total Produits</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">{products.length}</div>
+                <div className="text-base font-bold text-gray-900 dark:text-white">{products.length}</div>
               </CardContent>
             </Card>
             <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
@@ -268,7 +268,7 @@ export default function ProductsPage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Produits Actifs</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">{products.filter((p) => p.status === 'active').length}</div>
+                <div className="text-base font-bold text-gray-900 dark:text-white">{products.filter((p) => p.status === 'active').length}</div>
               </CardContent>
             </Card>
             <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
@@ -276,7 +276,7 @@ export default function ProductsPage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Stock Faible</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">{products.filter((p) => p.stock_quantity < 10).length}</div>
+                <div className="text-base font-bold text-gray-900 dark:text-white">{products.filter((p) => p.stock_quantity < 10).length}</div>
               </CardContent>
             </Card>
             <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
@@ -284,7 +284,7 @@ export default function ProductsPage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Sur le Site Web</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">{products.filter((p) => p.show_to_website).length}</div>
+                <div className="text-base font-bold text-gray-900 dark:text-white">{products.filter((p) => p.show_to_website).length}</div>
               </CardContent>
             </Card>
           </div>

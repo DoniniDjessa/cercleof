@@ -31,6 +31,7 @@ import { toast } from 'react-hot-toast'
 interface Promotion {
   id: string
   name: string
+  code?: string
   description: string
   type: 'percentage' | 'fixed_amount' | 'buy_x_get_y' | 'free_shipping'
   value: number
@@ -42,6 +43,7 @@ interface Promotion {
   applicable_to: 'all' | 'products' | 'services' | 'specific_items'
   usage_limit?: number
   usage_count: number
+  is_unique_usage?: boolean
   created_at: string
 }
 
@@ -242,7 +244,7 @@ export default function PromotionsPage() {
               <X className="w-8 h-8 text-red-600 dark:text-red-400" />
             </div>
             <div className="space-y-2">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Accès Interdit</h2>
+              <h2 className="text-base font-bold text-gray-900 dark:text-white">Accès Interdit</h2>
               <p className="text-gray-600 dark:text-gray-400 max-w-md">
                 Vous n'avez pas les permissions nécessaires pour accéder à cette page.
                 Seuls les administrateurs et les managers peuvent gérer les promotions.
@@ -275,7 +277,7 @@ export default function PromotionsPage() {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Promotions</h1>
+              <h1 className="text-lg font-bold text-gray-900 dark:text-white">Promotions</h1>
               <p className="text-gray-600 dark:text-gray-400 mt-1">
                 Gérez toutes les promotions et offres spéciales
               </p>
@@ -301,7 +303,7 @@ export default function PromotionsPage() {
                   </div>
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.total}</p>
+                    <p className="text-base font-bold text-gray-900 dark:text-white">{stats.total}</p>
                   </div>
                 </div>
               </CardContent>
@@ -315,7 +317,7 @@ export default function PromotionsPage() {
                   </div>
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Actives</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.active}</p>
+                    <p className="text-base font-bold text-gray-900 dark:text-white">{stats.active}</p>
                   </div>
                 </div>
               </CardContent>
@@ -329,7 +331,7 @@ export default function PromotionsPage() {
                   </div>
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Programmées</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.scheduled}</p>
+                    <p className="text-base font-bold text-gray-900 dark:text-white">{stats.scheduled}</p>
                   </div>
                 </div>
               </CardContent>
@@ -343,7 +345,7 @@ export default function PromotionsPage() {
                   </div>
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Expirées</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.expired}</p>
+                    <p className="text-base font-bold text-gray-900 dark:text-white">{stats.expired}</p>
                   </div>
                 </div>
               </CardContent>
@@ -379,6 +381,7 @@ export default function PromotionsPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Nom</TableHead>
+                      <TableHead>Code</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>Valeur</TableHead>
                       <TableHead>Période</TableHead>
@@ -397,6 +400,15 @@ export default function PromotionsPage() {
                               {promotion.description}
                             </div>
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          {promotion.code ? (
+                            <code className="px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded text-sm font-mono">
+                              {promotion.code}
+                            </code>
+                          ) : (
+                            <span className="text-gray-400 text-sm">-</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">

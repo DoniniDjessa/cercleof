@@ -171,7 +171,7 @@ export default function ClientsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground dark:text-white">Clients</h1>
+          <h1 className="text-lg font-bold text-foreground dark:text-white">Clients</h1>
           <p className="text-muted-foreground dark:text-gray-400">Manage your client database.</p>
         </div>
         {canAddClients && (
@@ -200,7 +200,7 @@ export default function ClientsPage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Total Clients</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">{clients.length}</div>
+                <div className="text-base font-bold text-gray-900 dark:text-white">{clients.length}</div>
               </CardContent>
             </Card>
             <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
@@ -208,7 +208,7 @@ export default function ClientsPage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Active Clients</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">{clients.filter((c) => c.is_active).length}</div>
+                <div className="text-base font-bold text-gray-900 dark:text-white">{clients.filter((c) => c.is_active).length}</div>
               </CardContent>
             </Card>
             <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
@@ -216,7 +216,7 @@ export default function ClientsPage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Business Clients</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">{clients.filter((c) => c.preferred_contact_method === 'business').length}</div>
+                <div className="text-base font-bold text-gray-900 dark:text-white">{clients.filter((c) => c.preferred_contact_method === 'business').length}</div>
               </CardContent>
             </Card>
           </div>

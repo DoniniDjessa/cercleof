@@ -25,6 +25,7 @@ import { toast } from 'react-hot-toast'
 
 interface Promotion {
   name: string
+  code: string  // Promotion code that employees can enter
   description: string
   type: 'percentage' | 'fixed_amount' | 'buy_x_get_y' | 'free_shipping'
   value: number
@@ -36,8 +37,9 @@ interface Promotion {
   applicable_to: 'all' | 'products' | 'services' | 'specific_items'
   applicable_items?: string[]
   customer_segments?: string[]
-  usage_limit?: number
+  usage_limit?: number  // Maximum number of times the code can be used (0 = unlimited)
   usage_count: number
+  is_unique_usage?: boolean  // If true, code can only be used once per client
   conditions?: string
 }
 
@@ -50,6 +52,7 @@ export function AddPromotion({ onPromotionCreated, onCancel }: AddPromotionProps
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState<Promotion>({
     name: '',
+    code: '',  // Promotion code
     description: '',
     type: 'percentage',
     value: 0,
@@ -63,6 +66,7 @@ export function AddPromotion({ onPromotionCreated, onCancel }: AddPromotionProps
     customer_segments: [],
     usage_limit: 0,
     usage_count: 0,
+    is_unique_usage: false,
     conditions: ''
   })
 
@@ -104,8 +108,14 @@ export function AddPromotion({ onPromotionCreated, onCancel }: AddPromotionProps
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!formData.name || !formData.start_date || !formData.end_date) {
-      toast.error('Veuillez remplir tous les champs obligatoires')
+    if (!formData.name || !formData.code || !formData.start_date || !formData.end_date) {
+      toast.error('Veuillez remplir tous les champs obligatoires (nom, code, dates)')
+      return
+    }
+
+    // Validate code format (alphanumeric, uppercase, 3-20 characters)
+    if (!/^[A-Z0-9]{3,20}$/.test(formData.code.toUpperCase())) {
+      toast.error('Le code promotionnel doit contenir 3 à 20 caractères alphanumériques (lettres majuscules et chiffres)')
       return
     }
 
@@ -119,6 +129,7 @@ export function AddPromotion({ onPromotionCreated, onCancel }: AddPromotionProps
 
       const promotionData = {
         name: formData.name,
+        code: formData.code.toUpperCase(),  // Store code in uppercase
         description: formData.description,
         type: formData.type,
         value: formData.value,
@@ -132,6 +143,7 @@ export function AddPromotion({ onPromotionCreated, onCancel }: AddPromotionProps
         customer_segments: formData.customer_segments || [],
         usage_limit: formData.usage_limit || null,
         usage_count: 0,
+        is_unique_usage: formData.is_unique_usage || false,
         conditions: formData.conditions || null
       }
 
@@ -163,6 +175,7 @@ export function AddPromotion({ onPromotionCreated, onCancel }: AddPromotionProps
         customer_segments: [],
         usage_limit: 0,
         usage_count: 0,
+        is_unique_usage: false,
         conditions: ''
       })
 
@@ -215,6 +228,22 @@ export function AddPromotion({ onPromotionCreated, onCancel }: AddPromotionProps
                   required
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Code Promotionnel * (ex: SUMMER24)
+                </label>
+                <Input
+                  value={formData.code}
+                  onChange={(e) => handleInputChange('code', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                  placeholder="Ex: SUMMER24"
+                  maxLength={20}
+                  required
+                  className="font-mono"
+                />
+                <p className="text-xs text-gray-500 mt-1">3-20 caractères alphanumériques (majuscules et chiffres)</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Type de Promotion *
@@ -426,19 +455,31 @@ export function AddPromotion({ onPromotionCreated, onCancel }: AddPromotionProps
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Limite d'Utilisation Globale
-              </label>
-              <Input
-                type="number"
-                value={formData.usage_limit || ''}
-                onChange={(e) => handleInputChange('usage_limit', parseInt(e.target.value) || 0)}
-                placeholder="0 = illimité"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Nombre maximum d'utilisations de cette promotion (0 = illimité)
-              </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Limite d'Utilisation Globale
+                </label>
+                <Input
+                  type="number"
+                  value={formData.usage_limit || ''}
+                  onChange={(e) => handleInputChange('usage_limit', parseInt(e.target.value) || 0)}
+                  placeholder="0 = illimité"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Nombre maximum d'utilisations de cette promotion (0 = illimité)
+                </p>
+              </div>
+              <div className="flex items-center space-x-2 pt-8">
+                <Checkbox
+                  id="is_unique_usage"
+                  checked={formData.is_unique_usage || false}
+                  onCheckedChange={(checked) => handleCheckboxChange('is_unique_usage', checked as boolean)}
+                />
+                <label htmlFor="is_unique_usage" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Usage unique par client
+                </label>
+              </div>
             </div>
 
             <div>

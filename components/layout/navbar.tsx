@@ -65,15 +65,10 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
       console.log('Navbar: Query result - data:', data, 'error:', error)
 
       if (error && error.code === 'PGRST116') {
-        // User not found in dd-users - redirect after a delay
-        console.log('Navbar: User not found in dd-users')
+        // User not found in dd-users - don't disconnect immediately, might be a network issue
+        console.log('Navbar: User not found in dd-users, but continuing (might be network issue)')
         setLoading(false)
-        setTimeout(async () => {
-          await signOut()
-          if (typeof window !== 'undefined') {
-            window.location.href = '/login'
-          }
-        }, 1000)
+        // Don't disconnect - let AuthContext handle it
         return
       }
 
@@ -81,19 +76,16 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
         console.error('Navbar: Error fetching user profile:', error)
         setLoading(false)
         // Keep userProfile null, will use user.email as fallback
+        // Don't disconnect on error - might be a network issue
         return
       }
 
       // Check if data exists and has pseudo or email
       if (!data || (!data.pseudo && !data.email)) {
-        console.log('Navbar: User has no pseudo or email')
+        console.log('Navbar: User has no pseudo or email, but continuing (might be temporary)')
         setLoading(false)
-        setTimeout(async () => {
-          await signOut()
-          if (typeof window !== 'undefined') {
-            window.location.href = '/login'
-          }
-        }, 1000)
+        // Don't disconnect immediately - might be a temporary issue
+        // Let AuthContext handle verification
         return
       }
 

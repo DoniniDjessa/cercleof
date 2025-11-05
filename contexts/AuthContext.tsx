@@ -119,19 +119,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         if (session?.user) {
           try {
-            // Check if user exists in our dd-users table with a shorter timeout (2 seconds)
+            // Check if user exists in our dd-users table with a longer timeout (5 seconds) to avoid false disconnections
             const checkPromise = checkUserExists(session.user.id)
             const timeoutPromise = new Promise<boolean>((resolve) => 
               setTimeout(() => {
-                console.log('AuthContext: User check timeout (2s), user not verifiable')
-                resolve(false)
-              }, 2000) // 2 second timeout for faster disconnection
+                console.log('AuthContext: User check timeout (5s), continuing with session but will re-check in background')
+                resolve(true) // Continue with session even if timeout - we'll verify later
+              }, 5000) // 5 second timeout - give more time for database queries
             )
             
             const userExists = await Promise.race([checkPromise, timeoutPromise])
             
             if (!userExists) {
-              console.log('AuthContext: User not found in dd-users or timeout, disconnecting immediately...')
+              console.log('AuthContext: User not found in dd-users, disconnecting...')
               // Clear state immediately
               setSession(null)
               setUser(null)
@@ -151,31 +151,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               auth.signOut().catch(err => console.error('Error signing out:', err))
               return
             }
-          } catch (checkError) {
-            console.error('AuthContext: Error checking user existence:', checkError)
-            // On error, disconnect to be safe
-            console.log('AuthContext: Error during check, disconnecting...')
-            // Clear state immediately
-            setSession(null)
-            setUser(null)
+            
+            // User exists - set session and user
+            console.log('AuthContext: User verified, setting session and user')
+            setSession(session)
+            setUser(session.user)
             setLoading(false)
             if (timeoutId) clearTimeout(timeoutId)
-            
-            // Force redirect immediately
-            if (typeof window !== 'undefined') {
-              const currentPath = window.location.pathname
-              if (currentPath !== '/login' && currentPath !== '/register' && currentPath !== '/setup') {
-                window.location.replace('/login')
-              }
-            }
-            
-            // Clean up in background
-            cleanupAppData().catch(err => console.error('Error cleaning up:', err))
-            auth.signOut().catch(err => console.error('Error signing out:', err))
+            return
+          } catch (checkError) {
+            console.error('AuthContext: Error checking user existence:', checkError)
+            // On error, don't disconnect immediately - might be a network issue
+            // Set session anyway and let the timeout handler re-check
+            console.log('AuthContext: Error during check, but continuing with session (might be network issue)')
+            setSession(session)
+            setUser(session?.user ?? null)
+            setLoading(false)
+            if (timeoutId) clearTimeout(timeoutId)
+            // Don't redirect - let the timeout handler re-check
             return
           }
         }
         
+        // If we reach here without session, something went wrong
         setSession(session)
         setUser(session?.user ?? null)
         setLoading(false)
@@ -195,11 +193,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     getInitialSession()
     
-    // Add a timeout to prevent infinite loading (reduced to 5 seconds for faster response)
+    // Add a timeout to prevent infinite loading (increased to 10 seconds to give more time for verification)
     timeoutId = setTimeout(async () => {
-      console.log('AuthContext: Timeout reached (5s), checking session and user status...')
+      console.log('AuthContext: Timeout reached (10s), checking session and user status...')
       
       // Re-check session after timeout
+      // Note: This only runs if we're still loading after 10 seconds
       try {
         const { session: currentSession } = await auth.getSession()
         
@@ -228,13 +227,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Always verify user exists in dd-users, even if we have a session
         if (currentSession.user) {
           try {
-            // Quick check with 2 second timeout
+            // Check with 5 second timeout - give more time
             const checkPromise = checkUserExists(currentSession.user.id)
             const timeoutPromise = new Promise<boolean>((resolve) => 
               setTimeout(() => {
-                console.log('AuthContext: User check timeout in timeout handler, user not verifiable')
-                resolve(false)
-              }, 2000)
+                console.log('AuthContext: User check timeout in timeout handler, but continuing with session')
+                resolve(true) // Continue with session even if timeout - might be network issue
+              }, 5000) // 5 second timeout
             )
             const userExists = await Promise.race([checkPromise, timeoutPromise])
             
@@ -261,23 +260,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
           } catch (checkError) {
             console.error('AuthContext: Error checking user after timeout:', checkError)
-            // If check fails, disconnect to be safe
-            // Clear state immediately
-            setSession(null)
-            setUser(null)
+            // If check fails, don't disconnect - might be a network issue
+            // Just stop loading and continue with session
+            console.log('AuthContext: Error checking user after timeout, but continuing with session')
             setLoading(false)
-            
-            // Force redirect immediately
-            if (typeof window !== 'undefined') {
-              const currentPath = window.location.pathname
-              if (currentPath !== '/login' && currentPath !== '/register' && currentPath !== '/setup') {
-                window.location.replace('/login')
-              }
-            }
-            
-            // Clean up in background
-            cleanupAppData().catch(err => console.error('Error cleaning up:', err))
-            auth.signOut().catch(err => console.error('Error signing out:', err))
             return
           }
         }
@@ -287,25 +273,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false)
       } catch (timeoutError) {
         console.error('AuthContext: Error checking session after timeout:', timeoutError)
-        // On error, disconnect to be safe
-        // Clear state immediately
-        setSession(null)
-        setUser(null)
+        // On error, don't disconnect - might be a network issue
+        // Just stop loading and continue with existing session if any
+        console.log('AuthContext: Error checking session after timeout, but continuing with existing session')
         setLoading(false)
-        
-        // Force redirect immediately
-        if (typeof window !== 'undefined') {
-          const currentPath = window.location.pathname
-          if (currentPath !== '/login' && currentPath !== '/register' && currentPath !== '/setup') {
-            window.location.replace('/login')
-          }
-        }
-        
-        // Clean up in background
-        cleanupAppData().catch(err => console.error('Error cleaning up:', err))
-        auth.signOut().catch(err => console.error('Error signing out:', err))
       }
-    }, 5000) // 5 second timeout (reduced from 10s for faster response)
+    }, 10000) // 10 second timeout - give more time for initial verification
 
     // Listen for auth changes
     const { data: { subscription } } = auth.onAuthStateChange(async (event, session) => {
@@ -321,19 +294,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (session?.user) {
         try {
-          // Check if user exists in our dd-users table with timeout
+          // Check if user exists in our dd-users table with longer timeout (5 seconds)
           const checkPromise = checkUserExists(session.user.id)
           const timeoutPromise = new Promise<boolean>((resolve) => 
             setTimeout(() => {
-              console.log('AuthContext: User check timeout in onAuthStateChange, user not verifiable')
-              resolve(false)
-            }, 2000) // 2 second timeout
+              console.log('AuthContext: User check timeout in onAuthStateChange, but continuing with session')
+              resolve(true) // Continue with session even if timeout - might be network issue
+            }, 5000) // 5 second timeout - give more time
           )
           
           const userExists = await Promise.race([checkPromise, timeoutPromise])
           
           if (!userExists) {
-            console.log('AuthContext: User not found in dd-users (SIGNED_IN), disconnecting immediately...')
+            console.log('AuthContext: User not found in dd-users (SIGNED_IN), disconnecting...')
             // Clear state immediately
             setSession(null)
             setUser(null)
@@ -353,30 +326,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             auth.signOut().catch(err => console.error('Error signing out:', err))
             return
           }
+          
+          // User exists - set session and user
+          console.log('AuthContext: User verified in onAuthStateChange, setting session and user')
+          setSession(session)
+          setUser(session.user)
+          setLoading(false)
+          return
         } catch (checkError) {
           console.error('AuthContext: Error checking user in onAuthStateChange:', checkError)
-          // On error, disconnect to be safe
-          console.log('AuthContext: Error during check in onAuthStateChange, disconnecting...')
-          // Clear state immediately
-          setSession(null)
-          setUser(null)
+          // On error, don't disconnect - might be a network issue
+          // Set session anyway and continue
+          console.log('AuthContext: Error during check in onAuthStateChange, but continuing with session')
+          setSession(session)
+          setUser(session?.user ?? null)
           setLoading(false)
-          
-          // Force redirect immediately
-          if (typeof window !== 'undefined') {
-            const currentPath = window.location.pathname
-            if (currentPath !== '/login' && currentPath !== '/register' && currentPath !== '/setup') {
-              window.location.replace('/login')
-            }
-          }
-          
-          // Clean up in background
-          cleanupAppData().catch(err => console.error('Error cleaning up:', err))
-          auth.signOut().catch(err => console.error('Error signing out:', err))
+          // Don't redirect - might be a temporary network issue
           return
         }
       }
       
+      // If we reach here, set session and user (even if session is null)
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)

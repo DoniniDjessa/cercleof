@@ -114,31 +114,23 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         .single()
 
       if (error && error.code === 'PGRST116') {
-        // User not found in dd-users - redirect after a delay
-        console.log('Sidebar: User not found in dd-users')
-        setTimeout(async () => {
-          await signOut()
-          if (typeof window !== 'undefined') {
-            window.location.href = '/login'
-          }
-        }, 1000)
+        // User not found in dd-users - don't disconnect immediately, might be a network issue
+        console.log('Sidebar: User not found in dd-users, but continuing (might be network issue)')
+        // Don't disconnect - let AuthContext handle it
         return
       }
 
       if (error) {
         console.error('Sidebar: Error fetching user profile:', error)
+        // Don't disconnect on error - might be a network issue
         return
       }
 
       // Check if data exists and has pseudo or email
       if (!data || (!data.pseudo && !data.email)) {
-        console.log('Sidebar: User has no pseudo or email')
-        setTimeout(async () => {
-          await signOut()
-          if (typeof window !== 'undefined') {
-            window.location.href = '/login'
-          }
-        }, 1000)
+        console.log('Sidebar: User has no pseudo or email, but continuing (might be temporary)')
+        // Don't disconnect immediately - might be a temporary issue
+        // Let AuthContext handle verification
         return
       }
 
@@ -275,8 +267,13 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       items: [
         {
           name: 'Point de Vente',
-          icon: CreditCard,
+          icon: ShoppingCart,
           href: '/admin/pos',
+        },
+        {
+          name: 'Salon',
+          icon: Scissors,
+          href: '/admin/salon',
         },
         {
           name: 'Ventes',
@@ -456,6 +453,11 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           icon: Activity,
           href: '/admin/audit',
         },
+        {
+          name: 'Actions',
+          icon: Activity,
+          href: '/admin/actions',
+        },
       ]
     }
   ]
@@ -472,7 +474,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       className="fixed left-0 top-0 h-screen bg-slate-50 dark:bg-gray-900 border-r border-slate-200 dark:border-gray-800 flex flex-col z-30 transition-colors duration-300"
     >
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-gray-800">
+      <div className="flex items-center justify-between p-2 border-b border-slate-200 dark:border-gray-800">
         <AnimatePresence mode="wait">
           {!isCollapsed && (
             <motion.div
@@ -484,9 +486,9 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
               className="flex items-center space-x-2 dark:space-x-2"
             >
               <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-green-500 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">C</span>
+                <span className="text-white font-bold text-xs">C</span>
               </div>
-              <span className="font-bold text-lg text-blue-600 dark:text-white">
+              <span className="font-bold text-sm text-blue-600 dark:text-white">
                 Cercleof
               </span>
             </motion.div>
@@ -499,7 +501,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
               animate={{ opacity: 1, scale: 1 }}
               className="w-8 h-8 bg-gradient-to-br from-blue-500 to-green-500 rounded-lg flex items-center justify-center mx-auto"
             >
-              <span className="text-white font-bold text-sm">C</span>
+              <span className="text-white font-bold text-xs">C</span>
             </motion.div>
         )}
 
@@ -518,21 +520,21 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-6 overflow-y-auto">
+      <nav className="flex-1 px-2 py-2 space-y-2 overflow-y-auto">
         {navigationSections.map((section, sectionIndex) => (
-          <div key={sectionIndex} className="space-y-2">
+          <div key={sectionIndex} className="space-y-1">
             {/* Section Title */}
             {section.title && !isCollapsed && (
-              <div className="px-3 py-2">
+              <div className="px-2 py-1">
                 <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   {section.title}
                 </h3>
-                <div className="mt-1 h-px bg-slate-200 dark:bg-slate-700"></div>
+                <div className="mt-0.5 h-px bg-slate-200 dark:bg-slate-700"></div>
               </div>
             )}
-            
+
             {/* Section Items */}
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {section.items.map((item) => {
                 const isActive = pathname === item.href || (item.children && item.children.some(child => pathname === child.href))
                 const Icon = item.icon
@@ -542,7 +544,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                     {/* Main Item */}
                     <div
                       className={cn(
-                        "flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative cursor-pointer",
+                        "flex items-center space-x-2 px-2 py-1.5 rounded-lg transition-all duration-200 group relative cursor-pointer text-xs",
                         isActive
                           ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
                           : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-200",
@@ -557,7 +559,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                       }}
                     >
                       <Icon className={cn(
-                        "h-5 w-5 flex-shrink-0",
+                        "h-4 w-4 flex-shrink-0",
                         isActive ? "text-blue-600 dark:text-blue-400" : "text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300"
                       )} />
                       
@@ -571,7 +573,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                             transition={{ duration: 0.2 }}
                             className="flex-1 flex items-center justify-between"
                           >
-                            <span className="font-medium text-sm">{item.name}</span>
+                            <span className="font-medium text-xs">{item.name}</span>
                             <div className="flex items-center space-x-2">
                               {item.badge && (
                                 <span className="px-2 py-0.5 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded-full">
@@ -597,7 +599,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                         animate={{ opacity: 1, height: "auto" }}
                         exit={{ opacity: 0, height: 0 }}
                         transition={{ duration: 0.2 }}
-                        className="ml-6 space-y-1 mt-1"
+                        className="ml-4 space-y-0.5 mt-0.5"
                       >
                         {item.children.map((child) => {
                           const isChildActive = pathname === child.href
@@ -607,14 +609,14 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                             <Link key={child.name} href={child.href || '#'}>
                               <div
                                 className={cn(
-                                  "flex items-center space-x-3 px-3 py-2 rounded-lg transition-all duration-200 group relative",
+                                  "flex items-center space-x-2 px-2 py-1 rounded-lg transition-all duration-200 group relative text-xs",
                                   isChildActive
                                     ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
                                     : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-300"
                                 )}
                               >
-                                <ChildIcon className="h-4 w-4 flex-shrink-0" />
-                                <span className="font-medium text-sm">{child.name}</span>
+                                <ChildIcon className="h-3 w-3 flex-shrink-0" />
+                                <span className="font-medium text-xs">{child.name}</span>
                               </div>
                             </Link>
                           )
@@ -630,7 +632,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       </nav>
 
       {/* User Profile Section */}
-      <div className="p-4 border-t border-slate-200 dark:border-gray-800">
+      <div className="p-2 border-t border-slate-200 dark:border-gray-800">
         <AnimatePresence mode="wait">
           {!isCollapsed ? (
             <motion.div
@@ -639,17 +641,17 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 20 }}
               transition={{ duration: 0.2 }}
-              className="space-y-3"
+              className="space-y-2"
             >
-              <div className="flex items-center space-x-3 p-3 rounded-lg bg-slate-100 dark:bg-gray-800">
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center">
-                  <User className="h-4 w-4 text-white" />
+              <div className="flex items-center space-x-2 p-2 rounded-lg bg-slate-100 dark:bg-gray-800">
+                <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center">
+                  <User className="h-3 w-3 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                  <p className="text-xs font-medium text-gray-900 dark:text-white truncate">
                     {getUserDisplayName() || user?.email?.split('@')[0] || 'Utilisateur'}
                   </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                  <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">
                     {userProfile ? `Travail sur ${getUserDisplayName()}` : t('nav.online')}
                   </p>
                 </div>
@@ -674,17 +676,17 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
               transition={{ duration: 0.2 }}
               className="flex flex-col items-center space-y-2"
             >
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center">
-                <User className="h-4 w-4 text-white" />
+              <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center">
+                <User className="h-3 w-3 text-white" />
               </div>
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={handleSignOut}
-                className="h-8 w-8 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                className="h-6 w-6 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-900/20 dark:hover:text-red-400"
                 title={t('nav.signOut')}
               >
-                <LogOut className="h-4 w-4" />
+                <LogOut className="h-3 w-3" />
               </Button>
             </motion.div>
           )}
