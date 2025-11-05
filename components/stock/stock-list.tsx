@@ -137,7 +137,7 @@ export function StockList() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+        <Card className="bg-white dark:bg-gray-800 ">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Total Stocks</CardTitle>
           </CardHeader>
@@ -145,7 +145,7 @@ export function StockList() {
             <div className="text-2xl font-bold text-gray-900 dark:text-white">{stocks.length}</div>
           </CardContent>
         </Card>
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+        <Card className="bg-white dark:bg-gray-800 ">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Stocks Actifs</CardTitle>
           </CardHeader>
@@ -153,7 +153,7 @@ export function StockList() {
             <div className="text-2xl font-bold text-gray-900 dark:text-white">{stocks.filter((s) => s.status === 'active').length}</div>
           </CardContent>
         </Card>
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+        <Card className="bg-white dark:bg-gray-800 ">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Stocks Fermés</CardTitle>
           </CardHeader>
@@ -164,7 +164,7 @@ export function StockList() {
       </div>
 
       {/* Search */}
-      <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+      <Card className="bg-white dark:bg-gray-800 ">
         <CardHeader>
           <CardTitle className="text-gray-900 dark:text-white">Rechercher des Stocks</CardTitle>
         </CardHeader>
@@ -184,7 +184,7 @@ export function StockList() {
       </Card>
 
       {/* Stocks Table */}
-      <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+      <Card className="bg-white dark:bg-gray-800 ">
         <CardHeader>
           <CardTitle className="text-gray-900 dark:text-white">Liste des Stocks ({filteredStocks.length})</CardTitle>
         </CardHeader>
@@ -192,7 +192,7 @@ export function StockList() {
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow className="border-gray-200 dark:border-gray-700">
+                <TableRow className="">
                   <TableHead className="text-gray-600 dark:text-gray-400">Nom</TableHead>
                   <TableHead className="text-gray-600 dark:text-gray-400">Référence</TableHead>
                   <TableHead className="text-gray-600 dark:text-gray-400">Description</TableHead>
@@ -203,7 +203,7 @@ export function StockList() {
               </TableHeader>
               <TableBody>
                 {filteredStocks.map((stock) => (
-                  <TableRow key={stock.id} className="border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                  <TableRow key={stock.id} className=" hover:bg-gray-50 dark:hover:bg-gray-700">
                     <TableCell className="font-medium text-gray-900 dark:text-white">
                       <div className="flex items-center gap-2">
                         <Package className="w-4 h-4 text-muted-foreground dark:text-gray-400" />

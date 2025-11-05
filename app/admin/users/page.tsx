@@ -482,7 +482,7 @@ export default function UsersManagementPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -538,7 +538,7 @@ export default function UsersManagementPage() {
       {/* Create User Form */}
       {showCreateForm && (
         <AnimatedCard className="border-2 border-gray-200 dark:border-gray-700" delay={0.3}>
-          <div className="p-6">
+          <div className="p-4">
             <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">Create New User</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Add a new staff member to the system. They will be created in Supabase auth and can log in immediately with their email and password.</p>
             <form onSubmit={handleCreateUser} className="space-y-4">
@@ -634,7 +634,7 @@ export default function UsersManagementPage() {
       {/* Create Travailleur Form */}
       {showCreateTravailleurForm && (
         <AnimatedCard className="border-2 border-gray-200 dark:border-gray-700" delay={0.3}>
-          <div className="p-6">
+          <div className="p-4">
             <h2 className="text-base font-semibold mb-2 text-gray-900 dark:text-white">Créer un Nouveau Travailleur</h2>
             <p className="text-xs text-gray-600 dark:text-gray-400 mb-4">Ajoutez un nouveau travailleur (maquilleuse, tresseuse, etc.). Les travailleurs n'ont pas accès à l'application.</p>
             <form onSubmit={handleCreateTravailleur} className="space-y-4">

@@ -176,7 +176,7 @@ export function LoyaltyCardsList({ onCardCreated, onCardUpdated }: LoyaltyCardsL
         </div>
         <AnimatedButton
           onClick={() => {/* TODO: Add create card functionality */}}
-          className="bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white px-6 py-3 rounded-full font-medium transition-all duration-200"
+          className="bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white px-6 py-3 rounded-md font-medium transition-all duration-200"
         >
           <Plus className="h-4 w-4 mr-2" />
           Nouvelle Carte

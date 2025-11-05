@@ -69,7 +69,7 @@ export function AddStock({ onStockCreated }: AddStockProps) {
       }
 
       // Insert stock into dd-stocks table
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('dd-stocks')
         .insert([stockData])
         .select()
@@ -115,7 +115,7 @@ export function AddStock({ onStockCreated }: AddStockProps) {
       </div>
 
       <form onSubmit={handleSubmit}>
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+        <Card className="bg-white dark:bg-gray-800 ">
           <CardHeader>
             <CardTitle className="text-gray-900 dark:text-white">Informations du Stock</CardTitle>
           </CardHeader>

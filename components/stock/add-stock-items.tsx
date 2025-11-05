@@ -125,7 +125,7 @@ export function AddStockItems({ stockId, stockRef, onStockItemsAdded }: AddStock
       }
 
       // Insert stock items
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('dd-stock-items')
         .insert(stockItemsData)
         .select()
@@ -185,13 +185,13 @@ export function AddStockItems({ stockId, stockRef, onStockItemsAdded }: AddStock
       </div>
 
       <form onSubmit={handleSubmit}>
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+        <Card className="bg-white dark:bg-gray-800 ">
           <CardHeader>
             <CardTitle className="text-gray-900 dark:text-white">Articles du Stock</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {stockItems.map((item, index) => (
-              <div key={index} className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg space-y-4">
+              <div key={index} className="p-4 border border-gray-200 dark:border-gray-600 rounded-sm space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="font-medium text-gray-900 dark:text-white">
                     Article {index + 1}
@@ -259,7 +259,7 @@ export function AddStockItems({ stockId, stockRef, onStockItemsAdded }: AddStock
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-gray-700 dark:text-gray-300">Date d'Expiration</Label>
+                    <Label className="text-gray-700 dark:text-gray-300">Date d&apos;Expiration</Label>
                     <Input
                       type="date"
                       value={item.expiry_date || ''}
@@ -270,7 +270,7 @@ export function AddStockItems({ stockId, stockRef, onStockItemsAdded }: AddStock
                 </div>
 
                 {item.product_id && (
-                  <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                  <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-sm">
                     <div className="text-sm text-gray-600 dark:text-gray-400">
                       <p><strong>Produit sélectionné:</strong> {getSelectedProduct(item.product_id)?.name}</p>
                       <p><strong>SKU:</strong> {getSelectedProduct(item.product_id)?.sku}</p>

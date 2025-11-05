@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -16,7 +16,10 @@ import {
   User,
   Calendar,
   FileText,
-  X
+  X,
+  Eye,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 
@@ -34,8 +37,15 @@ interface Action {
     first_name: string
     last_name: string
     email: string
-    role: string
+    pseudo: string
   }
+}
+
+interface ActionDetails {
+  sale?: any
+  client?: any
+  items?: any[]
+  delivery?: any
 }
 
 export default function ActionsPage() {
@@ -48,6 +58,8 @@ export default function ActionsPage() {
   const [filterType, setFilterType] = useState<string>('all')
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [expandedAction, setExpandedAction] = useState<string | null>(null)
+  const [actionDetails, setActionDetails] = useState<Record<string, ActionDetails>>({})
   const itemsPerPage = 50
 
   // Check if user is admin (only admins can access this page)
@@ -86,12 +98,6 @@ export default function ActionsPage() {
     }
   }
 
-  useEffect(() => {
-    if (isAdmin) {
-      fetchActions()
-    }
-  }, [isAdmin, currentPage, filterType])
-
   const fetchActions = async () => {
     try {
       setLoading(true)
@@ -108,7 +114,7 @@ export default function ActionsPage() {
             first_name,
             last_name,
             email,
-            role
+            pseudo
           )
         `, { count: 'exact' })
         .order('date', { ascending: false })
@@ -126,7 +132,7 @@ export default function ActionsPage() {
         return
       }
 
-      setActions(data || [])
+      setActions((data as any) || [])
       setTotalPages(Math.ceil((count || 0) / itemsPerPage))
     } catch (error) {
       console.error('Error:', error)
@@ -135,6 +141,13 @@ export default function ActionsPage() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchActions()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserRole, currentPage, filterType])
 
   const getTypeColor = (type: string) => {
     switch (type) {
@@ -158,13 +171,82 @@ export default function ActionsPage() {
     }
   }
 
+  const fetchActionDetails = async (action: Action) => {
+    if (actionDetails[action.id]) {
+      return // Already fetched
+    }
+
+    try {
+      const details: ActionDetails = {}
+
+      // If it's a sale action, fetch sale details
+      if (action.type === 'vente' && action.cible_table === 'dd-ventes' && action.cible_id) {
+        const { data: saleData, error: saleError } = await supabase
+          .from('dd-ventes')
+          .select(`
+            *,
+            client:dd-clients(id, first_name, last_name, email, phone),
+            user:dd-users!dd-ventes_user_id_fkey(id, first_name, last_name, email, pseudo),
+            items:dd-ventes-items(
+              *,
+              product:dd-products(id, name, sku),
+              service:dd-services(id, name)
+            )
+          `)
+          .eq('id', action.cible_id)
+          .single()
+
+        if (saleError) {
+          console.error('Error fetching sale details:', saleError)
+          // Set empty details to show error state
+          setActionDetails(prev => ({ ...prev, [action.id]: { sale: null } }))
+          return
+        }
+
+        if (saleData) {
+          const sale = saleData as any
+          details.sale = sale
+          details.client = sale.client
+          details.items = sale.items
+
+          // Fetch delivery if exists (don't fail if not found)
+          const { data: deliveryData } = await supabase
+            .from('dd-livraisons')
+            .select('*')
+            .eq('vente_id', action.cible_id)
+            .maybeSingle()
+
+          if (deliveryData) {
+            details.delivery = deliveryData
+          }
+        }
+      }
+
+      setActionDetails(prev => ({ ...prev, [action.id]: details }))
+    } catch (error) {
+      console.error('Error fetching action details:', error)
+      // Set empty details on error
+      setActionDetails(prev => ({ ...prev, [action.id]: { sale: null } }))
+    }
+  }
+
+  const toggleActionDetails = async (actionId: string, action: Action) => {
+    if (expandedAction === actionId) {
+      setExpandedAction(null)
+    } else {
+      setExpandedAction(actionId)
+      await fetchActionDetails(action)
+    }
+  }
+
   const filteredActions = actions.filter(action =>
     action.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
     action.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
     action.cible_table.toLowerCase().includes(searchTerm.toLowerCase()) ||
     action.user?.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     action.user?.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    action.user?.email?.toLowerCase().includes(searchTerm.toLowerCase())
+    action.user?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    action.user?.pseudo?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   if (checkingRole || loading) {
@@ -259,72 +341,159 @@ export default function ActionsPage() {
                   <TableHead>Table</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>IP</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredActions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    <TableCell colSpan={7} className="text-center py-8 text-gray-500 dark:text-gray-400">
                       Aucune action trouvée
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredActions.map((action) => (
-                    <TableRow key={action.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-gray-400" />
-                          <span className="text-sm">
-                            {new Date(action.date).toLocaleString('fr-FR', {
-                              year: 'numeric',
-                              month: '2-digit',
-                              day: '2-digit',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {action.user ? (
-                          <div>
-                            <div className="font-medium">
-                              {action.user.first_name} {action.user.last_name}
-                            </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
-                              {action.user.email}
-                            </div>
-                            <div className="text-xs text-gray-400 dark:text-gray-500">
-                              {action.user.role}
-                            </div>
+                    <React.Fragment key={action.id}>
+                      <TableRow>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-gray-400" />
+                            <span className="text-sm">
+                              {new Date(action.date).toLocaleString('fr-FR', {
+                                year: 'numeric',
+                                month: '2-digit',
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
                           </div>
-                        ) : (
-                          <span className="text-gray-400">Utilisateur supprimé</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={getTypeColor(action.type)}>
-                          {getTypeText(action.type)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <code className="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
-                          {action.cible_table}
-                        </code>
-                      </TableCell>
-                      <TableCell>
-                        <div className="max-w-md truncate" title={action.description}>
-                          {action.description}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {action.ip_address ? (
-                          <code className="text-xs text-gray-500">{action.ip_address}</code>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
+                        </TableCell>
+                        <TableCell>
+                          {action.user ? (
+                            <div>
+                              <div className="font-medium">
+                                {action.user.pseudo || action.user.email}
+                              </div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400">
+                                {action.user.first_name} {action.user.last_name}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">Utilisateur supprimé</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={getTypeColor(action.type)}>
+                            {getTypeText(action.type)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <code className="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
+                            {action.cible_table}
+                          </code>
+                        </TableCell>
+                        <TableCell>
+                          <div className="max-w-md truncate" title={action.description}>
+                            {action.description}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {action.ip_address ? (
+                            <code className="text-xs text-gray-500">{action.ip_address}</code>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {action.type === 'vente' && action.cible_table === 'dd-ventes' ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => toggleActionDetails(action.id, action)}
+                              className="h-8 w-8 p-0"
+                            >
+                              {expandedAction === action.id ? (
+                                <ChevronUp className="w-4 h-4" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4" />
+                              )}
+                            </Button>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                      {expandedAction === action.id && action.type === 'vente' && action.cible_table === 'dd-ventes' && (
+                        <TableRow>
+                          <TableCell colSpan={7} className="bg-gray-50 dark:bg-gray-900/50 p-4">
+                            {!actionDetails[action.id] ? (
+                              <div className="text-xs text-gray-500">Chargement des détails...</div>
+                            ) : actionDetails[action.id]?.sale === null ? (
+                              <div className="text-xs text-red-500">Erreur: Impossible de charger les détails de la vente</div>
+                            ) : actionDetails[action.id]?.sale ? (
+                              <div className="space-y-4">
+                                <div>
+                                  <h4 className="font-semibold text-sm mb-2">Détails de la Vente</h4>
+                                  <div className="grid grid-cols-2 gap-4 text-xs">
+                                    <div>
+                                      <span className="text-gray-500">Client:</span>{' '}
+                                      {actionDetails[action.id].client ? (
+                                        <span>{actionDetails[action.id].client?.first_name} {actionDetails[action.id].client?.last_name}</span>
+                                      ) : (
+                                        <span className="text-gray-400">Client anonyme</span>
+                                      )}
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-500">Vendeur:</span>{' '}
+                                      <span>{actionDetails[action.id].sale?.user?.pseudo || actionDetails[action.id].sale?.user?.email}</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-500">Total:</span>{' '}
+                                      <span>{actionDetails[action.id].sale?.total_net?.toFixed(0)} XOF</span>
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-500">Méthode:</span>{' '}
+                                      <span>{actionDetails[action.id].sale?.methode_paiement}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                {actionDetails[action.id].items && actionDetails[action.id].items!.length > 0 && (
+                                  <div>
+                                    <h4 className="font-semibold text-sm mb-2">Produits/Services</h4>
+                                    <div className="space-y-1">
+                                      {actionDetails[action.id].items?.map((item: any) => (
+                                        <div key={item.id} className="text-xs flex justify-between">
+                                          <span>
+                                            {item.product ? item.product.name : item.service ? item.service.name : 'N/A'} x {item.quantite}
+                                          </span>
+                                          <span>{item.total?.toFixed(0)} XOF</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {actionDetails[action.id].delivery && (
+                                  <div>
+                                    <h4 className="font-semibold text-sm mb-2">Livraison</h4>
+                                    <div className="text-xs">
+                                      <div>
+                                        <span className="text-gray-500">Adresse:</span> {actionDetails[action.id].delivery?.adresse}
+                                      </div>
+                                      <div>
+                                        <span className="text-gray-500">Statut:</span> {actionDetails[action.id].delivery?.statut}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="text-xs text-gray-500">Chargement des détails...</div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
                   ))
                 )}
               </TableBody>

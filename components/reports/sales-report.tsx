@@ -232,7 +232,7 @@ export function SalesReport() {
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center">
-                  <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                  <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-sm">
                     <ShoppingCart className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div className="ml-4">
@@ -246,7 +246,7 @@ export function SalesReport() {
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center">
-                  <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
+                  <div className="p-2 bg-green-100 dark:bg-green-900 rounded-sm">
                     <DollarSign className="h-6 w-6 text-green-600 dark:text-green-400" />
                   </div>
                   <div className="ml-4">
@@ -262,7 +262,7 @@ export function SalesReport() {
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center">
-                  <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
+                  <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-sm">
                     <TrendingUp className="h-6 w-6 text-purple-600 dark:text-purple-400" />
                   </div>
                   <div className="ml-4">
@@ -278,7 +278,7 @@ export function SalesReport() {
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center">
-                  <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
+                  <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-sm">
                     <Package className="h-6 w-6 text-orange-600 dark:text-orange-400" />
                   </div>
                   <div className="ml-4">

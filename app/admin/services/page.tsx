@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -122,7 +123,7 @@ export default function ServicesPage() {
 
   const deleteService = async (serviceId: string) => {
     if (!canManageServices) {
-      toast.error('Vous n\'avez pas la permission de supprimer des services')
+      toast.error('Vous n&apos;avez pas la permission de supprimer des services')
       return
     }
 
@@ -187,7 +188,7 @@ export default function ServicesPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -211,11 +212,11 @@ export default function ServicesPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <CardContent className="p-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="bg-white dark:bg-gray-800 ">
+          <CardContent className="p-4">
             <div className="flex items-center">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-sm">
                 <Scissors className="w-6 h-6 text-blue-600 dark:text-blue-400" />
               </div>
               <div className="ml-4">
@@ -226,10 +227,10 @@ export default function ServicesPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <CardContent className="p-6">
+        <Card className="bg-white dark:bg-gray-800 ">
+          <CardContent className="p-4">
             <div className="flex items-center">
-              <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-lg">
+              <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-sm">
                 <Users className="w-6 h-6 text-green-600 dark:text-green-400" />
               </div>
               <div className="ml-4">
@@ -240,10 +241,10 @@ export default function ServicesPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <CardContent className="p-6">
+        <Card className="bg-white dark:bg-gray-800 ">
+          <CardContent className="p-4">
             <div className="flex items-center">
-              <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+              <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-sm">
                 <DollarSign className="w-6 h-6 text-purple-600 dark:text-purple-400" />
               </div>
               <div className="ml-4">
@@ -254,10 +255,10 @@ export default function ServicesPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <CardContent className="p-6">
+        <Card className="bg-white dark:bg-gray-800 ">
+          <CardContent className="p-4">
             <div className="flex items-center">
-              <div className="p-2 bg-orange-100 dark:bg-orange-900/20 rounded-lg">
+              <div className="p-2 bg-orange-100 dark:bg-orange-900/20 rounded-sm">
                 <Clock className="w-6 h-6 text-orange-600 dark:text-orange-400" />
               </div>
               <div className="ml-4">
@@ -272,7 +273,7 @@ export default function ServicesPage() {
       </div>
 
       {/* Search */}
-      <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+      <Card className="bg-white dark:bg-gray-800 ">
         <CardContent className="p-6">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -287,7 +288,7 @@ export default function ServicesPage() {
       </Card>
 
       {/* Services Table */}
-      <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+      <Card className="bg-white dark:bg-gray-800 ">
         <CardHeader>
           <CardTitle className="text-gray-900 dark:text-white">Liste des Services</CardTitle>
         </CardHeader>
@@ -298,7 +299,7 @@ export default function ServicesPage() {
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-gray-200 dark:border-gray-700">
+                  <TableRow className="">
                     <TableHead className="text-gray-700 dark:text-gray-300">Image</TableHead>
                     <TableHead className="text-gray-700 dark:text-gray-300">Nom</TableHead>
                     <TableHead className="text-gray-700 dark:text-gray-300">Catégorie</TableHead>
@@ -312,16 +313,18 @@ export default function ServicesPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredServices.map((service) => (
-                    <TableRow key={service.id} className="border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <TableRow key={service.id} className=" hover:bg-gray-50 dark:hover:bg-gray-700/50">
                       <TableCell>
                         {(service.images && service.images.length > 0) || service.photo ? (
-                          <img
-                            src={(service.images && service.images[0]) || service.photo}
+                          <Image
+                            src={(service.images && service.images[0]) || service.photo || ''}
                             alt={service.name || service.nom || 'Service'}
-                            className="w-10 h-10 rounded-lg object-cover"
+                            width={40}
+                            height={40}
+                            className="w-10 h-10 rounded-sm object-cover"
                           />
                         ) : (
-                          <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                          <div className="w-10 h-10 rounded-sm bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
                             <Scissors className="w-5 h-5 text-gray-400" />
                           </div>
                         )}

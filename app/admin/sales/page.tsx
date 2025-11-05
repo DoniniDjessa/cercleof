@@ -37,7 +37,8 @@ interface Sale {
     id: string
     first_name: string
     last_name: string
-    role: string
+    email: string
+    pseudo: string
   }
   items?: SaleItem[]
 }
@@ -83,7 +84,7 @@ export default function SalesPage() {
         .select(`
           *,
           client:dd-clients(id, first_name, last_name, email),
-          user:dd-users(id, first_name, last_name, role),
+          user:dd-users(id, first_name, last_name, email, pseudo),
           items:dd-ventes-items(
             *,
             product:dd-products(id, name, sku),
@@ -184,7 +185,7 @@ export default function SalesPage() {
   const paidSales = sales.filter(s => s.status === 'paye').length
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -203,7 +204,7 @@ export default function SalesPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
           <CardContent className="p-6">
             <div className="flex items-center">

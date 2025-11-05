@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
 import { Search, Download, Package, Plus, Trash2 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import toast from "react-hot-toast"
@@ -175,7 +174,7 @@ export function StockItemsList({ stockId, stockName, stockRef }: StockItemsListP
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+        <Card className="bg-white dark:bg-gray-800 ">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Total Articles</CardTitle>
           </CardHeader>
@@ -183,7 +182,7 @@ export function StockItemsList({ stockId, stockName, stockRef }: StockItemsListP
             <div className="text-2xl font-bold text-gray-900 dark:text-white">{stockItems.length}</div>
           </CardContent>
         </Card>
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+        <Card className="bg-white dark:bg-gray-800 ">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Total Quantité</CardTitle>
           </CardHeader>
@@ -193,7 +192,7 @@ export function StockItemsList({ stockId, stockName, stockRef }: StockItemsListP
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+        <Card className="bg-white dark:bg-gray-800 ">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Coût Total</CardTitle>
           </CardHeader>
@@ -203,7 +202,7 @@ export function StockItemsList({ stockId, stockName, stockRef }: StockItemsListP
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+        <Card className="bg-white dark:bg-gray-800 ">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Produits Uniques</CardTitle>
           </CardHeader>
@@ -216,7 +215,7 @@ export function StockItemsList({ stockId, stockName, stockRef }: StockItemsListP
       </div>
 
       {/* Search */}
-      <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+      <Card className="bg-white dark:bg-gray-800 ">
         <CardHeader>
           <CardTitle className="text-gray-900 dark:text-white">Rechercher des Articles</CardTitle>
         </CardHeader>
@@ -236,7 +235,7 @@ export function StockItemsList({ stockId, stockName, stockRef }: StockItemsListP
       </Card>
 
       {/* Stock Items Table */}
-      <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+      <Card className="bg-white dark:bg-gray-800 ">
         <CardHeader>
           <CardTitle className="text-gray-900 dark:text-white">Liste des Articles ({filteredStockItems.length})</CardTitle>
         </CardHeader>
@@ -244,7 +243,7 @@ export function StockItemsList({ stockId, stockName, stockRef }: StockItemsListP
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow className="border-gray-200 dark:border-gray-700">
+                <TableRow className="">
                   <TableHead className="text-gray-600 dark:text-gray-400">Produit</TableHead>
                   <TableHead className="text-gray-600 dark:text-gray-400">SKU</TableHead>
                   <TableHead className="text-gray-600 dark:text-gray-400">Code-barres</TableHead>
@@ -258,7 +257,7 @@ export function StockItemsList({ stockId, stockName, stockRef }: StockItemsListP
               </TableHeader>
               <TableBody>
                 {filteredStockItems.map((item) => (
-                  <TableRow key={item.id} className="border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                  <TableRow key={item.id} className=" hover:bg-gray-50 dark:hover:bg-gray-700">
                     <TableCell className="font-medium text-gray-900 dark:text-white">
                       <div className="flex items-center gap-2">
                         <Package className="w-4 h-4 text-muted-foreground dark:text-gray-400" />

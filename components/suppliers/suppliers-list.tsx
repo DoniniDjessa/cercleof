@@ -152,7 +152,7 @@ export function SuppliersList() {
         </div>
         <AnimatedButton
           onClick={() => {/* TODO: Add create supplier functionality */}}
-          className="bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white px-6 py-3 rounded-full font-medium transition-all duration-200"
+          className="bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white px-6 py-3 rounded-md font-medium transition-all duration-200"
         >
           <Plus className="h-4 w-4 mr-2" />
           Nouveau Fournisseur
@@ -164,7 +164,7 @@ export function SuppliersList() {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-sm">
                 <Truck className="h-6 w-6 text-blue-600 dark:text-blue-400" />
               </div>
               <div className="ml-4">
@@ -178,7 +178,7 @@ export function SuppliersList() {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center">
-              <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
+              <div className="p-2 bg-green-100 dark:bg-green-900 rounded-sm">
                 <Package className="h-6 w-6 text-green-600 dark:text-green-400" />
               </div>
               <div className="ml-4">
@@ -192,7 +192,7 @@ export function SuppliersList() {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center">
-              <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
+              <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-sm">
                 <DollarSign className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
               </div>
               <div className="ml-4">
@@ -206,7 +206,7 @@ export function SuppliersList() {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center">
-              <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
+              <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-sm">
                 <MapPin className="h-6 w-6 text-purple-600 dark:text-purple-400" />
               </div>
               <div className="ml-4">

@@ -144,7 +144,7 @@ export function DashboardCards({ userRole }: DashboardCardsProps) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: index * 0.1 }}
             >
-              <Card className={`relative overflow-hidden hover:shadow-xl transition-all duration-300 group border-0 shadow-lg ${stat.bgColor}`}>
+              <Card className={`relative overflow-hidden hover:shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-all duration-300 group shadow-[0_0.5px_1px_rgba(0,0,0,0.03)] ${stat.bgColor}`}>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
@@ -187,12 +187,12 @@ export function DashboardCards({ userRole }: DashboardCardsProps) {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
-              <Card className={`relative overflow-hidden hover:shadow-xl transition-all duration-300 group border-0 shadow-lg bg-white dark:bg-gray-800 ${
+              <Card className={`relative overflow-hidden hover:shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-all duration-300 group shadow-[0_0.5px_1px_rgba(0,0,0,0.03)] bg-white dark:bg-gray-800 ${
                 action.disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:-translate-y-1'
               }`}>
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between mb-4">
-                    <div className={`p-3 rounded-xl bg-gradient-to-r ${action.color} group-hover:scale-110 transition-transform duration-300 shadow-lg`}>
+                    <div className={`p-3 rounded-xl bg-gradient-to-r ${action.color} group-hover:scale-110 transition-transform duration-300 shadow-[0_0.5px_1px_rgba(0,0,0,0.03)]`}>
                       <Icon className="h-5 w-5 text-white" />
                     </div>
                     {action.disabled && (
@@ -243,7 +243,7 @@ export function DashboardCards({ userRole }: DashboardCardsProps) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.4 }}
       >
-        <Card className="border-0 shadow-lg bg-white dark:bg-gray-800">
+        <Card className="shadow-[0_0.5px_1px_rgba(0,0,0,0.03)] bg-white dark:bg-gray-800">
           <CardHeader className="pb-4">
             <CardTitle className="flex items-center text-xl font-bold">
               <div className="p-2 bg-gradient-to-r from-pink-300 to-pink-600 rounded-lg mr-3">

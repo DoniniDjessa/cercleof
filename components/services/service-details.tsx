@@ -232,7 +232,7 @@ export function ServiceDetails({ serviceId }: ServiceDetailsProps) {
         <div className="lg:col-span-2 space-y-6">
           {/* Service Image */}
           {((service.images && service.images.length > 0) || service.photo) && (
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <Card className="bg-white dark:bg-gray-800 ">
               <CardHeader>
                 <CardTitle className="text-gray-900 dark:text-white">Image du Service</CardTitle>
               </CardHeader>
@@ -241,7 +241,7 @@ export function ServiceDetails({ serviceId }: ServiceDetailsProps) {
                   <img
                     src={(service.images && service.images[0]) || service.photo}
                     alt={service.name || service.nom || 'Service'}
-                    className="w-full max-w-md h-64 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
+                    className="w-full max-w-md h-64 object-cover rounded-sm border border-gray-200 dark:border-gray-600"
                   />
                 </div>
               </CardContent>
@@ -249,7 +249,7 @@ export function ServiceDetails({ serviceId }: ServiceDetailsProps) {
           )}
 
           {/* Service Information */}
-          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+          <Card className="bg-white dark:bg-gray-800 ">
             <CardHeader>
               <CardTitle className="text-gray-900 dark:text-white">Informations du Service</CardTitle>
             </CardHeader>
@@ -288,21 +288,21 @@ export function ServiceDetails({ serviceId }: ServiceDetailsProps) {
           </Card>
 
           {/* Pricing & Duration */}
-          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+          <Card className="bg-white dark:bg-gray-800 ">
             <CardHeader>
               <CardTitle className="text-gray-900 dark:text-white">Tarification et Durée</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
+                <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-sm">
                   <p className="text-xs text-muted-foreground dark:text-gray-400">Prix de Base</p>
                   <p className="text-xl font-bold text-gray-900 dark:text-white">{(service.price || service.prix_base || 0).toFixed(0)} XOF</p>
                 </div>
-                <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
+                <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-sm">
                   <p className="text-xs text-muted-foreground dark:text-gray-400">Durée</p>
                   <p className="text-xl font-bold text-gray-900 dark:text-white">{service.duration_minutes || service.duration || service.duree || 0} min</p>
                 </div>
-                <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
+                <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-sm">
                   <p className="text-xs text-muted-foreground dark:text-gray-400">Commission Employé</p>
                   <p className="text-xl font-bold text-gray-900 dark:text-white">{(service.commission_rate || service.commission_employe || 0)}%</p>
                 </div>
@@ -312,16 +312,16 @@ export function ServiceDetails({ serviceId }: ServiceDetailsProps) {
 
           {/* Products Used */}
           {serviceProducts.length > 0 && (
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <Card className="bg-white dark:bg-gray-800 ">
               <CardHeader>
                 <CardTitle className="text-gray-900 dark:text-white">Produits Utilisés</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
                   {serviceProducts.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
+                    <div key={item.id} className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-sm">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-sm bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
                           <Package className="w-5 h-5 text-gray-400" />
                         </div>
                         <div>
@@ -346,7 +346,7 @@ export function ServiceDetails({ serviceId }: ServiceDetailsProps) {
 
           {/* Tags */}
           {service.tags.length > 0 && (
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <Card className="bg-white dark:bg-gray-800 ">
               <CardHeader>
                 <CardTitle className="text-gray-900 dark:text-white">Tags</CardTitle>
               </CardHeader>
@@ -369,7 +369,7 @@ export function ServiceDetails({ serviceId }: ServiceDetailsProps) {
         {/* Sidebar */}
         <div className="space-y-4">
           {/* Actions */}
-          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+          <Card className="bg-white dark:bg-gray-800 ">
             <CardHeader>
               <CardTitle className="text-gray-900 dark:text-white">Actions</CardTitle>
             </CardHeader>
@@ -394,24 +394,24 @@ export function ServiceDetails({ serviceId }: ServiceDetailsProps) {
           </Card>
 
           {/* Service Statistics */}
-          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+          <Card className="bg-white dark:bg-gray-800 ">
             <CardHeader>
               <CardTitle className="text-gray-900 dark:text-white">Statistiques</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+              <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-sm">
                 <p className="text-xs text-muted-foreground dark:text-gray-400">Prix de Base</p>
                 <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                   {(service.price || service.prix_base || 0).toFixed(0)} XOF
                 </p>
               </div>
-              <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+              <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-sm">
                 <p className="text-xs text-muted-foreground dark:text-gray-400">Commission Employé</p>
                 <p className="text-2xl font-bold text-green-600 dark:text-green-400">
                   {(service.commission_rate || service.commission_employe || 0)}%
                 </p>
               </div>
-              <div className="text-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+              <div className="text-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-sm">
                 <p className="text-xs text-muted-foreground dark:text-gray-400">Date de Création</p>
                 <p className="text-sm font-medium text-purple-600 dark:text-purple-400">
                   {new Date(service.created_at).toLocaleDateString('fr-FR')}

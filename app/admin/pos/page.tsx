@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, Plus, Minus, Trash2, CreditCard, ShoppingCart, User, Package, Scissors, DollarSign, Percent, Truck } from "lucide-react"
+import { Search, Plus, Minus, Trash2, CreditCard, ShoppingCart, User, Package, Scissors, DollarSign, Percent, Truck, Check } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import toast from "react-hot-toast"
 
@@ -363,7 +363,7 @@ export default function POSPage() {
 
       const { data: currentUser, error: userError } = await supabase
         .from('dd-users')
-        .select('id')
+        .select('id, pseudo, email')
         .eq('auth_user_id', authUser.id)
         .single()
 
@@ -371,6 +371,8 @@ export default function POSPage() {
         toast.error('Erreur lors de la récupération de l\'utilisateur')
         return
       }
+
+      const userDisplayName = currentUser.pseudo || currentUser.email
 
       const subtotal = calculateSubtotal()
       const discountAmount = calculateDiscountAmount()
@@ -434,8 +436,9 @@ export default function POSPage() {
 
       // Create salon entries for services sold
       const serviceItems = cart.filter(item => item.type === 'service')
+      let salonEntries: any[] = []
       if (serviceItems.length > 0 && createdSaleItems) {
-        const salonEntries = serviceItems.map((item, index) => {
+        salonEntries = serviceItems.map((item, index) => {
           const serviceItem = createdSaleItems.find(si => si.service_id === item.id)
           const service = item.data as Service
           return {
@@ -450,13 +453,16 @@ export default function POSPage() {
           }
         })
 
-        const { error: salonError } = await supabase
+        const { data: createdSalonEntries, error: salonError } = await supabase
           .from('dd-salon')
           .insert(salonEntries)
+          .select()
 
         if (salonError) {
           console.error('Error creating salon entries:', salonError)
           // Don't throw - salon entry failure shouldn't prevent the sale
+        } else if (createdSalonEntries) {
+          salonEntries = createdSalonEntries
         }
       }
 
@@ -521,28 +527,111 @@ export default function POSPage() {
         console.error('Error creating revenue:', revenueError)
       }
 
-      // Create action entry (audit trail)
-      const { error: actionError } = await supabase
-        .from('dd-actions')
-        .insert([{
-          user_id: currentUser.id,
-          type: 'vente',
-          cible_table: 'dd-ventes',
-          cible_id: sale.id,
-          description: `Vente effectuée: ${total.toFixed(0)} XOF - ${cart.length} article(s) - ${paymentMethod}`
-        }])
+      // Format action description based on sale type and client
+      const now = new Date()
+      const saleDate = new Date(sale.date || now.toISOString())
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const yesterday = new Date(today)
+      yesterday.setDate(yesterday.getDate() - 1)
+      const saleDay = new Date(saleDate)
+      saleDay.setHours(0, 0, 0, 0)
 
-      if (actionError) {
-        console.error('Error creating action:', actionError)
+      let timePrefix = ''
+      if (saleDay.getTime() === today.getTime()) {
+        // Today
+        timePrefix = saleDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+      } else if (saleDay.getTime() === yesterday.getTime()) {
+        // Yesterday
+        timePrefix = `hier:${saleDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
+      } else {
+        // Older date
+        timePrefix = saleDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + ' ' + saleDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
       }
 
-      // Create notification for client if client is selected
-      if (selectedClient) {
+      // Get product/service names (serviceItems already defined above)
+      const productItems = cart.filter(item => item.type === 'product')
+      
+      let productNames = productItems.map(item => item.name).join(' et ')
+      let serviceNames = serviceItems.map(item => item.name).join(' et ')
+
+      let actionDescription = ''
+      let actionType = 'vente'
+      
+      if (serviceItems.length > 0 && serviceItems.length === cart.length) {
+        // Only services - create action for service creation
+        actionType = 'ajout'
+        actionDescription = `Service créé par ${userDisplayName}`
+        
+        // Create action for service creation (pointing to salon entry)
+        if (salonEntries && salonEntries.length > 0) {
+          const { error: serviceActionError } = await supabase
+            .from('dd-actions')
+            .insert([{
+              user_id: currentUser.id,
+              type: 'ajout',
+              cible_table: 'dd-salon',
+              cible_id: salonEntries[0].id,
+              description: actionDescription
+            }])
+          
+          if (serviceActionError) {
+            console.error('Error creating service action:', serviceActionError)
+          }
+        }
+        
+        // Also create a separate action for the sale
+        const { error: saleActionError } = await supabase
+          .from('dd-actions')
+          .insert([{
+            user_id: currentUser.id,
+            type: 'vente',
+            cible_table: 'dd-ventes',
+            cible_id: sale.id,
+            description: serviceItems.length === 1 
+              ? `${timePrefix}: ${selectedClient ? `${selectedClient.first_name} ${selectedClient.last_name} a acheté ${serviceNames}` : `${userDisplayName} a vendu ${serviceNames}`}, montant ${total.toFixed(0)}f vendu par ${userDisplayName}`
+              : `${timePrefix}: ${selectedClient ? `${selectedClient.first_name} ${selectedClient.last_name} a acheté ${serviceNames}` : `${userDisplayName} a vendu ${serviceNames}`}, montant ${total.toFixed(0)}f vendu par ${userDisplayName}`
+          }])
+        
+        if (saleActionError) {
+          console.error('Error creating sale action:', saleActionError)
+        }
+      } else if (productItems.length > 0) {
+        // Products or mixed
+        if (selectedClient) {
+          actionDescription = `${timePrefix}: ${selectedClient.first_name} ${selectedClient.last_name} a acheté ${productNames}${serviceNames ? ' et ' + serviceNames : ''}, montant ${total.toFixed(0)}f vendu par ${userDisplayName}`
+        } else {
+          actionDescription = `${timePrefix}: ${userDisplayName} a vendu ${productNames}${serviceNames ? ' et ' + serviceNames : ''}, montant ${total.toFixed(0)}f`
+        }
+      } else {
+        // Fallback
+        actionDescription = `${timePrefix}: Vente effectuée: ${total.toFixed(0)} XOF - ${cart.length} article(s) - vendu par ${userDisplayName}`
+      }
+
+      // Create action entry (audit trail) - only if not already created for services
+      if (!(serviceItems.length > 0 && serviceItems.length === cart.length)) {
+        const { error: actionError } = await supabase
+          .from('dd-actions')
+          .insert([{
+            user_id: currentUser.id,
+            type: actionType,
+            cible_table: serviceItems.length > 0 ? 'dd-salon' : 'dd-ventes',
+            cible_id: serviceItems.length > 0 ? (salonEntries && salonEntries.length > 0 ? salonEntries[0].id : null) : sale.id,
+            description: actionDescription
+          }])
+
+        if (actionError) {
+          console.error('Error creating action:', actionError)
+        }
+      }
+
+      // Create notification for client if client is selected (only for products, not services)
+      if (selectedClient && productItems.length > 0) {
         const { error: notifError } = await supabase
           .from('dd-notifications')
           .insert([{
             type: 'vente',
-            message: `Votre achat de ${total.toFixed(0)} XOF a été enregistré avec succès.`,
+            message: `${timePrefix}: ${selectedClient.first_name} ${selectedClient.last_name} a acheté ${productNames}${serviceNames ? ' et ' + serviceNames : ''}, montant ${total.toFixed(0)}f vendu par ${userDisplayName}`,
             cible_type: 'client',
             cible_id: selectedClient.id,
             created_by: currentUser.id
@@ -652,18 +741,18 @@ export default function POSPage() {
   })
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 space-y-4">
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-foreground dark:text-white">Point de Vente</h1>
         <p className="text-muted-foreground dark:text-gray-400">Gérez vos ventes de produits et services</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Products & Services Selection */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-4">
           {/* Client Selection - Combobox */}
-          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+          <Card className="bg-white dark:bg-gray-800">
             <CardHeader>
               <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
                 <User className="w-5 h-5" />
@@ -688,7 +777,7 @@ export default function POSPage() {
                   className="pl-10 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
                 />
                 {showClientDropdown && filteredClients.length > 0 && clientSearchTerm && (
-                  <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm max-h-60 overflow-y-auto">
                     {filteredClients.map((client) => (
                       <div
                         key={client.id}
@@ -743,8 +832,8 @@ export default function POSPage() {
           </Card>
 
           {/* Search */}
-          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-            <CardContent className="p-6">
+          <Card className="bg-white dark:bg-gray-800">
+            <CardContent className="p-4">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <Input
@@ -758,7 +847,7 @@ export default function POSPage() {
           </Card>
 
           {/* Tabs */}
-          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+          <Card className="bg-white dark:bg-gray-800">
             <CardHeader>
               <div className="flex gap-2 mb-4">
                 <Button
@@ -850,8 +939,8 @@ export default function POSPage() {
                           </div>
                         )}
                         <div className="flex-1">
-                          <p className="font-medium text-gray-900 dark:text-white">{product.name}</p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                          <p className="font-medium text-gray-900 dark:text-white text-xs">{product.name}</p>
+                          <p className="text-[10px] text-gray-500 dark:text-gray-400">
                             {product.price.toFixed(0)} XOF • Stock: {product.stock_quantity}
                           </p>
                         </div>
@@ -887,8 +976,8 @@ export default function POSPage() {
                           <Scissors className="w-6 h-6 text-gray-400" />
                         </div>
                         <div className="flex-1">
-                          <p className="font-medium text-gray-900 dark:text-white">{service.name || service.nom}</p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                          <p className="font-medium text-gray-900 dark:text-white text-xs">{service.name || service.nom}</p>
+                          <p className="text-[10px] text-gray-500 dark:text-gray-400">
                             {(service.price || service.prix_base || 0).toFixed(0)} XOF • {service.duration_minutes || service.duration || service.duree || 0} min
                           </p>
                         </div>
@@ -903,12 +992,12 @@ export default function POSPage() {
         </div>
 
         {/* Cart & Checkout */}
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Cart */}
-          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+          <Card className="bg-white dark:bg-gray-800">
             <CardHeader>
-              <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
-                <ShoppingCart className="w-5 h-5" />
+              <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2 text-xs">
+                <ShoppingCart className="w-3 h-3" />
                 Panier ({cart.length})
               </CardTitle>
             </CardHeader>
@@ -922,34 +1011,36 @@ export default function POSPage() {
                   {cart.map((item, index) => (
                     <div key={`${item.id}-${item.type}`} className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
                       <div className="flex-1">
-                        <p className="font-medium text-gray-900 dark:text-white">{item.name}</p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                        <p className="font-medium text-gray-900 dark:text-white text-[10px]">{item.name}</p>
+                        <p className="text-[9px] text-gray-500 dark:text-gray-400">
                           {item.price.toFixed(0)} XOF × {item.quantity}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => updateCartQuantity(item.id, item.type, item.quantity - 1)}
+                          className="h-6 w-6 p-0"
                         >
-                          <Minus className="w-3 h-3" />
+                          <Minus className="w-2 h-2" />
                         </Button>
-                        <span className="w-8 text-center text-sm font-medium">{item.quantity}</span>
+                        <span className="w-6 text-center text-[10px] font-medium">{item.quantity}</span>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => updateCartQuantity(item.id, item.type, item.quantity + 1)}
+                          className="h-6 w-6 p-0"
                         >
-                          <Plus className="w-3 h-3" />
+                          <Plus className="w-2 h-2" />
                         </Button>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => removeFromCart(item.id, item.type)}
-                          className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
+                          className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20 h-6 w-6 p-0"
                         >
-                          <Trash2 className="w-3 h-3" />
+                          <Trash2 className="w-2 h-2" />
                         </Button>
                       </div>
                     </div>
@@ -961,17 +1052,17 @@ export default function POSPage() {
 
           {/* Checkout */}
           {cart.length > 0 && (
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <Card className="bg-white dark:bg-gray-800">
               <CardHeader>
-                <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
-                  <CreditCard className="w-5 h-5" />
+                <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2 text-xs">
+                  <CreditCard className="w-3 h-3" />
                   Paiement
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3">
                 {/* Promotion Code */}
-                <div className="space-y-2">
-                  <Label className="text-gray-700 dark:text-gray-300">Code Promotion</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-gray-700 dark:text-gray-300 text-xs">Code Promotion</Label>
                   <div className="flex gap-2">
                     <Input
                       placeholder="Entrez le code promotion"
@@ -981,13 +1072,14 @@ export default function POSPage() {
                         setPromotionError("")
                       }}
                       disabled={!!appliedPromotion}
-                      className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                      className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 h-8 text-xs"
                     />
                     {appliedPromotion ? (
                       <Button
                         variant="outline"
                         onClick={removePromotion}
-                        className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
+                        className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20 h-8 px-2"
+                        size="sm"
                       >
                         Retirer
                       </Button>
@@ -996,40 +1088,42 @@ export default function POSPage() {
                         variant="outline"
                         onClick={applyPromotionCode}
                         disabled={!promotionCode.trim()}
+                        className="h-8 w-8 p-0"
+                        size="sm"
                       >
-                        Appliquer
+                        <Check className="w-3 h-3 text-green-600 dark:text-green-400" />
                       </Button>
                     )}
                   </div>
                   {appliedPromotion && (
-                    <div className="p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                      <p className="text-sm text-green-800 dark:text-green-400">
+                    <div className="p-1.5 bg-green-50 dark:bg-green-900/20 rounded-sm">
+                      <p className="text-[10px] text-green-800 dark:text-green-400">
                         ✓ Promotion "{appliedPromotion.nom}" appliquée ({appliedPromotion.valeur}{appliedPromotion.valeur_type === 'pourcentage' ? '%' : ' XOF'})
                       </p>
                     </div>
                   )}
                   {promotionError && (
-                    <p className="text-sm text-red-600 dark:text-red-400">{promotionError}</p>
+                    <p className="text-[10px] text-red-600 dark:text-red-400">{promotionError}</p>
                   )}
                 </div>
 
                 {/* Manual Discount (only if no promotion applied and user is admin/manager) */}
                 {!checkingRole && !appliedPromotion && canManageDiscounts && (
-                  <div className="space-y-2">
-                    <Label className="text-gray-700 dark:text-gray-300">Réduction Manuelle</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-gray-700 dark:text-gray-300 text-xs">Réduction Manuelle</Label>
                     <div className="flex gap-2">
                       <Input
                         type="number"
                         min="0"
                         value={discount}
                         onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
-                        className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                        className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 h-8 text-xs"
                       />
                       <Select
                         value={discountType}
                         onValueChange={(value: 'percentage' | 'amount') => setDiscountType(value)}
                       >
-                        <SelectTrigger className="w-24 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
+                        <SelectTrigger className="w-24 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 h-8 text-xs">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1042,13 +1136,13 @@ export default function POSPage() {
                 )}
 
                 {/* Payment Method */}
-                <div className="space-y-2">
-                  <Label className="text-gray-700 dark:text-gray-300">Méthode de Paiement</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-gray-700 dark:text-gray-300 text-xs">Méthode de Paiement</Label>
                   <Select
                     value={paymentMethod}
                     onValueChange={(value: 'cash' | 'carte' | 'mobile_money') => setPaymentMethod(value)}
                   >
-                    <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
+                    <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 h-8 text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -1060,16 +1154,16 @@ export default function POSPage() {
                 </div>
 
                 {/* Delivery Toggle */}
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <div className="flex items-center gap-2">
                     <input
                       type="checkbox"
                       id="requiresDelivery"
                       checked={requiresDelivery}
                       onChange={(e) => setRequiresDelivery(e.target.checked)}
-                      className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                      className="w-3 h-3 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                     />
-                    <Label htmlFor="requiresDelivery" className="text-gray-700 dark:text-gray-300 cursor-pointer">
+                    <Label htmlFor="requiresDelivery" className="text-gray-700 dark:text-gray-300 cursor-pointer text-xs">
                       Requiert une livraison
                     </Label>
                   </div>
@@ -1077,54 +1171,54 @@ export default function POSPage() {
 
                 {/* Delivery Details */}
                 {requiresDelivery && (
-                  <div className="space-y-3 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700">
-                    <Label className="text-gray-700 dark:text-gray-300">Détails de Livraison</Label>
-                    <div className="space-y-2">
+                  <div className="space-y-2 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-sm border border-gray-200 dark:border-gray-700">
+                    <Label className="text-gray-700 dark:text-gray-300 text-xs">Détails de Livraison</Label>
+                    <div className="space-y-1.5">
                       <Input
                         placeholder="Adresse complète"
                         value={deliveryDetails.address}
                         onChange={(e) => setDeliveryDetails({...deliveryDetails, address: e.target.value})}
-                        className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                        className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 h-8 text-xs"
                       />
                       <div className="grid grid-cols-2 gap-2">
                         <Input
                           placeholder="Ville"
                           value={deliveryDetails.city}
                           onChange={(e) => setDeliveryDetails({...deliveryDetails, city: e.target.value})}
-                          className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                          className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 h-8 text-xs"
                         />
                         <Input
                           placeholder="Téléphone"
                           value={deliveryDetails.phone}
                           onChange={(e) => setDeliveryDetails({...deliveryDetails, phone: e.target.value})}
-                          className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                          className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 h-8 text-xs"
                         />
                       </div>
                       <Input
                         placeholder="Notes (optionnel)"
                         value={deliveryDetails.notes}
                         onChange={(e) => setDeliveryDetails({...deliveryDetails, notes: e.target.value})}
-                        className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                        className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 h-8 text-xs"
                       />
                     </div>
                   </div>
                 )}
 
                 {/* Totals */}
-                <div className="space-y-2 pt-4 border-t border-gray-200 dark:border-gray-600">
+                <div className="space-y-1.5 pt-3 border-t border-gray-200 dark:border-gray-600">
                   <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-400">Sous-total:</span>
-                    <span className="text-gray-900 dark:text-white">{calculateSubtotal().toFixed(0)} XOF</span>
+                    <span className="text-gray-600 dark:text-gray-400 text-xs">Sous-total:</span>
+                    <span className="text-gray-900 dark:text-white text-xs">{calculateSubtotal().toFixed(0)} XOF</span>
                   </div>
                   {(appliedPromotion || (discount > 0 && canManageDiscounts)) && (
                     <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">Réduction:</span>
-                      <span className="text-red-600 dark:text-red-400">-{calculateDiscountAmount().toFixed(0)} XOF</span>
+                      <span className="text-gray-600 dark:text-gray-400 text-xs">Réduction:</span>
+                      <span className="text-red-600 dark:text-red-400 text-xs">-{calculateDiscountAmount().toFixed(0)} XOF</span>
                     </div>
                   )}
-                  <div className="flex justify-between font-bold text-lg">
-                    <span className="text-gray-900 dark:text-white">Total:</span>
-                    <span className="text-gray-900 dark:text-white">{calculateTotal().toFixed(0)} XOF</span>
+                  <div className="flex justify-between font-bold">
+                    <span className="text-gray-900 dark:text-white text-xs">Total:</span>
+                    <span className="text-gray-900 dark:text-white text-xs">{calculateTotal().toFixed(0)} XOF</span>
                   </div>
                 </div>
 

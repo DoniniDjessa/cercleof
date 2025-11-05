@@ -237,7 +237,7 @@ export default function PromotionsPage() {
   // Access control: only admins and managers can access this page
   if (!canManagePromotions) {
     return (
-      <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+      <Card className="bg-white dark:bg-gray-800">
         <CardContent className="py-12">
           <div className="flex flex-col items-center justify-center text-center space-y-4">
             <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
@@ -285,7 +285,7 @@ export default function PromotionsPage() {
             {canManagePromotions && (
               <AnimatedButton
                 onClick={() => setShowCreateForm(true)}
-                className="bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white px-6 py-3 rounded-full font-medium transition-all duration-200"
+                className="bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white px-6 py-3 rounded-md font-medium transition-all duration-200"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Nouvelle Promotion

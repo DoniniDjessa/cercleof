@@ -68,7 +68,7 @@ export function LoadingOverlay({ isVisible, message = 'Processing...' }: {
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.8, opacity: 0 }}
-        className="bg-white rounded-2xl p-8 shadow-2xl"
+        className="bg-white rounded-2xl p-8 shadow-sm"
       >
         <BeautyLoader size="md" text={message} />
       </motion.div>

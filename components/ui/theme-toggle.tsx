@@ -25,7 +25,7 @@ export function ThemeToggle() {
         >
           {theme === 'light' ? (
             <div className="relative">
-              <div className="w-4 h-4 bg-white rounded-full shadow-lg"></div>
+              <div className="w-4 h-4 bg-white rounded-full shadow-sm"></div>
               <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-300 rounded-full"></div>
             </div>
           ) : (

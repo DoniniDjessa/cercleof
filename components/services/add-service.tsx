@@ -402,7 +402,7 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
   // Check if user has permission
   if (checkingRole) {
     return (
-      <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+      <Card className="bg-white dark:bg-gray-800">
         <CardContent className="flex items-center justify-center py-12">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -415,7 +415,7 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
 
   if (!canManageServices) {
     return (
-      <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+      <Card className="bg-white dark:bg-gray-800">
         <CardContent className="py-12">
           <div className="flex flex-col items-center justify-center text-center space-y-4">
             <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
@@ -446,13 +446,13 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
         {/* Main Form */}
         <div className="lg:col-span-2 space-y-6">
           {/* Service Image */}
-          <AnimatedCard className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700" delay={0.1}>
+          <AnimatedCard className="bg-white dark:bg-gray-800" delay={0.1}>
             <CardHeader>
               <CardTitle className="text-gray-900 dark:text-white">Image du Service</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-4">
-                <div className="w-20 h-20 rounded-lg border-2 border-gray-200 dark:border-gray-600 overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                <div className="w-20 h-20 rounded-sm border-2 border-gray-200 dark:border-gray-600 overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
                   {imagePreview ? (
                     <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
                   ) : (
@@ -509,7 +509,7 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
           </AnimatedCard>
 
           {/* Service Information */}
-          <AnimatedCard className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700" delay={0.2}>
+          <AnimatedCard className="bg-white dark:bg-gray-800" delay={0.2}>
             <CardHeader>
               <CardTitle className="text-gray-900 dark:text-white">Informations du Service</CardTitle>
             </CardHeader>

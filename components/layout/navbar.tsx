@@ -148,7 +148,7 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.3 }}
-      className="sticky top-0 z-40 w-full border-b-0 shadow-lg bg-gray-100/80 dark:bg-gray-800/80 backdrop-blur-md transition-colors duration-300"
+      className="sticky top-0 z-40 w-full border-b-0 shadow-sm bg-gray-100/80 dark:bg-gray-800/80 backdrop-blur-md transition-colors duration-300"
     >
       <div className="flex h-16 items-center justify-between px-4 lg:px-6">
         {/* Left side - Menu button and search */}
@@ -231,7 +231,7 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -10, scale: 0.95 }}
                 transition={{ duration: 0.2 }}
-                className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border-0 py-1 z-50"
+                className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-sm border-0 py-1 z-50"
               >
                 <div className="px-4 py-3 border-b-0 shadow-sm">
                   <p className="text-sm font-medium text-gray-900 dark:text-white">

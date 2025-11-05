@@ -276,6 +276,40 @@ export default function SalonPage() {
 
   const handleUpdateServiceStatus = async (serviceId: string, newStatus: string) => {
     try {
+      // Get current user info and service details before updating
+      let serviceDetails: SalonService | null = null
+      let currentUser: any = null
+      
+      if (newStatus === 'termine') {
+        // Fetch service details with travailleurs
+        const { data: serviceData } = await supabase
+          .from('dd-salon')
+          .select(`
+            *,
+            client:dd-clients(id, first_name, last_name),
+            travailleurs:dd-salon-travailleurs(
+              *,
+              travailleur:dd-travailleurs(id, first_name, last_name)
+            )
+          `)
+          .eq('id', serviceId)
+          .single()
+
+        serviceDetails = serviceData as any
+
+        // Get current user
+        const { data: { user: authUser } } = await supabase.auth.getUser()
+        if (authUser) {
+          const { data: userData } = await supabase
+            .from('dd-users')
+            .select('id, pseudo, email')
+            .eq('auth_user_id', authUser.id)
+            .single()
+
+          currentUser = userData
+        }
+      }
+
       const { error } = await supabase
         .from('dd-salon')
         .update({ statut: newStatus })
@@ -295,6 +329,76 @@ export default function SalonPage() {
           delete updated[serviceId]
           return updated
         })
+      }
+
+      // Create action when service is completed
+      if (newStatus === 'termine' && serviceDetails && currentUser) {
+        const now = new Date()
+        const serviceDate = new Date(serviceDetails.date_service || now.toISOString())
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const yesterday = new Date(today)
+        yesterday.setDate(yesterday.getDate() - 1)
+        const serviceDay = new Date(serviceDate)
+        serviceDay.setHours(0, 0, 0, 0)
+
+        let timePrefix = ''
+        if (serviceDay.getTime() === today.getTime()) {
+          timePrefix = serviceDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+        } else if (serviceDay.getTime() === yesterday.getTime()) {
+          timePrefix = `hier:${serviceDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
+        } else {
+          timePrefix = serviceDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + ' ' + serviceDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+        }
+
+        // Get travailleur name (first one if multiple)
+        const travailleur = serviceDetails.travailleurs && serviceDetails.travailleurs.length > 0
+          ? serviceDetails.travailleurs[0].travailleur
+          : null
+        const travailleurName = travailleur ? `${travailleur.first_name} ${travailleur.last_name}` : 'travailleur'
+        const userDisplayName = currentUser.pseudo || currentUser.email
+
+        // Create action description
+        let actionDescription = ''
+        if (serviceDetails.client) {
+          actionDescription = `${timePrefix}: ${serviceDetails.client.first_name} ${serviceDetails.client.last_name} s'est ${serviceDetails.service_name} à ${serviceDetails.service_price.toFixed(0)}f, fait par ${travailleurName}, cloturé par ${userDisplayName}`
+        } else {
+          actionDescription = `${timePrefix}: Service ${serviceDetails.service_name} terminé à ${serviceDetails.service_price.toFixed(0)}f, fait par ${travailleurName}, cloturé par ${userDisplayName}`
+        }
+
+        // Create action
+        const { error: actionError } = await supabase
+          .from('dd-actions')
+          .insert([{
+            user_id: currentUser.id,
+            type: 'edition',
+            cible_table: 'dd-salon',
+            cible_id: serviceId,
+            description: actionDescription
+          }])
+
+        if (actionError) {
+          console.error('Error creating action:', actionError)
+        }
+
+        // Create notification for client (without user)
+        if (serviceDetails.client) {
+          const notificationMessage = `${timePrefix}: ${serviceDetails.client.first_name} ${serviceDetails.client.last_name} s'est ${serviceDetails.service_name} à ${serviceDetails.service_price.toFixed(0)}f, fait par ${travailleurName}`
+          
+          const { error: notifError } = await supabase
+            .from('dd-notifications')
+            .insert([{
+              type: 'service',
+              message: notificationMessage,
+              cible_type: 'client',
+              cible_id: serviceDetails.client.id,
+              created_by: currentUser.id
+            }])
+
+          if (notifError) {
+            console.error('Error creating notification:', notifError)
+          }
+        }
       }
 
       toast.success('Statut mis à jour avec succès!')
@@ -399,14 +503,14 @@ export default function SalonPage() {
 
   if (loading) {
     return (
-      <div className="p-6 flex items-center justify-center">
+      <div className="p-4 flex items-center justify-center">
         <div className="text-gray-500 dark:text-gray-400">Chargement...</div>
       </div>
     )
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 space-y-4">
       {/* Header */}
       <div>
         <h1 className="text-lg font-bold text-foreground dark:text-white">Salon</h1>
@@ -414,7 +518,7 @@ export default function SalonPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
           <CardContent className="p-4">
             <div className="flex items-center">
