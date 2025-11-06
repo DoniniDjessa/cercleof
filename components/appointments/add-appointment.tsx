@@ -145,7 +145,7 @@ export function AddAppointment({ onAppointmentCreated }: AddAppointmentProps) {
       const appointmentDateTime = new Date(`${formData.date_rdv}T${formData.time_rdv}`)
 
       const appointmentData = {
-        client_id: formData.client_id,
+        client_id: formData.client_id || null, // Client is optional
         service_id: formData.service_id,
         employe_id: formData.employe_id,
         date_rdv: appointmentDateTime.toISOString(),
@@ -221,15 +221,16 @@ export function AddAppointment({ onAppointmentCreated }: AddAppointmentProps) {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="client_id" className="text-gray-700 dark:text-gray-300">Client *</Label>
+                <Label htmlFor="client_id" className="text-gray-700 dark:text-gray-300">Client (optionnel)</Label>
                 <Select
                   value={formData.client_id}
                   onValueChange={(value) => handleSelectChange('client_id', value)}
                 >
                   <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
-                    <SelectValue placeholder="Sélectionnez un client" />
+                    <SelectValue placeholder="Sélectionnez un client (optionnel)" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="">Aucun client</SelectItem>
                     {clients.map((client) => (
                       <SelectItem key={client.id} value={client.id}>
                         {client.first_name} {client.last_name} - {client.email}

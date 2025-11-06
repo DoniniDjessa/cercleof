@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { AnimatedButton } from "@/components/ui/animated-button"
 import { TableLoadingState } from "@/components/ui/table-loading-state"
-import { Search, Eye, Trash2, TrendingUp, DollarSign, Plus, Calendar } from "lucide-react"
+import { Search, Eye, Trash2, TrendingUp, DollarSign, Plus, Calendar, TrendingDown, BarChart3 } from "lucide-react"
 import { AddRevenue } from "@/components/financial/add-revenue"
 import { supabase } from "@/lib/supabase"
 import toast from "react-hot-toast"
@@ -30,9 +30,17 @@ interface Revenue {
   }
 }
 
+interface Expense {
+  id: string
+  categorie: string
+  montant: number
+  date: string
+}
+
 export default function RevenuesPage() {
   const searchParams = useSearchParams()
   const [revenues, setRevenues] = useState<Revenue[]>([])
+  const [expenses, setExpenses] = useState<Expense[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [showCreateForm, setShowCreateForm] = useState(false)
@@ -53,6 +61,7 @@ export default function RevenuesPage() {
 
   useEffect(() => {
     fetchRevenues()
+    fetchExpenses()
   }, [currentPage, dateFilter, dateRange])
 
   const fetchRevenues = async () => {
@@ -104,13 +113,60 @@ export default function RevenuesPage() {
 
       if (error) throw error
 
-      setRevenues(data || [])
+      setRevenues((data || []) as unknown as Revenue[])
       setTotalPages(Math.ceil((count || 0) / itemsPerPage))
     } catch (error) {
       console.error('Error fetching revenues:', error)
       toast.error('Erreur lors du chargement des revenus')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchExpenses = async () => {
+    try {
+      let query = supabase
+        .from('dd-depenses')
+        .select('id, categorie, montant, date')
+
+      // Apply same date filters as revenues
+      if (dateFilter === 'today') {
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const tomorrow = new Date(today)
+        tomorrow.setDate(tomorrow.getDate() + 1)
+        query = query.gte('date', today.toISOString()).lt('date', tomorrow.toISOString())
+      } else if (dateFilter === 'yesterday') {
+        const yesterday = new Date()
+        yesterday.setDate(yesterday.getDate() - 1)
+        yesterday.setHours(0, 0, 0, 0)
+        const today = new Date(yesterday)
+        today.setDate(today.getDate() + 1)
+        query = query.gte('date', yesterday.toISOString()).lt('date', today.toISOString())
+      } else if (dateFilter === 'week') {
+        const weekAgo = new Date()
+        weekAgo.setDate(weekAgo.getDate() - 7)
+        query = query.gte('date', weekAgo.toISOString())
+      } else if (dateFilter === 'month') {
+        const monthAgo = new Date()
+        monthAgo.setMonth(monthAgo.getMonth() - 1)
+        query = query.gte('date', monthAgo.toISOString())
+      } else if (dateFilter === 'range' && dateRange.start && dateRange.end) {
+        const start = new Date(dateRange.start)
+        start.setHours(0, 0, 0, 0)
+        const end = new Date(dateRange.end)
+        end.setHours(23, 59, 59, 999)
+        query = query.gte('date', start.toISOString()).lte('date', end.toISOString())
+      }
+
+      const { data, error } = await query.order('date', { ascending: false })
+
+      if (error) throw error
+
+      setExpenses((data || []) as Expense[])
+    } catch (error) {
+      console.error('Error fetching expenses:', error)
+      // Don't show error toast for expenses, just log it
     }
   }
 
@@ -175,13 +231,24 @@ export default function RevenuesPage() {
   )
 
   const totalRevenues = revenues.length
-  const totalAmount = revenues.reduce((sum, revenue) => sum + revenue.montant, 0)
-  const averageRevenue = totalRevenues > 0 ? totalAmount / totalRevenues : 0
+  const totalRevenueAmount = revenues.reduce((sum, revenue) => sum + revenue.montant, 0)
+  const averageRevenue = totalRevenues > 0 ? totalRevenueAmount / totalRevenues : 0
   const thisMonthRevenues = revenues.filter(r => {
     const revenueDate = new Date(r.date)
     const now = new Date()
     return revenueDate.getMonth() === now.getMonth() && revenueDate.getFullYear() === now.getFullYear()
   }).length
+
+  // Calculate benefits (profit) - using all expenses including finances
+  const totalExpenseAmount = expenses.reduce((sum, expense) => sum + expense.montant, 0)
+  const profit = totalRevenueAmount - totalExpenseAmount
+  const profitMargin = totalRevenueAmount > 0 ? (profit / totalRevenueAmount) * 100 : 0
+  
+  // Calculate expenses breakdown
+  const financeExpenseAmount = expenses
+    .filter(exp => ['salaire', 'salaire_travailleur'].includes(exp.categorie))
+    .reduce((sum, expense) => sum + expense.montant, 0)
+  const normalExpenseAmount = totalExpenseAmount - financeExpenseAmount
 
   if (showCreateForm) {
     return <AddRevenue onRevenueCreated={fetchRevenues} />
@@ -209,6 +276,43 @@ export default function RevenuesPage() {
         </AnimatedButton>
       </div>
 
+      {/* Benefits Overview Card */}
+      <Card className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200 dark:border-green-800">
+        <CardHeader>
+          <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-green-600 dark:text-green-400" />
+            Bénéfices (Profit)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Revenus</p>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">{totalRevenueAmount.toFixed(0)}f</p>
+            </div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Dépenses</p>
+              <p className="text-2xl font-bold text-red-600 dark:text-red-400">{totalExpenseAmount.toFixed(0)}f</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Dépenses normales: {normalExpenseAmount.toFixed(0)}f | Finances: {financeExpenseAmount.toFixed(0)}f
+              </p>
+            </div>
+            <div className={`bg-white dark:bg-gray-800 rounded-lg p-4 border ${profit >= 0 ? 'border-green-200 dark:border-green-800' : 'border-red-200 dark:border-red-800'}`}>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Bénéfice Net</p>
+              <p className={`text-2xl font-bold ${profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                {profit.toFixed(0)}f
+              </p>
+            </div>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Marge de Profit</p>
+              <p className={`text-2xl font-bold ${profitMargin >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                {profitMargin.toFixed(1)}%
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
@@ -233,7 +337,7 @@ export default function RevenuesPage() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Montant Total</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalAmount.toFixed(0)}f</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalRevenueAmount.toFixed(0)}f</p>
               </div>
             </div>
           </CardContent>

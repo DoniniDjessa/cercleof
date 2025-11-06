@@ -163,11 +163,12 @@ export default function AppointmentsPage() {
   }
 
   const filteredAppointments = appointments.filter(appointment =>
-    appointment.client?.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    appointment.client?.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    appointment.service?.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    appointment.employe?.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    appointment.employe?.last_name.toLowerCase().includes(searchTerm.toLowerCase())
+    (appointment.client?.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+    (appointment.client?.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+    (appointment.service?.nom?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+    (appointment.employe?.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+    (appointment.employe?.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
+    (appointment.client_id === null && searchTerm.toLowerCase().includes('aucun client'))
   )
 
   const totalAppointments = appointments.length
@@ -301,14 +302,18 @@ export default function AppointmentsPage() {
                   {filteredAppointments.map((appointment) => (
                     <TableRow key={appointment.id} className="border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
                       <TableCell>
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {appointment.client?.first_name} {appointment.client?.last_name}
-                          </p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {appointment.client?.email}
-                          </p>
-                        </div>
+                        {appointment.client ? (
+                          <div>
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              {appointment.client.first_name} {appointment.client.last_name}
+                            </p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              {appointment.client.email}
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="text-gray-500 dark:text-gray-400 italic">Aucun client</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div>

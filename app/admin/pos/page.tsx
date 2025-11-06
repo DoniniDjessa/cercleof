@@ -9,8 +9,9 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, Plus, Minus, Trash2, CreditCard, ShoppingCart, User, Package, Scissors, DollarSign, Percent, Truck, Check } from "lucide-react"
+import { Search, Plus, Minus, Trash2, CreditCard, ShoppingCart, User, Package, Scissors, DollarSign, Percent, Truck, Check, UserPlus } from "lucide-react"
 import { supabase } from "@/lib/supabase"
+import { QuickCreateClient } from "@/components/clients/quick-create-client"
 import toast from "react-hot-toast"
 
 interface Product {
@@ -93,6 +94,7 @@ export default function POSPage() {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'carte' | 'mobile_money'>('cash')
   const [loading, setLoading] = useState(false)
   const [showClientDropdown, setShowClientDropdown] = useState(false)
+  const [showQuickCreateClient, setShowQuickCreateClient] = useState(false)
   const [currentUserRole, setCurrentUserRole] = useState<string>("")
   const [checkingRole, setCheckingRole] = useState(true)
   
@@ -149,6 +151,23 @@ export default function POSPage() {
   // Check if user can manage discounts (admin, manager, superadmin)
   const canManageDiscounts = currentUserRole === 'admin' || currentUserRole === 'manager' || currentUserRole === 'superadmin'
 
+  const fetchClients = async () => {
+    try {
+      // Fetch clients (only fields that exist in base table)
+      const { data: clientsData, error: clientsError } = await supabase
+        .from('dd-clients')
+        .select('id, first_name, last_name, email, phone')
+        .eq('is_active', true)
+        .limit(100)
+
+      if (clientsError) throw clientsError
+      setClients(clientsData || [])
+    } catch (error) {
+      console.error('Error fetching clients:', error)
+      toast.error('Erreur lors du chargement des clients')
+    }
+  }
+
   const fetchData = async () => {
     try {
       setLoading(true)
@@ -176,14 +195,8 @@ export default function POSPage() {
 
       if (servicesError) throw servicesError
 
-      // Fetch clients (only fields that exist in base table)
-      const { data: clientsData, error: clientsError } = await supabase
-        .from('dd-clients')
-        .select('id, first_name, last_name, email, phone')
-        .eq('is_active', true)
-        .limit(100)
-
-      if (clientsError) throw clientsError
+      // Fetch clients
+      await fetchClients()
 
       // Fetch categories
       const { data: categoriesData, error: categoriesError } = await supabase
@@ -199,13 +212,12 @@ export default function POSPage() {
       console.log('POS Data fetched:', {
         productsCount: productsData?.length || 0,
         servicesCount: servicesData?.length || 0,
-        clientsCount: clientsData?.length || 0,
+        clientsCount: clients.length || 0,
         categoriesCount: categoriesData?.length || 0
       })
 
       setProducts((productsData || []) as unknown as Product[])
       setServices((servicesData || []) as unknown as Service[])
-      setClients(clientsData || [])
       setCategories(categoriesData || [])
     } catch (error) {
       console.error('Error fetching data:', error)
@@ -754,10 +766,21 @@ export default function POSPage() {
           {/* Client Selection - Combobox */}
           <Card className="bg-white dark:bg-gray-800">
             <CardHeader>
-              <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
-                <User className="w-5 h-5" />
-                Client
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
+                  <User className="w-5 h-5" />
+                  Client
+                </CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowQuickCreateClient(true)}
+                  className="text-green-600 border-green-200 hover:bg-green-50 dark:text-green-400 dark:border-green-800 dark:hover:bg-green-900/20"
+                >
+                  <UserPlus className="w-4 h-4 mr-1" />
+                  Créer
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="relative">
@@ -1234,6 +1257,20 @@ export default function POSPage() {
           )}
         </div>
       </div>
+
+      {/* Quick Create Client Modal */}
+      <QuickCreateClient
+        isOpen={showQuickCreateClient}
+        onClose={() => setShowQuickCreateClient(false)}
+        onClientCreated={(newClient) => {
+          // Add new client to the list
+          setClients([...clients, newClient])
+          // Auto-select the newly created client
+          setSelectedClient(newClient)
+          setClientSearchTerm('')
+          toast.success(`Client ${newClient.first_name} ${newClient.last_name} créé et sélectionné!`)
+        }}
+      />
     </div>
   )
 }
