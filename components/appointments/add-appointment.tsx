@@ -77,16 +77,37 @@ export function AddAppointment({ onAppointmentCreated }: AddAppointmentProps) {
       if (clientsError) throw clientsError
 
       // Fetch services
+      // Fetch services first
       const { data: servicesData, error: servicesError } = await supabase
         .from('dd-services')
-        .select(`
-          *,
-          category:dd-categories(id, name)
-        `)
+        .select('*')
         .eq('actif', true)
         .order('nom')
 
       if (servicesError) throw servicesError
+
+      // Fetch categories separately
+      const categoryIds = servicesData
+        ?.map(service => service.category_id)
+        .filter((id): id is string => !!id) || []
+
+      const categoriesMap = new Map<string, { id: string; name: string }>()
+      if (categoryIds.length > 0) {
+        const { data: categories } = await supabase
+          .from('dd-categories')
+          .select('id, name')
+          .in('id', categoryIds)
+        
+        categories?.forEach(cat => {
+          categoriesMap.set(cat.id, { id: cat.id, name: cat.name })
+        })
+      }
+
+      // Map categories to services
+      const servicesWithCategories = servicesData?.map(service => ({
+        ...service,
+        category: service.category_id ? categoriesMap.get(service.category_id) : undefined
+      })) || []
 
       // Fetch employees (users with employee roles)
       const { data: employeesData, error: employeesError } = await supabase
@@ -99,7 +120,7 @@ export function AddAppointment({ onAppointmentCreated }: AddAppointmentProps) {
       if (employeesError) throw employeesError
 
       setClients(clientsData || [])
-      setServices(servicesData || [])
+      setServices(servicesWithCategories)
       setEmployees(employeesData || [])
     } catch (error) {
       console.error('Error fetching data:', error)

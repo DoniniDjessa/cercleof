@@ -53,19 +53,52 @@ export function StockItemsList({ stockId, stockName, stockRef }: StockItemsListP
       const from = (currentPage - 1) * itemsPerPage
       const to = from + itemsPerPage - 1
 
-      const { data, error, count } = await supabase
+      // Fetch stock items first
+      const { data: stockItemsData, error, count } = await supabase
         .from('dd-stock-items')
-        .select(`
-          *,
-          product:dd-products(id, name, sku, barcode, price)
-        `, { count: 'exact' })
+        .select('*', { count: 'exact' })
         .eq('stock_id', stockId)
         .order('received_date', { ascending: false })
         .range(from, to)
 
       if (error) throw error
       
-      setStockItems(data || [])
+      if (!stockItemsData || stockItemsData.length === 0) {
+        setStockItems([])
+        setTotalPages(Math.ceil((count || 0) / itemsPerPage))
+        return
+      }
+
+      // Fetch products separately
+      const productIds = stockItemsData
+        .map(item => item.product_id)
+        .filter((id): id is string => !!id)
+
+      const productsMap = new Map<string, { id: string; name: string; sku: string; barcode: string; price: number }>()
+      if (productIds.length > 0) {
+        const { data: products } = await supabase
+          .from('dd-products')
+          .select('id, name, sku, barcode, price')
+          .in('id', productIds)
+        
+        products?.forEach(product => {
+          productsMap.set(product.id, {
+            id: product.id,
+            name: product.name,
+            sku: product.sku || '',
+            barcode: product.barcode || '',
+            price: product.price || 0
+          })
+        })
+      }
+
+      // Map products to stock items
+      const stockItemsWithProducts = stockItemsData.map(item => ({
+        ...item,
+        product: item.product_id ? productsMap.get(item.product_id) : undefined
+      })) as StockItem[]
+
+      setStockItems(stockItemsWithProducts)
       setTotalPages(Math.ceil((count || 0) / itemsPerPage))
     } catch (error) {
       console.error('Error fetching stock items:', error)

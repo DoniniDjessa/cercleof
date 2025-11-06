@@ -65,12 +65,10 @@ export function LoyaltyCardsList({ onCardCreated: _onCardCreated, onCardUpdated:
       const from = (currentPage - 1) * itemsPerPage
       const to = from + itemsPerPage - 1
 
-      const { data, error, count } = await supabase
+      // Fetch loyalty cards first
+      const { data: loyaltyCardsData, error, count } = await supabase
         .from('dd-cartes-fidelite')
-        .select(`
-          *,
-          client:dd-clients(first_name, last_name, email, phone)
-        `, { count: 'exact' })
+        .select('*', { count: 'exact' })
         .order('created_at', { ascending: false })
         .range(from, to)
 
@@ -80,7 +78,41 @@ export function LoyaltyCardsList({ onCardCreated: _onCardCreated, onCardUpdated:
         return
       }
 
-      setLoyaltyCards(data || [])
+      if (!loyaltyCardsData || loyaltyCardsData.length === 0) {
+        setLoyaltyCards([])
+        setTotalPages(Math.ceil((count || 0) / itemsPerPage))
+        return
+      }
+
+      // Fetch clients separately
+      const clientIds = loyaltyCardsData
+        .map(card => card.client_id)
+        .filter((id): id is string => !!id)
+
+      const clientsMap = new Map<string, { first_name: string; last_name: string; email: string; phone: string }>()
+      if (clientIds.length > 0) {
+        const { data: clients } = await supabase
+          .from('dd-clients')
+          .select('id, first_name, last_name, email, phone')
+          .in('id', clientIds)
+        
+        clients?.forEach(client => {
+          clientsMap.set(client.id, {
+            first_name: client.first_name,
+            last_name: client.last_name,
+            email: client.email || '',
+            phone: client.phone || ''
+          })
+        })
+      }
+
+      // Map clients to loyalty cards
+      const loyaltyCardsWithClients = loyaltyCardsData.map(card => ({
+        ...card,
+        client: card.client_id ? clientsMap.get(card.client_id) : undefined
+      })) as LoyaltyCard[]
+
+      setLoyaltyCards(loyaltyCardsWithClients)
       setTotalPages(Math.ceil((count || 0) / itemsPerPage))
     } catch (error) {
       console.error('Error:', error)

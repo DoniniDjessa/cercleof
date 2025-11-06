@@ -58,10 +58,7 @@ export function AuditLog() {
       
       let query = supabase
         .from('dd-actions')
-        .select(`
-          *,
-          user:dd-users(first_name, last_name, email, role)
-        `, { count: 'exact' })
+        .select('*', { count: 'exact' })
         .order('created_at', { ascending: false })
 
       // Apply filters
@@ -77,7 +74,8 @@ export function AuditLog() {
       const to = from + itemsPerPage - 1
       query = query.range(from, to)
 
-      const { data, error, count } = await query
+      // Fetch audit logs first
+      const { data: auditLogsData, error, count } = await query
 
       if (error) {
         console.error('Error fetching audit logs:', error)
@@ -85,7 +83,41 @@ export function AuditLog() {
         return
       }
 
-      setAuditLogs(data || [])
+      if (!auditLogsData || auditLogsData.length === 0) {
+        setAuditLogs([])
+        setTotalPages(Math.ceil((count || 0) / itemsPerPage))
+        return
+      }
+
+      // Fetch users separately
+      const userIds = auditLogsData
+        .map(log => log.user_id)
+        .filter((id): id is string => !!id)
+
+      const usersMap = new Map<string, { first_name: string; last_name: string; email: string; role: string }>()
+      if (userIds.length > 0) {
+        const { data: users } = await supabase
+          .from('dd-users')
+          .select('id, first_name, last_name, email, role')
+          .in('id', userIds)
+        
+        users?.forEach(user => {
+          usersMap.set(user.id, {
+            first_name: user.first_name || '',
+            last_name: user.last_name || '',
+            email: user.email || '',
+            role: user.role || ''
+          })
+        })
+      }
+
+      // Map users to audit logs
+      const auditLogsWithUsers = auditLogsData.map(log => ({
+        ...log,
+        user: log.user_id ? usersMap.get(log.user_id) : undefined
+      })) as AuditLog[]
+
+      setAuditLogs(auditLogsWithUsers)
       setTotalPages(Math.ceil((count || 0) / itemsPerPage))
     } catch (error) {
       console.error('Error:', error)

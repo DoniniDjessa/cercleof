@@ -69,13 +69,10 @@ export default function ProductReportPage() {
     try {
       setLoading(true)
 
-      // Fetch products data
-      const { data: products, error: productsError } = await supabase
+      // Fetch products data first
+      const { data: productsData, error: productsError } = await supabase
         .from('dd-products')
-        .select(`
-          *,
-          category:dd-categories(name)
-        `)
+        .select('*')
 
       if (productsError) {
         console.error('Error fetching products:', productsError)
@@ -83,33 +80,113 @@ export default function ProductReportPage() {
         return
       }
 
-      // Fetch sales data for selling analysis
-      const { data: sales, error: salesError } = await supabase
-        .from('dd-ventes-items')
-        .select(`
-          *,
-          product:dd-products(name, cost, price),
-          vente:dd-ventes(date, status)
-        `)
-        .gte('vente.date', startDate)
-        .lte('vente.date', endDate)
-        .eq('vente.status', 'paye')
+      if (!productsData || productsData.length === 0) {
+        setReport({
+          total_products: 0,
+          active_products: 0,
+          low_stock_products: 0,
+          out_of_stock_products: 0,
+          top_selling_products: [],
+          products_by_category: [],
+          stock_value_by_category: []
+        })
+        return
+      }
 
-      if (salesError) {
-        console.error('Error fetching sales:', salesError)
+      // Fetch categories separately
+      const categoryIds = productsData
+        .map(p => p.category_id)
+        .filter((id): id is string => !!id)
+
+      const categoriesMap = new Map<string, { id: string; name: string }>()
+      if (categoryIds.length > 0) {
+        const { data: categories } = await supabase
+          .from('dd-categories')
+          .select('id, name')
+          .in('id', categoryIds)
+        
+        categories?.forEach(cat => {
+          categoriesMap.set(cat.id, { id: cat.id, name: cat.name })
+        })
+      }
+
+      // Map categories to products
+      const products = productsData.map(product => ({
+        ...product,
+        category: product.category_id ? categoriesMap.get(product.category_id) : undefined
+      }))
+
+      // Fetch sales items first
+      const { data: salesItemsData, error: salesItemsError } = await supabase
+        .from('dd-ventes-items')
+        .select('*')
+        .gte('created_at', startDate)
+        .lte('created_at', endDate)
+
+      if (salesItemsError) {
+        console.error('Error fetching sales items:', salesItemsError)
         toast.error('Erreur lors du chargement des données de vente')
         return
       }
 
+      // Fetch related ventes to filter by status and date
+      const venteIds = salesItemsData
+        ?.map(item => item.vente_id)
+        .filter((id): id is string => !!id) || []
+
+      let paidVenteIds: string[] = []
+      if (venteIds.length > 0) {
+        const { data: ventes } = await supabase
+          .from('dd-ventes')
+          .select('id, date, status')
+          .in('id', venteIds)
+          .eq('status', 'paye')
+          .gte('date', startDate)
+          .lte('date', endDate)
+        
+        paidVenteIds = ventes?.map(v => v.id) || []
+      }
+
+      // Filter sales items by paid ventes
+      const salesItems = salesItemsData?.filter(item => paidVenteIds.includes(item.vente_id)) || []
+
+      // Fetch products for sales items
+      const productIds = salesItems
+        .map(item => item.product_id)
+        .filter((id): id is string => !!id)
+
+      const salesProductsMap = new Map<string, { id: string; name: string; cost: number; price: number }>()
+      if (productIds.length > 0) {
+        const { data: salesProducts } = await supabase
+          .from('dd-products')
+          .select('id, name, cost, price')
+          .in('id', productIds)
+        
+        salesProducts?.forEach(prod => {
+          salesProductsMap.set(prod.id, {
+            id: prod.id,
+            name: prod.name,
+            cost: prod.cost || 0,
+            price: prod.price || 0
+          })
+        })
+      }
+
+      // Map products to sales items
+      const sales = salesItems.map(item => ({
+        ...item,
+        product: item.product_id ? salesProductsMap.get(item.product_id) : undefined
+      }))
+
       // Calculate report data
-      const totalProducts = products?.length || 0
-      const activeProducts = products?.filter(p => p.is_active && p.status === 'active').length || 0
-      const lowStockProducts = products?.filter(p => p.stock_quantity > 0 && p.stock_quantity <= 10).length || 0
-      const outOfStockProducts = products?.filter(p => p.stock_quantity === 0).length || 0
+      const totalProducts = products.length
+      const activeProducts = products.filter(p => p.is_active && p.status === 'active').length
+      const lowStockProducts = products.filter(p => p.stock_quantity > 0 && p.stock_quantity <= 10).length
+      const outOfStockProducts = products.filter(p => p.stock_quantity === 0).length
 
       // Top selling products
       const productSales: { [key: string]: { name: string; quantity: number; revenue: number; profit: number } } = {}
-      sales?.forEach(sale => {
+      sales.forEach(sale => {
         if (sale.product) {
           const key = sale.product.name
           if (!productSales[key]) {
@@ -120,25 +197,31 @@ export default function ProductReportPage() {
               profit: 0 
             }
           }
-          productSales[key].quantity += sale.quantity
-          productSales[key].revenue += sale.total_price
-          productSales[key].profit += (sale.product.price - sale.product.cost) * sale.quantity
+          productSales[key].quantity += sale.quantity || 0
+          productSales[key].revenue += sale.total_price || 0
+          productSales[key].profit += (sale.product.price - sale.product.cost) * (sale.quantity || 0)
         }
       })
 
       const topSellingProducts = Object.values(productSales)
         .sort((a, b) => b.revenue - a.revenue)
         .slice(0, 10)
+        .map(prod => ({
+          product_name: prod.name,
+          quantity_sold: prod.quantity,
+          revenue: prod.revenue,
+          profit: prod.profit
+        }))
 
       // Products by category
       const productsByCategory: { [key: string]: { count: number; value: number } } = {}
-      products?.forEach(product => {
+      products.forEach(product => {
         const category = product.category?.name || 'Sans catégorie'
         if (!productsByCategory[category]) {
           productsByCategory[category] = { count: 0, value: 0 }
         }
         productsByCategory[category].count += 1
-        productsByCategory[category].value += product.price * product.stock_quantity
+        productsByCategory[category].value += (product.price || 0) * (product.stock_quantity || 0)
       })
 
       const productsByCategoryArray = Object.entries(productsByCategory)
@@ -151,13 +234,13 @@ export default function ProductReportPage() {
 
       // Stock value by category
       const stockValueByCategory: { [key: string]: { quantity: number; value: number } } = {}
-      products?.forEach(product => {
+      products.forEach(product => {
         const category = product.category?.name || 'Sans catégorie'
         if (!stockValueByCategory[category]) {
           stockValueByCategory[category] = { quantity: 0, value: 0 }
         }
-        stockValueByCategory[category].quantity += product.stock_quantity
-        stockValueByCategory[category].value += product.price * product.stock_quantity
+        stockValueByCategory[category].quantity += product.stock_quantity || 0
+        stockValueByCategory[category].value += (product.price || 0) * (product.stock_quantity || 0)
       })
 
       const stockValueByCategoryArray = Object.entries(stockValueByCategory)

@@ -83,16 +83,7 @@ export default function SalesPage() {
 
       let query = supabase
         .from('dd-ventes')
-        .select(`
-          *,
-          client:dd-clients(id, first_name, last_name, phone),
-          user:dd-users!dd-ventes_user_id_fkey(id, first_name, last_name, email, pseudo),
-          items:dd-ventes-items(
-            *,
-            product:dd-products(id, name, sku),
-            service:dd-services(id, name)
-          )
-        `, { count: 'exact' })
+        .select('*', { count: 'exact' })
 
       // Apply date filters
       if (dateFilter === 'today') {
@@ -124,13 +115,136 @@ export default function SalesPage() {
         query = query.gte('date', start.toISOString()).lte('date', end.toISOString())
       }
 
-      const { data, error, count } = await query
+      const { data: salesData, error, count } = await query
         .range(from, to)
         .order('date', { ascending: false })
 
       if (error) throw error
 
-      setSales(data || [])
+      if (!salesData || salesData.length === 0) {
+        setSales([])
+        setTotalPages(Math.ceil((count || 0) / itemsPerPage))
+        return
+      }
+
+      // Fetch related data separately
+      const clientIds = salesData
+        .map(sale => sale.client_id)
+        .filter((id): id is string => !!id)
+      
+      const userIds = salesData
+        .map(sale => sale.user_id)
+        .filter((id): id is string => !!id)
+      
+      const venteIds = salesData.map(sale => sale.id)
+
+      // Fetch clients
+      const clientsMap = new Map<string, { id: string; first_name: string; last_name: string; phone: string }>()
+      if (clientIds.length > 0) {
+        const { data: clients } = await supabase
+          .from('dd-clients')
+          .select('id, first_name, last_name, phone')
+          .in('id', clientIds)
+        
+        clients?.forEach(client => {
+          clientsMap.set(client.id, {
+            id: client.id,
+            first_name: client.first_name,
+            last_name: client.last_name,
+            phone: client.phone || ''
+          })
+        })
+      }
+
+      // Fetch users
+      const usersMap = new Map<string, { id: string; first_name: string; last_name: string; email: string; pseudo: string }>()
+      if (userIds.length > 0) {
+        const { data: users } = await supabase
+          .from('dd-users')
+          .select('id, first_name, last_name, email, pseudo')
+          .in('id', userIds)
+        
+        users?.forEach(user => {
+          usersMap.set(user.id, {
+            id: user.id,
+            first_name: user.first_name || '',
+            last_name: user.last_name || '',
+            email: user.email || '',
+            pseudo: user.pseudo || ''
+          })
+        })
+      }
+
+      // Fetch sale items
+      const { data: saleItemsData } = await supabase
+        .from('dd-ventes-items')
+        .select('*')
+        .in('vente_id', venteIds)
+
+      // Fetch products for sale items
+      const productIds = saleItemsData
+        ?.map(item => item.product_id)
+        .filter((id): id is string => !!id) || []
+
+      const productsMap = new Map<string, { id: string; name: string; sku: string }>()
+      if (productIds.length > 0) {
+        const { data: products } = await supabase
+          .from('dd-products')
+          .select('id, name, sku')
+          .in('id', productIds)
+        
+        products?.forEach(product => {
+          productsMap.set(product.id, {
+            id: product.id,
+            name: product.name,
+            sku: product.sku || ''
+          })
+        })
+      }
+
+      // Fetch services for sale items
+      const serviceIds = saleItemsData
+        ?.map(item => item.service_id)
+        .filter((id): id is string => !!id) || []
+
+      const servicesMap = new Map<string, { id: string; name: string }>()
+      if (serviceIds.length > 0) {
+        const { data: services } = await supabase
+          .from('dd-services')
+          .select('id, name')
+          .in('id', serviceIds)
+        
+        services?.forEach(service => {
+          servicesMap.set(service.id, {
+            id: service.id,
+            name: service.name || ''
+          })
+        })
+      }
+
+      // Map items to sales
+      const itemsByVenteId = new Map<string, any[]>()
+      saleItemsData?.forEach(item => {
+        const venteId = item.vente_id
+        if (!itemsByVenteId.has(venteId)) {
+          itemsByVenteId.set(venteId, [])
+        }
+        itemsByVenteId.get(venteId)?.push({
+          ...item,
+          product: item.product_id ? productsMap.get(item.product_id) : undefined,
+          service: item.service_id ? servicesMap.get(item.service_id) : undefined
+        })
+      })
+
+      // Map related data to sales
+      const salesWithRelations = salesData.map(sale => ({
+        ...sale,
+        client: sale.client_id ? clientsMap.get(sale.client_id) : undefined,
+        user: sale.user_id ? usersMap.get(sale.user_id) : undefined,
+        items: itemsByVenteId.get(sale.id) || []
+      })) as Sale[]
+
+      setSales(salesWithRelations)
       setTotalPages(Math.ceil((count || 0) / itemsPerPage))
     } catch (error) {
       console.error('Error fetching sales:', error)

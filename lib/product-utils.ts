@@ -27,29 +27,43 @@ export interface WebsiteProduct {
  */
 export async function getWebsiteProducts(): Promise<WebsiteProduct[]> {
   try {
-    const { data, error } = await supabase
+    // Fetch products first
+    const { data: productsData, error } = await supabase
       .from('dd-products')
-      .select(`
-        id,
-        name,
-        description,
-        sku,
-        barcode,
-        price,
-        images,
-        brand,
-        stock_quantity,
-        show_to_website,
-        created_at,
-        category:dd-categories(id, name)
-      `)
+      .select('id, name, description, sku, barcode, price, images, brand, stock_quantity, show_to_website, created_at, category_id')
       .eq('show_to_website', true)
       .eq('is_active', true)
       .eq('status', 'active')
       .order('created_at', { ascending: false })
 
     if (error) throw error
-    return data || []
+
+    if (!productsData || productsData.length === 0) {
+      return []
+    }
+
+    // Fetch categories separately
+    const categoryIds = productsData
+      .map(p => p.category_id)
+      .filter((id): id is string => !!id)
+
+    const categoriesMap = new Map<string, { id: string; name: string }>()
+    if (categoryIds.length > 0) {
+      const { data: categories } = await supabase
+        .from('dd-categories')
+        .select('id, name')
+        .in('id', categoryIds)
+      
+      categories?.forEach(cat => {
+        categoriesMap.set(cat.id, { id: cat.id, name: cat.name })
+      })
+    }
+
+    // Map categories to products
+    return productsData.map(product => ({
+      ...product,
+      category: product.category_id ? categoriesMap.get(product.category_id) : undefined
+    })) as WebsiteProduct[]
   } catch (error) {
     console.error('Error fetching website products:', error)
     return []
@@ -61,22 +75,10 @@ export async function getWebsiteProducts(): Promise<WebsiteProduct[]> {
  */
 export async function getWebsiteProductsByCategory(categoryId: string): Promise<WebsiteProduct[]> {
   try {
-    const { data, error } = await supabase
+    // Fetch products first
+    const { data: productsData, error } = await supabase
       .from('dd-products')
-      .select(`
-        id,
-        name,
-        description,
-        sku,
-        barcode,
-        price,
-        images,
-        brand,
-        stock_quantity,
-        show_to_website,
-        created_at,
-        category:dd-categories(id, name)
-      `)
+      .select('id, name, description, sku, barcode, price, images, brand, stock_quantity, show_to_website, created_at, category_id')
       .eq('category_id', categoryId)
       .eq('show_to_website', true)
       .eq('is_active', true)
@@ -84,7 +86,23 @@ export async function getWebsiteProductsByCategory(categoryId: string): Promise<
       .order('created_at', { ascending: false })
 
     if (error) throw error
-    return data || []
+
+    if (!productsData || productsData.length === 0) {
+      return []
+    }
+
+    // Fetch category
+    const { data: category } = await supabase
+      .from('dd-categories')
+      .select('id, name')
+      .eq('id', categoryId)
+      .single()
+
+    // Map category to products
+    return productsData.map(product => ({
+      ...product,
+      category: category ? { id: category.id, name: category.name } : undefined
+    })) as WebsiteProduct[]
   } catch (error) {
     console.error('Error fetching website products by category:', error)
     return []

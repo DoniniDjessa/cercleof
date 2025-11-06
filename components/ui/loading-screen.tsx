@@ -39,7 +39,7 @@ export function LoadingScreen({
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.6, delay: 0.2 }}
       >
-        <BeautyLoader size="lg" text={message} />
+        <BeautyLoader size="lg" />
       </motion.div>
       
       <motion.div
@@ -76,7 +76,7 @@ export function LoadingOverlay({ isVisible, message = 'Processing...' }: {
         exit={{ scale: 0.8, opacity: 0 }}
         className="bg-white rounded-2xl p-8 shadow-sm"
       >
-        <BeautyLoader size="md" text={message} />
+        <BeautyLoader size="md" />
       </motion.div>
     </motion.div>
   )

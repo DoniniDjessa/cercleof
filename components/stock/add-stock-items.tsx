@@ -138,16 +138,26 @@ export function AddStockItems({ stockId, stockRef, onStockItemsAdded }: AddStock
 
       // Update product stock quantities
       for (const item of stockItemsData) {
-        const { error: updateError } = await supabase
+        // First fetch current stock quantity
+        const { data: currentProduct } = await supabase
           .from('dd-products')
-          .update({ 
-            stock_quantity: supabase.sql`stock_quantity + ${item.quantity}`,
-            updated_at: new Date().toISOString()
-          })
+          .select('stock_quantity')
           .eq('id', item.product_id)
+          .single()
 
-        if (updateError) {
-          console.error('Error updating product stock:', updateError)
+        if (currentProduct) {
+          const newStockQuantity = (currentProduct.stock_quantity || 0) + item.quantity
+          const { error: updateError } = await supabase
+            .from('dd-products')
+            .update({ 
+              stock_quantity: newStockQuantity,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', item.product_id)
+
+          if (updateError) {
+            console.error('Error updating product stock:', updateError)
+          }
         }
       }
 

@@ -141,6 +141,11 @@ export default function ClientReportPage() {
       const topSpendingClients = Object.values(clientSpending)
         .sort((a, b) => b.total - a.total)
         .slice(0, 10)
+        .map(client => ({
+          client_name: client.name,
+          total_spent: client.total,
+          visits: client.visits
+        }))
 
       setReport({
         total_clients: totalClients,
