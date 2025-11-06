@@ -14,18 +14,20 @@ import { supabase } from "@/lib/supabase"
 import { Truck, MapPin, User, Package, Upload, X, Image as ImageIcon } from "lucide-react"
 import toast from "react-hot-toast"
 
-interface Sale {
+interface Delivery {
   id: string
+  vente_id?: string
   client_id?: string
-  total_net: number
-  date: string
-  client?: {
-    id: string
-    first_name: string
-    last_name: string
-    email: string
-    phones: string[]
-  }
+  adresse: string
+  livreur_id?: string
+  livreur_name?: string
+  statut: string
+  date_livraison?: string
+  frais: number
+  mode: string
+  preuve_photo?: string
+  note?: string
+  created_at: string
 }
 
 interface Employee {
@@ -35,83 +37,35 @@ interface Employee {
   role: string
 }
 
-interface AddDeliveryProps {
-  onDeliveryCreated?: () => void
+interface EditDeliveryProps {
+  delivery: Delivery
+  onDeliveryUpdated?: () => void
+  onCancel?: () => void
 }
 
-export function AddDelivery({ onDeliveryCreated }: AddDeliveryProps) {
+export function EditDelivery({ delivery, onDeliveryUpdated, onCancel }: EditDeliveryProps) {
   const { user: authUser } = useAuth()
   const [loading, setLoading] = useState(false)
   const [uploadingImage, setUploadingImage] = useState(false)
   const [deliveryImage, setDeliveryImage] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
-  const [sales, setSales] = useState<Sale[]>([])
+  const [imagePreview, setImagePreview] = useState<string | null>(delivery.preuve_photo || null)
   const [employees, setEmployees] = useState<Employee[]>([])
   
   const [formData, setFormData] = useState({
-    vente_id: "",
-    client_id: "",
-    adresse: "",
-    livreur_id: "",
-    livreur_name: "", // For external livreur
-    date_livraison: "",
-    frais: 0,
-    mode: "interne",
-    note: "",
+    livreur_id: delivery.livreur_id || "",
+    livreur_name: delivery.livreur_name || "",
+    date_livraison: delivery.date_livraison ? new Date(delivery.date_livraison).toISOString().slice(0, 16) : "",
+    frais: delivery.frais || 0,
+    mode: delivery.mode || "interne",
+    note: delivery.note || "",
   })
 
   useEffect(() => {
-    fetchData()
+    fetchEmployees()
   }, [])
 
-  const fetchData = async () => {
+  const fetchEmployees = async () => {
     try {
-      // Fetch sales first
-      const { data: salesData, error: salesError } = await supabase
-        .from('dd-ventes')
-        .select('*')
-        .eq('status', 'paye')
-        .order('date', { ascending: false })
-        .limit(100)
-
-      if (salesError) throw salesError
-
-      if (!salesData || salesData.length === 0) {
-        setSales([])
-        setEmployees([])
-        return
-      }
-
-      // Fetch clients separately
-      const clientIds = salesData
-        .map(sale => sale.client_id)
-        .filter((id): id is string => !!id)
-
-      const clientsMap = new Map<string, { id: string; first_name: string; last_name: string; email: string; phones: string[] }>()
-      if (clientIds.length > 0) {
-        const { data: clients } = await supabase
-          .from('dd-clients')
-          .select('id, first_name, last_name, email, phone')
-          .in('id', clientIds)
-        
-        clients?.forEach(client => {
-          clientsMap.set(client.id, {
-            id: client.id,
-            first_name: client.first_name,
-            last_name: client.last_name,
-            email: client.email || '',
-            phones: client.phone ? [client.phone] : []
-          })
-        })
-      }
-
-      // Map clients to sales
-      const salesWithClients = salesData.map(sale => ({
-        ...sale,
-        client: sale.client_id ? clientsMap.get(sale.client_id) : undefined
-      })) as Sale[]
-
-      // Fetch employees (users with delivery roles) - these are travailleurs
       const { data: employeesData, error: employeesError } = await supabase
         .from('dd-users')
         .select('id, first_name, last_name, role')
@@ -121,11 +75,10 @@ export function AddDelivery({ onDeliveryCreated }: AddDeliveryProps) {
 
       if (employeesError) throw employeesError
 
-      setSales(salesWithClients)
       setEmployees(employeesData || [])
     } catch (error) {
-      console.error('Error fetching data:', error)
-      toast.error('Erreur lors du chargement des données')
+      console.error('Error fetching employees:', error)
+      toast.error('Erreur lors du chargement des travailleurs')
     }
   }
 
@@ -137,15 +90,12 @@ export function AddDelivery({ onDeliveryCreated }: AddDeliveryProps) {
   const handleSelectChange = (name: string, value: string) => {
     setFormData((prev) => ({ ...prev, [name]: value }))
     
-    // Auto-fill client when sale is selected
-    if (name === 'vente_id') {
-      const selectedSale = sales.find(s => s.id === value)
-      if (selectedSale && selectedSale.client_id) {
-        setFormData(prev => ({ 
-          ...prev, 
-          client_id: selectedSale.client_id || "",
-          adresse: ""
-        }))
+    // Clear livreur fields when mode changes
+    if (name === 'mode') {
+      if (value === 'externe') {
+        setFormData(prev => ({ ...prev, livreur_id: '' }))
+      } else {
+        setFormData(prev => ({ ...prev, livreur_name: '' }))
       }
     }
   }
@@ -175,11 +125,11 @@ export function AddDelivery({ onDeliveryCreated }: AddDeliveryProps) {
 
   const removeImage = () => {
     setDeliveryImage(null)
-    setImagePreview(null)
+    setImagePreview(delivery.preuve_photo || null)
   }
 
   const uploadImage = async (): Promise<string | null> => {
-    if (!deliveryImage) return null
+    if (!deliveryImage) return delivery.preuve_photo || null
 
     try {
       setUploadingImage(true)
@@ -217,19 +167,7 @@ export function AddDelivery({ onDeliveryCreated }: AddDeliveryProps) {
     setLoading(true)
 
     try {
-      const { data: currentUser, error: userError } = await supabase
-        .from('dd-users')
-        .select('id')
-        .eq('auth_user_id', authUser?.id)
-        .single()
-
-      if (userError) {
-        console.error('Error fetching current user:', userError)
-        toast.error('Erreur lors de la récupération des informations utilisateur')
-        return
-      }
-
-      let deliveryImageUrl = null
+      let deliveryImageUrl = delivery.preuve_photo || null
       if (deliveryImage) {
         deliveryImageUrl = await uploadImage()
         if (!deliveryImageUrl) {
@@ -238,169 +176,64 @@ export function AddDelivery({ onDeliveryCreated }: AddDeliveryProps) {
         }
       }
 
-      const deliveryData: any = {
-        vente_id: formData.vente_id || null,
-        client_id: formData.client_id || null,
-        adresse: formData.adresse,
+      const updateData: any = {
         livreur_id: formData.mode === 'interne' ? (formData.livreur_id || null) : null,
         livreur_name: formData.mode === 'externe' ? (formData.livreur_name || null) : null,
-        statut: 'en_preparation',
         date_livraison: formData.date_livraison ? new Date(formData.date_livraison).toISOString() : null,
         frais: parseFloat(formData.frais.toString()),
         mode: formData.mode,
         preuve_photo: deliveryImageUrl,
         note: formData.note || null,
-        created_by: currentUser.id
+        updated_at: new Date().toISOString()
       }
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('dd-livraisons')
-        .insert([deliveryData])
-        .select()
+        .update(updateData)
+        .eq('id', delivery.id)
 
       if (error) {
-        console.error('Error creating delivery:', error)
-        toast.error('Erreur lors de la création de la livraison: ' + error.message)
+        console.error('Error updating delivery:', error)
+        toast.error('Erreur lors de la mise à jour de la livraison: ' + error.message)
         return
       }
 
-      toast.success("Livraison créée avec succès!")
+      toast.success("Livraison mise à jour avec succès!")
       
-      // Reset form
-      setFormData({
-        vente_id: "",
-        client_id: "",
-        adresse: "",
-        livreur_id: "",
-        livreur_name: "",
-        date_livraison: "",
-        frais: 0,
-        mode: "interne",
-        note: "",
-      })
-      
-      setDeliveryImage(null)
-      setImagePreview(null)
-
-      if (onDeliveryCreated) {
-        onDeliveryCreated()
+      if (onDeliveryUpdated) {
+        onDeliveryUpdated()
       }
       
     } catch (error) {
-      console.error("Error creating delivery:", error)
-      toast.error("Erreur lors de la création de la livraison. Veuillez réessayer.")
+      console.error("Error updating delivery:", error)
+      toast.error("Erreur lors de la mise à jour de la livraison. Veuillez réessayer.")
     } finally {
       setLoading(false)
     }
   }
 
-  const handleCancel = () => {
-    window.history.replaceState({}, '', '/admin/deliveries')
-    window.location.reload()
-  }
-
-  const selectedSale = sales.find(s => s.id === formData.vente_id)
-  const selectedClient = sales.find(s => s.client_id === formData.client_id)?.client
   const selectedEmployee = employees.find(e => e.id === formData.livreur_id)
 
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-foreground dark:text-white">Nouvelle Livraison</h1>
-        <p className="text-muted-foreground dark:text-gray-400">Créer une nouvelle livraison</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground dark:text-white">Modifier la Livraison</h1>
+          <p className="text-muted-foreground dark:text-gray-400">Mettre à jour les informations de la livraison</p>
+        </div>
+        {onCancel && (
+          <Button variant="outline" onClick={onCancel}>
+            Annuler
+          </Button>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Form */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Sale Selection */}
-          <AnimatedCard className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700" delay={0.1}>
-            <CardHeader>
-              <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
-                <Package className="w-5 h-5" />
-                Vente Associée
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="vente_id" className="text-gray-700 dark:text-gray-300">Vente (optionnel)</Label>
-                <Select
-                  value={formData.vente_id}
-                  onValueChange={(value) => handleSelectChange('vente_id', value)}
-                >
-                  <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
-                    <SelectValue placeholder="Sélectionnez une vente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sales.map((sale) => (
-                      <SelectItem key={sale.id} value={sale.id}>
-                        #{sale.id.slice(-8)} - {sale.client ? `${sale.client.first_name} ${sale.client.last_name}` : 'Client anonyme'} - {sale.total_net.toFixed(0)}f
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </AnimatedCard>
-
-          {/* Client Information */}
-          <AnimatedCard className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700" delay={0.2}>
-            <CardHeader>
-              <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
-                <User className="w-5 h-5" />
-                Client
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="client_id" className="text-gray-700 dark:text-gray-300">Client (optionnel)</Label>
-                <Select
-                  value={formData.client_id}
-                  onValueChange={(value) => handleSelectChange('client_id', value)}
-                >
-                  <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
-                    <SelectValue placeholder="Sélectionnez un client" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sales.filter(s => s.client).map((sale) => (
-                      <SelectItem key={sale.client_id} value={sale.client_id!}>
-                        {sale.client?.first_name} {sale.client?.last_name} - {sale.client?.email}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </AnimatedCard>
-
-          {/* Delivery Address */}
-          <AnimatedCard className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700" delay={0.3}>
-            <CardHeader>
-              <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
-                <MapPin className="w-5 h-5" />
-                Adresse de Livraison
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="adresse" className="text-gray-700 dark:text-gray-300">Adresse *</Label>
-                <Textarea
-                  id="adresse"
-                  name="adresse"
-                  value={formData.adresse}
-                  onChange={handleChange}
-                  placeholder="Entrez l'adresse complète de livraison..."
-                  rows={3}
-                  required
-                  className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
-                />
-              </div>
-            </CardContent>
-          </AnimatedCard>
-
           {/* Delivery Details */}
-          <AnimatedCard className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700" delay={0.4}>
+          <AnimatedCard className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700" delay={0.1}>
             <CardHeader>
               <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
                 <Truck className="w-5 h-5" />
@@ -413,15 +246,7 @@ export function AddDelivery({ onDeliveryCreated }: AddDeliveryProps) {
                   <Label htmlFor="mode" className="text-gray-700 dark:text-gray-300">Mode de Livraison</Label>
                   <Select
                     value={formData.mode}
-                    onValueChange={(value) => {
-                      handleSelectChange('mode', value)
-                      // Clear livreur fields when mode changes
-                      if (value === 'externe') {
-                        setFormData(prev => ({ ...prev, livreur_id: '' }))
-                      } else {
-                        setFormData(prev => ({ ...prev, livreur_name: '' }))
-                      }
-                    }}
+                    onValueChange={(value) => handleSelectChange('mode', value)}
                   >
                     <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
                       <SelectValue />
@@ -495,7 +320,7 @@ export function AddDelivery({ onDeliveryCreated }: AddDeliveryProps) {
           </AnimatedCard>
 
           {/* Delivery Proof */}
-          <AnimatedCard className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700" delay={0.5}>
+          <AnimatedCard className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700" delay={0.2}>
             <CardHeader>
               <CardTitle className="text-gray-900 dark:text-white">Preuve de Livraison</CardTitle>
             </CardHeader>
@@ -503,6 +328,7 @@ export function AddDelivery({ onDeliveryCreated }: AddDeliveryProps) {
               <div className="flex items-center gap-4">
                 <div className="w-20 h-20 rounded-lg border-2 border-gray-200 dark:border-gray-600 overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
                   {imagePreview ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
                     <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
                   ) : (
                     <ImageIcon className="w-8 h-8 text-gray-400" />
@@ -547,7 +373,7 @@ export function AddDelivery({ onDeliveryCreated }: AddDeliveryProps) {
           </AnimatedCard>
 
           {/* Notes */}
-          <AnimatedCard className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700" delay={0.6}>
+          <AnimatedCard className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700" delay={0.3}>
             <CardHeader>
               <CardTitle className="text-gray-900 dark:text-white">Notes</CardTitle>
             </CardHeader>
@@ -570,28 +396,26 @@ export function AddDelivery({ onDeliveryCreated }: AddDeliveryProps) {
 
         {/* Summary */}
         <div className="space-y-4">
-          <AnimatedCard className="sticky top-6 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700" delay={0.7}>
+          <AnimatedCard className="sticky top-6 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700" delay={0.4}>
             <CardHeader>
-              <CardTitle className="text-gray-900 dark:text-white">Résumé de la Livraison</CardTitle>
+              <CardTitle className="text-gray-900 dark:text-white">Résumé</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-3 text-sm">
                 <div>
-                  <p className="text-muted-foreground dark:text-gray-400">Vente</p>
+                  <p className="text-muted-foreground dark:text-gray-400">Adresse</p>
                   <p className="font-medium text-gray-900 dark:text-white">
-                    {selectedSale ? `#${selectedSale.id.slice(-8)}` : "—"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground dark:text-gray-400">Client</p>
-                  <p className="font-medium text-gray-900 dark:text-white">
-                    {selectedClient ? `${selectedClient.first_name} ${selectedClient.last_name}` : "—"}
+                    {delivery.adresse}
                   </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground dark:text-gray-400">Livreur</p>
                   <p className="font-medium text-gray-900 dark:text-white">
-                    {selectedEmployee ? `${selectedEmployee.first_name} ${selectedEmployee.last_name}` : "—"}
+                    {formData.mode === 'interne' && selectedEmployee 
+                      ? `${selectedEmployee.first_name} ${selectedEmployee.last_name}`
+                      : formData.mode === 'externe' && formData.livreur_name
+                      ? formData.livreur_name
+                      : "—"}
                   </p>
                 </div>
                 <div>
@@ -620,16 +444,18 @@ export function AddDelivery({ onDeliveryCreated }: AddDeliveryProps) {
                   className="flex-1" 
                   disabled={loading || uploadingImage}
                 >
-                  {loading || uploadingImage ? <ButtonLoadingSpinner /> : "Créer la Livraison"}
+                  {loading || uploadingImage ? <ButtonLoadingSpinner /> : "Mettre à jour"}
                 </Button>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  className="flex-1 bg-transparent border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700" 
-                  onClick={handleCancel}
-                >
-                  Annuler
-                </Button>
+                {onCancel && (
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="flex-1 bg-transparent border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700" 
+                    onClick={onCancel}
+                  >
+                    Annuler
+                  </Button>
+                )}
               </div>
             </CardContent>
           </AnimatedCard>
@@ -638,3 +464,4 @@ export function AddDelivery({ onDeliveryCreated }: AddDeliveryProps) {
     </div>
   )
 }
+

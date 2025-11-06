@@ -118,13 +118,10 @@ export default function GiftCardsPage() {
       const from = (currentPage - 1) * itemsPerPage
       const to = from + itemsPerPage - 1
 
-      const { data, error, count } = await supabase
+      // Fetch gift cards first
+      const { data: giftCardsData, error, count } = await supabase
         .from('dd-gift-cards')
-        .select(`
-          *,
-          client:dd-clients(id, first_name, last_name, email),
-          purchaser:dd-users!purchased_by(id, first_name, last_name)
-        `, { count: 'exact' })
+        .select('*', { count: 'exact' })
         .order('created_at', { ascending: false })
         .range(from, to)
 
@@ -134,7 +131,64 @@ export default function GiftCardsPage() {
         return
       }
 
-      setGiftCards(data || [])
+      if (!giftCardsData || giftCardsData.length === 0) {
+        setGiftCards([])
+        setTotalPages(Math.ceil((count || 0) / itemsPerPage))
+        return
+      }
+
+      // Fetch related data separately
+      const clientIds = giftCardsData
+        .map(gc => gc.client_id)
+        .filter((id): id is string => !!id)
+      
+      const purchaserIds = giftCardsData
+        .map(gc => gc.purchased_by)
+        .filter((id): id is string => !!id)
+
+      // Fetch clients
+      const clientsMap = new Map<string, { id: string; first_name: string; last_name: string; email: string }>()
+      if (clientIds.length > 0) {
+        const { data: clients } = await supabase
+          .from('dd-clients')
+          .select('id, first_name, last_name, email')
+          .in('id', clientIds)
+        
+        clients?.forEach(client => {
+          clientsMap.set(client.id, {
+            id: client.id,
+            first_name: client.first_name,
+            last_name: client.last_name,
+            email: client.email || ''
+          })
+        })
+      }
+
+      // Fetch purchasers
+      const purchasersMap = new Map<string, { id: string; first_name: string; last_name: string }>()
+      if (purchaserIds.length > 0) {
+        const { data: purchasers } = await supabase
+          .from('dd-users')
+          .select('id, first_name, last_name')
+          .in('id', purchaserIds)
+        
+        purchasers?.forEach(purchaser => {
+          purchasersMap.set(purchaser.id, {
+            id: purchaser.id,
+            first_name: purchaser.first_name || '',
+            last_name: purchaser.last_name || ''
+          })
+        })
+      }
+
+      // Map related data to gift cards
+      const giftCardsWithRelations = giftCardsData.map(gc => ({
+        ...gc,
+        client: gc.client_id ? clientsMap.get(gc.client_id) : undefined,
+        purchaser: gc.purchased_by ? purchasersMap.get(gc.purchased_by) : undefined
+      })) as GiftCard[]
+
+      setGiftCards(giftCardsWithRelations)
       setTotalPages(Math.ceil((count || 0) / itemsPerPage))
     } catch (error) {
       console.error('Error:', error)

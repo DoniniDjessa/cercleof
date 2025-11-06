@@ -9,8 +9,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { AnimatedButton } from "@/components/ui/animated-button"
 import { TableLoadingState } from "@/components/ui/table-loading-state"
-import { Search, Eye, Trash2, Truck, MapPin, User, Package, Plus, Clock, DollarSign } from "lucide-react"
+import { Search, Eye, Trash2, Truck, MapPin, User, Package, Plus, Clock, DollarSign, Edit } from "lucide-react"
 import { AddDelivery } from "@/components/deliveries/add-delivery"
+import { EditDelivery } from "@/components/deliveries/edit-delivery"
 import { supabase } from "@/lib/supabase"
 import toast from "react-hot-toast"
 
@@ -20,6 +21,7 @@ interface Delivery {
   client_id?: string
   adresse: string
   livreur_id?: string
+  livreur_name?: string // For external livreur
   statut: string
   date_livraison?: string
   frais: number
@@ -53,6 +55,7 @@ export default function DeliveriesPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const [editingDeliveryId, setEditingDeliveryId] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [dateFilter, setDateFilter] = useState<string>('all')
@@ -302,6 +305,11 @@ export default function DeliveriesPage() {
     return <AddDelivery onDeliveryCreated={fetchDeliveries} />
   }
 
+  if (editingDeliveryId) {
+    const deliveryToEdit = deliveries.find(d => d.id === editingDeliveryId)
+    return <EditDelivery delivery={deliveryToEdit!} onDeliveryUpdated={() => { setEditingDeliveryId(null); fetchDeliveries() }} onCancel={() => setEditingDeliveryId(null)} />
+  }
+
   return (
     <div className="p-4 space-y-4">
       {/* Header */}
@@ -483,13 +491,22 @@ export default function DeliveriesPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {delivery.livreur ? (
+                        {delivery.mode === 'interne' && delivery.livreur ? (
                           <div>
                             <p className="font-medium text-gray-900 dark:text-white">
                               {delivery.livreur.first_name} {delivery.livreur.last_name}
                             </p>
                             <p className="text-sm text-gray-500 dark:text-gray-400">
                               {delivery.livreur.role}
+                            </p>
+                          </div>
+                        ) : delivery.mode === 'externe' && delivery.livreur_name ? (
+                          <div>
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              {delivery.livreur_name}
+                            </p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              Externe
                             </p>
                           </div>
                         ) : (
@@ -533,11 +550,21 @@ export default function DeliveriesPage() {
                           <Button
                             variant="outline"
                             size="sm"
+                            onClick={() => setEditingDeliveryId(delivery.id)}
+                            className="text-blue-600 border-blue-200 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-900/20"
+                            title="Modifier la livraison"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
                             onClick={() => {
                               // Navigate to delivery details
                               window.location.href = `/admin/deliveries/${delivery.id}`
                             }}
-                            className="text-blue-600 border-blue-200 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-900/20"
+                            className="text-green-600 border-green-200 hover:bg-green-50 dark:text-green-400 dark:border-green-800 dark:hover:bg-green-900/20"
+                            title="Voir les détails"
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
