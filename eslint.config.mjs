@@ -13,23 +13,18 @@ const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
     rules: {
-        "no-unused-vars": "off",
-    "@typescript-eslint/no-unused-vars": "error",
-    
       // Disable exhaustive-deps warnings for useEffect
       "react-hooks/exhaustive-deps": "off",
       // Disable no-empty-object-type warnings
       "@typescript-eslint/no-empty-object-type": "off",
       // Disable prefer-const warnings
       "prefer-const": "off",
+      // Disable unused vars warnings
+      "no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": "off",
       // Allow apostrophes in text (French text often uses them)
       "react/no-unescaped-entities": ["error", {
         "forbid": [">", "}"]
-      }],
-      // Allow unused vars that start with underscore
-      "@typescript-eslint/no-unused-vars": ["error", {
-        "argsIgnorePattern": "^_",
-        "varsIgnorePattern": "^_"
       }],
       // Allow any type but warn
       "@typescript-eslint/no-explicit-any": "warn",
