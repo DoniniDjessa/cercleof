@@ -5,7 +5,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ToastProvider } from "@/components/providers/toast-provider";
 import { AppLayout } from "@/components/layout/app-layout";
-...import { InstallPrompt } from "@/components/pwa/install-prompt";
+import { InstallPrompt } from "@/components/pwa/install-prompt";
 
 const bebasNeue = Bebas_Neue({
   variable: "--font-bebas-neue",
