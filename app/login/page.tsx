@@ -75,12 +75,20 @@ export default function LoginPage() {
               transition={{ duration: 0.6 }}
               className="text-center mb-8 flex flex-col items-center"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img 
-                src="/cbmin.png" 
-                alt="Cercle Of Logo" 
-                className="h-20 w-20 object-contain mb-4"
-              />
+              <div className="relative h-20 w-20 mb-4 flex items-center justify-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img 
+                  src="/cbmin.png" 
+                  alt="Cercle Of Logo" 
+                  className="h-full w-full object-contain"
+                  style={{ maxWidth: '100%', height: 'auto' }}
+                  onError={(e) => {
+                    console.error('Failed to load logo')
+                    const target = e.target as HTMLImageElement
+                    target.style.display = 'none'
+                  }}
+                />
+              </div>
               <h1 className="font-display text-5xl text-foreground mb-2">{t('app.title')}</h1>
             </motion.div>
 
