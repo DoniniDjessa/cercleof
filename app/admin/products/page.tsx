@@ -33,6 +33,7 @@ interface Product {
   is_active: boolean
   created_at: string
   created_by?: string
+  images?: string[] // Array of image URLs
 }
 
 export default function ProductsPage() {
