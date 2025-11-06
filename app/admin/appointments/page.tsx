@@ -73,20 +73,97 @@ export default function AppointmentsPage() {
       const from = (currentPage - 1) * itemsPerPage
       const to = from + itemsPerPage - 1
 
-      const { data, error, count } = await supabase
+      // Fetch appointments first
+      const { data: appointmentsData, error, count } = await supabase
         .from('dd-rdv')
-        .select(`
-          *,
-          client:dd-clients(id, first_name, last_name, email, phones),
-          service:dd-services(id, nom, prix_base),
-          employe:dd-users(id, first_name, last_name, role)
-        `, { count: 'exact' })
+        .select('*', { count: 'exact' })
         .range(from, to)
         .order('date_rdv', { ascending: true })
 
       if (error) throw error
 
-      setAppointments(data || [])
+      if (!appointmentsData || appointmentsData.length === 0) {
+        setAppointments([])
+        setTotalPages(Math.ceil((count || 0) / itemsPerPage))
+        return
+      }
+
+      // Fetch related data separately
+      const clientIds = appointmentsData
+        .map(apt => apt.client_id)
+        .filter((id): id is string => !!id)
+      
+      const serviceIds = appointmentsData
+        .map(apt => apt.service_id)
+        .filter((id): id is string => !!id)
+      
+      const employeIds = appointmentsData
+        .map(apt => apt.employe_id)
+        .filter((id): id is string => !!id)
+
+      // Fetch clients
+      const clientsMap = new Map<string, { id: string; first_name: string; last_name: string; email: string; phones: string[] }>()
+      if (clientIds.length > 0) {
+        const { data: clients } = await supabase
+          .from('dd-clients')
+          .select('id, first_name, last_name, email, phone')
+          .in('id', clientIds)
+        
+        clients?.forEach(client => {
+          clientsMap.set(client.id, {
+            id: client.id,
+            first_name: client.first_name,
+            last_name: client.last_name,
+            email: client.email || '',
+            phones: client.phone ? [client.phone] : []
+          })
+        })
+      }
+
+      // Fetch services
+      const servicesMap = new Map<string, { id: string; nom: string; prix_base: number }>()
+      if (serviceIds.length > 0) {
+        const { data: services } = await supabase
+          .from('dd-services')
+          .select('id, nom, prix_base, name, price')
+          .in('id', serviceIds)
+        
+        services?.forEach(service => {
+          servicesMap.set(service.id, {
+            id: service.id,
+            nom: service.nom || service.name || '',
+            prix_base: service.prix_base || service.price || 0
+          })
+        })
+      }
+
+      // Fetch employees
+      const employeesMap = new Map<string, { id: string; first_name: string; last_name: string; role: string }>()
+      if (employeIds.length > 0) {
+        const { data: employees } = await supabase
+          .from('dd-users')
+          .select('id, first_name, last_name, role')
+          .in('id', employeIds)
+        
+        employees?.forEach(employee => {
+          employeesMap.set(employee.id, {
+            id: employee.id,
+            first_name: employee.first_name || '',
+            last_name: employee.last_name || '',
+            role: employee.role || ''
+          })
+        })
+      }
+
+      // Map related data to appointments
+      const appointmentsWithRelations = appointmentsData.map(apt => ({
+        ...apt,
+        client: apt.client_id ? clientsMap.get(apt.client_id) : undefined,
+        service: apt.service_id ? servicesMap.get(apt.service_id) : undefined,
+        employe: apt.employe_id ? employeesMap.get(apt.employe_id) : undefined
+      })) as Appointment[]
+
+      setAppointments(appointmentsWithRelations)
       setTotalPages(Math.ceil((count || 0) / itemsPerPage))
     } catch (error) {
       console.error('Error fetching appointments:', error)
