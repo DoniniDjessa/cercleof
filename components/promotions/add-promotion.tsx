@@ -16,7 +16,6 @@ import {
   Tag, 
   Users, 
   Package, 
-  Scissors,
   DollarSign,
   Save,
   X
@@ -70,8 +69,8 @@ export function AddPromotion({ onPromotionCreated, onCancel }: AddPromotionProps
     conditions: ''
   })
 
-  const [products, setProducts] = useState<any[]>([])
-  const [services, setServices] = useState<any[]>([])
+  const [products, setProducts] = useState<Array<{id: string, name: string, price: number}>>([])
+  const [services, setServices] = useState<Array<{id: string, name: string, price: number}>>([])
 
   useEffect(() => {
     fetchProductsAndServices()
@@ -91,7 +90,7 @@ export function AddPromotion({ onPromotionCreated, onCancel }: AddPromotionProps
     }
   }
 
-  const handleInputChange = (field: keyof Promotion, value: any) => {
+  const handleInputChange = (field: keyof Promotion, value: string | number | boolean | string[] | undefined) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -162,6 +161,7 @@ export function AddPromotion({ onPromotionCreated, onCancel }: AddPromotionProps
       // Reset form
       setFormData({
         name: '',
+        code: '',
         description: '',
         type: 'percentage',
         value: 0,

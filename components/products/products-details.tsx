@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Edit, Trash2, ArrowLeft, Package, Image as ImageIcon, Plus, X } from "lucide-react"
+import { Edit, Trash2, ArrowLeft, Plus, X } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { ButtonLoadingSpinner } from "@/components/ui/context-loaders"
 import toast from "react-hot-toast"
@@ -236,6 +236,7 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {product.images.map((image, index) => (
                     <div key={index} className="relative group">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={image}
                         alt={`${product.name} - Image ${index + 1}`}

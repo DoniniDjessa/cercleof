@@ -16,24 +16,6 @@ import { X, Image as ImageIcon, Plus, Trash2, Camera } from "lucide-react"
 import { compressImage } from "@/lib/image-utils"
 import toast from "react-hot-toast"
 
-interface ServiceData {
-  id: string
-  name: string
-  description?: string
-  category_id?: string
-  base_price: number
-  duration: number
-  employee_type?: string
-  commission_employee: number
-  active: boolean
-  popularity: number
-  tags: string[]
-  created_at: string
-  category?: {
-    id: string
-    name: string
-  }
-}
 
 interface Product {
   id: string
