@@ -119,23 +119,79 @@ export default function ProductsPage() {
       return
     }
 
-    if (!confirm(`Are you sure you want to delete product "${productName}"? This action cannot be undone.`)) {
-      return
+    // Check if product is referenced in sales items
+    const { data: salesItems, error: checkError } = await supabase
+      .from('dd-ventes-items')
+      .select('id')
+      .eq('product_id', productId)
+      .limit(1)
+
+    if (checkError) {
+      console.error('Error checking product references:', checkError)
     }
 
-    try {
-      const { error } = await supabase
-        .from('dd-products')
-        .delete()
-        .eq('id', productId)
-
-      if (error) throw error
+    if (salesItems && salesItems.length > 0) {
+      // Product is referenced in sales - do soft delete instead
+      const confirmSoftDelete = confirm(
+        `Le produit "${productName}" est référencé dans des ventes et ne peut pas être supprimé définitivement.\n\n` +
+        `Voulez-vous le désactiver (soft delete) ? Il sera masqué mais les données de vente seront conservées.`
+      )
       
-      fetchProducts()
-      toast.success('Product deleted successfully!')
-    } catch (error) {
-      console.error('Error deleting product:', error)
-      toast.error('Error deleting product')
+      if (!confirmSoftDelete) {
+        return
+      }
+
+      try {
+        const { error } = await supabase
+          .from('dd-products')
+          .update({ is_active: false, status: 'archived' })
+          .eq('id', productId)
+
+        if (error) throw error
+        
+        fetchProducts()
+        toast.success('Produit désactivé avec succès!')
+      } catch (error) {
+        console.error('Error deactivating product:', error)
+        toast.error('Erreur lors de la désactivation du produit')
+      }
+    } else {
+      // Product is not referenced - can do hard delete
+      if (!confirm(`Êtes-vous sûr de vouloir supprimer le produit "${productName}" ? Cette action ne peut pas être annulée.`)) {
+        return
+      }
+
+      try {
+        const { error } = await supabase
+          .from('dd-products')
+          .delete()
+          .eq('id', productId)
+
+        if (error) {
+          // Check if it's a foreign key constraint error
+          if (error.code === '23503' || error.message?.includes('foreign key')) {
+            // Try soft delete instead
+            const { error: softDeleteError } = await supabase
+              .from('dd-products')
+              .update({ is_active: false, status: 'archived' })
+              .eq('id', productId)
+
+            if (softDeleteError) throw softDeleteError
+            
+            fetchProducts()
+            toast.success('Le produit ne peut pas être supprimé définitivement. Il a été désactivé.')
+          } else {
+            throw error
+          }
+        } else {
+          fetchProducts()
+          toast.success('Produit supprimé avec succès!')
+        }
+      } catch (error: any) {
+        console.error('Error deleting product:', error)
+        const errorMessage = error.message || 'Erreur lors de la suppression du produit'
+        toast.error(errorMessage)
+      }
     }
   }
 

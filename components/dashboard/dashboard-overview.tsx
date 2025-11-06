@@ -17,6 +17,7 @@ import {
   CreditCard
 } from 'lucide-react'
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import Image from 'next/image'
 
 interface DashboardOverviewProps {
   userRole?: string
@@ -250,11 +251,12 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
       {/* Dashboard Header with Logo */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img 
+          <Image 
             src="/cbmin.png" 
             alt="Cercle Of Logo" 
-            className="h-12 w-12 object-contain"
+            width={48}
+            height={48}
+            className="object-contain"
           />
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Tableau de Bord</h1>
