@@ -22,8 +22,8 @@ export function InstallPrompt() {
       return
     }
 
-    // Check if app was previously installed
-    if (window.navigator.standalone === true) {
+    // Check if app was previously installed (iOS Safari)
+    if ('standalone' in window.navigator && (window.navigator as any).standalone === true) {
       setIsInstalled(true)
       return
     }
