@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, Plus, Minus, Trash2, CreditCard, ShoppingCart, User, Package, Scissors, DollarSign, Percent, Truck, Check, UserPlus, Eye, EyeOff, TrendingUp } from "lucide-react"
+import { Search, Plus, Minus, Trash2, CreditCard, ShoppingCart, User, Package, Scissors, DollarSign, Percent, Truck, Check, UserPlus, Eye, EyeOff, TrendingUp, X } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { QuickCreateClient } from "@/components/clients/quick-create-client"
 import toast from "react-hot-toast"
@@ -119,22 +119,22 @@ export default function POSPage() {
   })
   
   // Daily sales amount states
-  const [showDailySales, setShowDailySales] = useState(true)
+  const [showDailySalesModal, setShowDailySalesModal] = useState(false)
   const [dailySalesAmount, setDailySalesAmount] = useState(0)
+  const [allUsersSales, setAllUsersSales] = useState<Array<{user_name: string, amount: number}>>([])
   const [loadingDailySales, setLoadingDailySales] = useState(false)
 
   useEffect(() => {
     fetchData()
     fetchCurrentUserRole()
-    fetchDailySales()
   }, [authUser])
   
   // Refresh daily sales after successful sale
   useEffect(() => {
-    if (!loading) {
+    if (!loading && showDailySalesModal) {
       fetchDailySales()
     }
-  }, [loading])
+  }, [loading, showDailySalesModal])
 
   const fetchCurrentUserRole = async () => {
     try {
@@ -181,17 +181,70 @@ export default function POSPage() {
       tomorrow.setDate(tomorrow.getDate() + 1)
       const todayEnd = tomorrow.toISOString()
       
-      const { data: sales, error } = await supabase
-        .from('dd-ventes')
-        .select('total_net')
-        .gte('created_at', todayStart)
-        .lt('created_at', todayEnd)
-        .eq('status', 'paye')
+      // Get current user's ID from dd-users
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      if (!authUser) return
       
-      if (error) throw error
+      const { data: currentUser } = await supabase
+        .from('dd-users')
+        .select('id, pseudo, email')
+        .eq('auth_user_id', authUser.id)
+        .single()
       
-      const total = sales?.reduce((sum, sale) => sum + (sale.total_net || 0), 0) || 0
-      setDailySalesAmount(total)
+      if (!currentUser) return
+      
+      const isAdminOrManager = currentUserRole === 'admin' || currentUserRole === 'manager' || currentUserRole === 'superadmin'
+      
+      if (isAdminOrManager) {
+        // Fetch all sales with user information
+        const { data: sales, error } = await supabase
+          .from('dd-ventes')
+          .select(`
+            total_net,
+            user:dd-users!user_id(id, pseudo, email, first_name, last_name)
+          `)
+          .gte('created_at', todayStart)
+          .lt('created_at', todayEnd)
+          .eq('status', 'paye')
+        
+        if (error) throw error
+        
+        // Group by user
+        const userSalesMap = new Map<string, { user_name: string, amount: number }>()
+        let total = 0
+        
+        sales?.forEach((sale: any) => {
+          const user = sale.user
+          const userName = user?.pseudo || user?.email || user?.first_name || 'Utilisateur inconnu'
+          const amount = sale.total_net || 0
+          total += amount
+          
+          if (userSalesMap.has(userName)) {
+            const existing = userSalesMap.get(userName)!
+            userSalesMap.set(userName, { user_name: userName, amount: existing.amount + amount })
+          } else {
+            userSalesMap.set(userName, { user_name: userName, amount })
+          }
+        })
+        
+        setDailySalesAmount(total)
+        setAllUsersSales(Array.from(userSalesMap.values()).sort((a, b) => b.amount - a.amount))
+      } else {
+        // Fetch only current user's sales
+        const { data: sales, error } = await supabase
+          .from('dd-ventes')
+          .select('total_net')
+          .gte('created_at', todayStart)
+          .lt('created_at', todayEnd)
+          .eq('status', 'paye')
+          .eq('user_id', currentUser.id)
+        
+        if (error) throw error
+        
+        const total = sales?.reduce((sum, sale) => sum + (sale.total_net || 0), 0) || 0
+        setDailySalesAmount(total)
+        setAllUsersSales([])
+      }
     } catch (error) {
       console.error('Error fetching daily sales:', error)
     } finally {
@@ -854,8 +907,10 @@ export default function POSPage() {
 
       toast.success(`Vente effectuée avec succès! Total: ${total.toFixed(0)}f`)
       
-      // Refresh daily sales
-      await fetchDailySales()
+      // Refresh daily sales if modal is open
+      if (showDailySalesModal) {
+        await fetchDailySales()
+      }
       
       // Reset form
       setCart([])
@@ -986,49 +1041,6 @@ export default function POSPage() {
                   </div>
                 )}
               </div>
-              
-              {/* Daily Sales Amount Display */}
-              {showDailySales && (
-                <div className="mt-3 p-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <TrendingUp className="w-4 h-4 text-green-600 dark:text-green-400" />
-                      <div>
-                        <p className="text-xs font-medium text-green-800 dark:text-green-400">Ventes du jour</p>
-                        <p className="text-lg font-bold text-green-700 dark:text-green-300">
-                          {loadingDailySales ? (
-                            <span className="text-sm">Chargement...</span>
-                          ) : (
-                            `${dailySalesAmount.toFixed(0)}f`
-                          )}
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowDailySales(false)}
-                      className="h-6 w-6 p-0 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30"
-                    >
-                      <EyeOff className="w-3 h-3" />
-                    </Button>
-                  </div>
-                </div>
-              )}
-              
-              {!showDailySales && (
-                <div className="mt-3">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowDailySales(true)}
-                    className="w-full text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-                  >
-                    <Eye className="w-3 h-3 mr-1" />
-                    Afficher les ventes du jour
-                  </Button>
-                </div>
-              )}
               
               {selectedClient && (
                 <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
@@ -1549,6 +1561,82 @@ export default function POSPage() {
           toast.success(`Client ${newClient.first_name} ${newClient.last_name} créé et sélectionné!`)
         }}
       />
+      
+      {/* Floating Daily Sales Button */}
+      <Button
+        onClick={() => {
+          setShowDailySalesModal(true)
+          fetchDailySales()
+        }}
+        className="fixed top-20 right-4 z-50 h-12 w-12 rounded-full shadow-lg bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white"
+        size="icon"
+      >
+        <TrendingUp className="h-5 w-5" />
+      </Button>
+      
+      {/* Daily Sales Modal */}
+      {showDailySalesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowDailySalesModal(false)}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-green-600 dark:text-green-400" />
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white">Ventes du Jour</h2>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowDailySalesModal(false)}
+                className="h-8 w-8"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="p-4 space-y-4">
+              {loadingDailySales ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Chargement...</p>
+                </div>
+              ) : (
+                <>
+                  {/* Total Sales */}
+                  <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                    <p className="text-sm font-medium text-green-800 dark:text-green-400 mb-1">
+                      {currentUserRole === 'admin' || currentUserRole === 'manager' || currentUserRole === 'superadmin' 
+                        ? 'Total Ventes (Tous les utilisateurs)' 
+                        : 'Mes Ventes'}
+                    </p>
+                    <p className="text-2xl font-bold text-green-700 dark:text-green-300">
+                      {dailySalesAmount.toFixed(0)}f
+                    </p>
+                  </div>
+                  
+                  {/* User Breakdown (only for admins/managers) */}
+                  {(currentUserRole === 'admin' || currentUserRole === 'manager' || currentUserRole === 'superadmin') && allUsersSales.length > 0 && (
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Détail par Utilisateur</p>
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {allUsersSales.map((userSale, index) => (
+                          <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                                <User className="h-4 w-4 text-green-600 dark:text-green-400" />
+                              </div>
+                              <span className="text-sm font-medium text-gray-900 dark:text-white">{userSale.user_name}</span>
+                            </div>
+                            <span className="text-sm font-bold text-green-600 dark:text-green-400">{userSale.amount.toFixed(0)}f</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
