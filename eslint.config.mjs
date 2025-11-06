@@ -13,6 +13,9 @@ const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
     rules: {
+        "no-unused-vars": "off",
+    "@typescript-eslint/no-unused-vars": "error",
+    
       // Disable exhaustive-deps warnings for useEffect
       "react-hooks/exhaustive-deps": "off",
       // Disable no-empty-object-type warnings
