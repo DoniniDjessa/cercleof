@@ -80,12 +80,7 @@ export default function DeliveriesPage() {
 
       let query = supabase
         .from('dd-livraisons')
-        .select(`
-          *,
-          vente:dd-ventes(id, total_net, date),
-          client:dd-clients(id, first_name, last_name, email, phones),
-          livreur:dd-users(id, first_name, last_name, role)
-        `, { count: 'exact' })
+        .select('*', { count: 'exact' })
 
       // Apply date filters
       if (dateFilter === 'today') {
@@ -117,13 +112,94 @@ export default function DeliveriesPage() {
         query = query.gte('created_at', start.toISOString()).lte('created_at', end.toISOString())
       }
 
-      const { data, error, count } = await query
+      const { data: deliveriesData, error, count } = await query
         .range(from, to)
         .order('created_at', { ascending: false })
 
       if (error) throw error
 
-      setDeliveries(data || [])
+      if (!deliveriesData || deliveriesData.length === 0) {
+        setDeliveries([])
+        setTotalPages(Math.ceil((count || 0) / itemsPerPage))
+        return
+      }
+
+      // Fetch related data separately
+      const venteIds = deliveriesData
+        .map(del => del.vente_id)
+        .filter((id): id is string => !!id)
+      
+      const clientIds = deliveriesData
+        .map(del => del.client_id)
+        .filter((id): id is string => !!id)
+      
+      const livreurIds = deliveriesData
+        .map(del => del.livreur_id)
+        .filter((id): id is string => !!id)
+
+      // Fetch sales
+      const ventesMap = new Map<string, { id: string; total_net: number; date: string }>()
+      if (venteIds.length > 0) {
+        const { data: ventes } = await supabase
+          .from('dd-ventes')
+          .select('id, total_net, date, created_at')
+          .in('id', venteIds)
+        
+        ventes?.forEach(vente => {
+          ventesMap.set(vente.id, {
+            id: vente.id,
+            total_net: vente.total_net || 0,
+            date: vente.date || vente.created_at || ''
+          })
+        })
+      }
+
+      // Fetch clients
+      const clientsMap = new Map<string, { id: string; first_name: string; last_name: string; email: string; phones: string[] }>()
+      if (clientIds.length > 0) {
+        const { data: clients } = await supabase
+          .from('dd-clients')
+          .select('id, first_name, last_name, email, phone')
+          .in('id', clientIds)
+        
+        clients?.forEach(client => {
+          clientsMap.set(client.id, {
+            id: client.id,
+            first_name: client.first_name,
+            last_name: client.last_name,
+            email: client.email || '',
+            phones: client.phone ? [client.phone] : []
+          })
+        })
+      }
+
+      // Fetch livreurs (delivery persons)
+      const livreursMap = new Map<string, { id: string; first_name: string; last_name: string; role: string }>()
+      if (livreurIds.length > 0) {
+        const { data: livreurs } = await supabase
+          .from('dd-users')
+          .select('id, first_name, last_name, role')
+          .in('id', livreurIds)
+        
+        livreurs?.forEach(livreur => {
+          livreursMap.set(livreur.id, {
+            id: livreur.id,
+            first_name: livreur.first_name || '',
+            last_name: livreur.last_name || '',
+            role: livreur.role || ''
+          })
+        })
+      }
+
+      // Map related data to deliveries
+      const deliveriesWithRelations = deliveriesData.map(del => ({
+        ...del,
+        vente: del.vente_id ? ventesMap.get(del.vente_id) : undefined,
+        client: del.client_id ? clientsMap.get(del.client_id) : undefined,
+        livreur: del.livreur_id ? livreursMap.get(del.livreur_id) : undefined
+      })) as Delivery[]
+
+      setDeliveries(deliveriesWithRelations)
       setTotalPages(Math.ceil((count || 0) / itemsPerPage))
     } catch (error) {
       console.error('Error fetching deliveries:', error)
