@@ -1,13 +1,15 @@
 'use client'
 
 import { ProductsDetails } from '@/components/products/products-details'
+import { use } from 'react'
 
 interface ProductDetailsPageProps {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 export default function ProductDetailsPage({ params }: ProductDetailsPageProps) {
-  return <ProductsDetails productId={params.id} />
+  const { id } = use(params)
+  return <ProductsDetails productId={id} />
 }

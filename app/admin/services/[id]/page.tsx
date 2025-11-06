@@ -1,11 +1,15 @@
+'use client'
+
 import { ServiceDetails } from "@/components/services/service-details"
+import { use } from 'react'
 
 interface ServiceDetailsPageProps {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 export default function ServiceDetailsPage({ params }: ServiceDetailsPageProps) {
-  return <ServiceDetails serviceId={params.id} />
+  const { id } = use(params)
+  return <ServiceDetails serviceId={id} />
 }

@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, Plus, Minus, Trash2, CreditCard, ShoppingCart, User, Package, Scissors, DollarSign, Percent, Truck, Check, UserPlus } from "lucide-react"
+import { Search, Plus, Minus, Trash2, CreditCard, ShoppingCart, User, Package, Scissors, DollarSign, Percent, Truck, Check, UserPlus, Eye, EyeOff, TrendingUp } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { QuickCreateClient } from "@/components/clients/quick-create-client"
 import toast from "react-hot-toast"
@@ -117,11 +117,24 @@ export default function POSPage() {
     phone: "",
     notes: ""
   })
+  
+  // Daily sales amount states
+  const [showDailySales, setShowDailySales] = useState(true)
+  const [dailySalesAmount, setDailySalesAmount] = useState(0)
+  const [loadingDailySales, setLoadingDailySales] = useState(false)
 
   useEffect(() => {
     fetchData()
     fetchCurrentUserRole()
+    fetchDailySales()
   }, [authUser])
+  
+  // Refresh daily sales after successful sale
+  useEffect(() => {
+    if (!loading) {
+      fetchDailySales()
+    }
+  }, [loading])
 
   const fetchCurrentUserRole = async () => {
     try {
@@ -156,6 +169,35 @@ export default function POSPage() {
 
   // Check if user can manage discounts (admin, manager, superadmin)
   const canManageDiscounts = currentUserRole === 'admin' || currentUserRole === 'manager' || currentUserRole === 'superadmin'
+
+  const fetchDailySales = async () => {
+    try {
+      setLoadingDailySales(true)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const todayStart = today.toISOString()
+      
+      const tomorrow = new Date(today)
+      tomorrow.setDate(tomorrow.getDate() + 1)
+      const todayEnd = tomorrow.toISOString()
+      
+      const { data: sales, error } = await supabase
+        .from('dd-ventes')
+        .select('total_net')
+        .gte('created_at', todayStart)
+        .lt('created_at', todayEnd)
+        .eq('status', 'paye')
+      
+      if (error) throw error
+      
+      const total = sales?.reduce((sum, sale) => sum + (sale.total_net || 0), 0) || 0
+      setDailySalesAmount(total)
+    } catch (error) {
+      console.error('Error fetching daily sales:', error)
+    } finally {
+      setLoadingDailySales(false)
+    }
+  }
 
   const fetchClients = async () => {
     try {
@@ -812,6 +854,9 @@ export default function POSPage() {
 
       toast.success(`Vente effectuée avec succès! Total: ${total.toFixed(0)}f`)
       
+      // Refresh daily sales
+      await fetchDailySales()
+      
       // Reset form
       setCart([])
       setSelectedClient(null)
@@ -941,6 +986,50 @@ export default function POSPage() {
                   </div>
                 )}
               </div>
+              
+              {/* Daily Sales Amount Display */}
+              {showDailySales && (
+                <div className="mt-3 p-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-green-600 dark:text-green-400" />
+                      <div>
+                        <p className="text-xs font-medium text-green-800 dark:text-green-400">Ventes du jour</p>
+                        <p className="text-lg font-bold text-green-700 dark:text-green-300">
+                          {loadingDailySales ? (
+                            <span className="text-sm">Chargement...</span>
+                          ) : (
+                            `${dailySalesAmount.toFixed(0)}f`
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowDailySales(false)}
+                      className="h-6 w-6 p-0 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30"
+                    >
+                      <EyeOff className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
+              {!showDailySales && (
+                <div className="mt-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowDailySales(true)}
+                    className="w-full text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                  >
+                    <Eye className="w-3 h-3 mr-1" />
+                    Afficher les ventes du jour
+                  </Button>
+                </div>
+              )}
+              
               {selectedClient && (
                 <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                   <div className="flex items-center justify-between">
