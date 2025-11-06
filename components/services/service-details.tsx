@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Edit, Trash2, ArrowLeft, Scissors, Clock, DollarSign, Users, Package } from "lucide-react"
+import { Edit, Trash2, ArrowLeft, Package } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { ButtonLoadingSpinner } from "@/components/ui/context-loaders"
 import { useAuth } from "@/contexts/AuthContext"
@@ -238,6 +238,7 @@ export function ServiceDetails({ serviceId }: ServiceDetailsProps) {
               </CardHeader>
               <CardContent>
                 <div className="flex justify-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={(service.images && service.images[0]) || service.photo}
                     alt={service.name || service.nom || 'Service'}
@@ -270,7 +271,7 @@ export function ServiceDetails({ serviceId }: ServiceDetailsProps) {
                   </Badge>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground dark:text-gray-400">Type d'Employé</p>
+                  <p className="text-sm text-muted-foreground dark:text-gray-400">Type d&apos;Employé</p>
                   <p className="font-medium text-gray-900 dark:text-white">{getEmployeeTypeText(service.employee_type || service.employe_type || '')}</p>
                 </div>
                 <div>

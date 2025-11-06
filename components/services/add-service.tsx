@@ -12,11 +12,11 @@ import { AnimatedCard } from "@/components/ui/animated-card"
 import { ButtonLoadingSpinner } from "@/components/ui/context-loaders"
 import { useAuth } from "@/contexts/AuthContext"
 import { supabase } from "@/lib/supabase"
-import { Upload, X, Image as ImageIcon, Plus, Trash2, Camera } from "lucide-react"
+import { X, Image as ImageIcon, Plus, Trash2, Camera } from "lucide-react"
 import { compressImage } from "@/lib/image-utils"
 import toast from "react-hot-toast"
 
-interface Service {
+interface ServiceData {
   id: string
   name: string
   description?: string
@@ -301,7 +301,7 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
       }
 
       // Use English column names as per actual database schema (dd-categories-unified.sql)
-      const serviceData: any = {
+      const serviceData: Record<string, unknown> = {
         name: formData.nom,  // nom -> name
         description: formData.description || null,
         category_id: formData.category_id || null,
@@ -309,7 +309,7 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
         duration_minutes: parseInt(formData.duree.toString()),  // duree -> duration_minutes
         // employe_type column doesn't exist in actual database - removed
         // commission_employe column doesn't exist in actual database - removed
-        is_active: formData.actif,
+        active: formData.actif,
         // popularite column doesn't exist - removed
         tags: formData.tags || [],
         // photo column doesn't exist, use images JSONB instead if needed
@@ -424,7 +424,7 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
             <div className="space-y-2">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Accès Interdit</h2>
               <p className="text-gray-600 dark:text-gray-400 max-w-md">
-                Vous n'avez pas les permissions nécessaires pour ajouter des services.
+                Vous n&apos;avez pas les permissions nécessaires pour ajouter des services.
                 Seuls les administrateurs et les managers peuvent créer des services.
               </p>
             </div>
@@ -454,6 +454,7 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
               <div className="flex items-center gap-4">
                 <div className="w-20 h-20 rounded-sm border-2 border-gray-200 dark:border-gray-600 overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
                   {imagePreview ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
                     <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
                   ) : (
                     <ImageIcon className="w-8 h-8 text-gray-400" />
@@ -560,7 +561,7 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="employe_type" className="text-gray-700 dark:text-gray-300">Type d'Employé</Label>
+                  <Label htmlFor="employe_type" className="text-gray-700 dark:text-gray-300">Type d&apos;Employé</Label>
                   <Select
                     value={formData.employe_type}
                     onValueChange={(value) => handleSelectChange('employe_type', value)}

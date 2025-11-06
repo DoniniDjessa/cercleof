@@ -19,6 +19,19 @@ const eslintConfig = [
       "@typescript-eslint/no-empty-object-type": "off",
       // Disable prefer-const warnings
       "prefer-const": "off",
+      // Allow apostrophes in text (French text often uses them)
+      "react/no-unescaped-entities": ["error", {
+        "forbid": [">", "}"]
+      }],
+      // Allow unused vars that start with underscore
+      "@typescript-eslint/no-unused-vars": ["error", {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_"
+      }],
+      // Allow any type but warn
+      "@typescript-eslint/no-explicit-any": "warn",
+      // Allow img tags but warn (use Image when possible)
+      "@next/next/no-img-element": "warn",
     },
   },
 ];

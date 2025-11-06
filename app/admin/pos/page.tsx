@@ -103,6 +103,12 @@ export default function POSPage() {
   const [appliedPromotion, setAppliedPromotion] = useState<Promotion | null>(null)
   const [promotionError, setPromotionError] = useState("")
   
+  // Gift card states
+  const [giftCardCode, setGiftCardCode] = useState("")
+  const [appliedGiftCard, setAppliedGiftCard] = useState<{id: string, code: string, balance: number} | null>(null)
+  const [giftCardAmount, setGiftCardAmount] = useState(0) // Amount to use from gift card
+  const [giftCardError, setGiftCardError] = useState("")
+  
   // Delivery states
   const [requiresDelivery, setRequiresDelivery] = useState(false)
   const [deliveryDetails, setDeliveryDetails] = useState({
@@ -329,6 +335,65 @@ export default function POSPage() {
     setDiscountType('percentage')
   }
 
+  const applyGiftCard = async () => {
+    if (!giftCardCode.trim()) {
+      setGiftCardError("Veuillez entrer un code de carte cadeau")
+      return
+    }
+
+    try {
+      const { data: giftCard, error } = await supabase
+        .from('dd-gift-cards')
+        .select('id, code, current_balance, status, expiry_date')
+        .eq('code', giftCardCode.toUpperCase().trim())
+        .eq('status', 'active')
+        .single()
+
+      if (error || !giftCard) {
+        setGiftCardError("Carte cadeau invalide ou expirée")
+        setAppliedGiftCard(null)
+        return
+      }
+
+      // Check expiry date
+      if (giftCard.expiry_date && new Date(giftCard.expiry_date) < new Date()) {
+        setGiftCardError("Cette carte cadeau a expiré")
+        setAppliedGiftCard(null)
+        return
+      }
+
+      if (giftCard.current_balance <= 0) {
+        setGiftCardError("Cette carte cadeau n'a plus de solde")
+        setAppliedGiftCard(null)
+        return
+      }
+
+      setAppliedGiftCard({
+        id: giftCard.id,
+        code: giftCard.code,
+        balance: giftCard.current_balance
+      })
+      setGiftCardError("")
+      // Set initial amount to use (can be adjusted)
+      const subtotal = calculateSubtotal()
+      const discountAmount = calculateDiscountAmount()
+      const totalAfterDiscount = subtotal - discountAmount
+      setGiftCardAmount(Math.min(giftCard.current_balance, totalAfterDiscount))
+      toast.success(`Carte cadeau "${giftCard.code}" appliquée! Solde: ${giftCard.current_balance.toFixed(0)}f`)
+    } catch (error) {
+      console.error('Error applying gift card:', error)
+      setGiftCardError("Erreur lors de l'application de la carte cadeau")
+      setAppliedGiftCard(null)
+    }
+  }
+
+  const removeGiftCard = () => {
+    setAppliedGiftCard(null)
+    setGiftCardCode("")
+    setGiftCardAmount(0)
+    setGiftCardError("")
+  }
+
   const calculateDiscountAmount = () => {
     const subtotal = calculateSubtotal()
     
@@ -354,7 +419,11 @@ export default function POSPage() {
   }
 
   const calculateTotal = () => {
-    return calculateSubtotal() - calculateDiscountAmount()
+    const subtotal = calculateSubtotal()
+    const discountAmount = calculateDiscountAmount()
+    const afterDiscount = subtotal - discountAmount
+    const giftCardAmountToUse = appliedGiftCard ? Math.min(giftCardAmount, afterDiscount, appliedGiftCard.balance) : 0
+    return Math.max(0, afterDiscount - giftCardAmountToUse)
   }
 
   const processSale = async () => {
@@ -388,6 +457,7 @@ export default function POSPage() {
 
       const subtotal = calculateSubtotal()
       const discountAmount = calculateDiscountAmount()
+      const giftCardAmountToUse = appliedGiftCard ? Math.min(giftCardAmount, subtotal - discountAmount, appliedGiftCard.balance) : 0
       const total = calculateTotal()
 
       // Create sale
@@ -654,6 +724,51 @@ export default function POSPage() {
         }
       }
 
+      // Update gift card balance if gift card was used
+      if (appliedGiftCard && giftCardAmountToUse > 0) {
+        const { data: currentGiftCard } = await supabase
+          .from('dd-gift-cards')
+          .select('current_balance')
+          .eq('id', appliedGiftCard.id)
+          .single()
+
+        if (currentGiftCard) {
+          const newBalance = currentGiftCard.current_balance - giftCardAmountToUse
+          const newStatus = newBalance <= 0 ? 'used' : 'active'
+
+          // Update gift card balance
+          const { error: giftCardUpdateError } = await supabase
+            .from('dd-gift-cards')
+            .update({
+              current_balance: newBalance,
+              status: newStatus
+            })
+            .eq('id', appliedGiftCard.id)
+
+          if (giftCardUpdateError) {
+            console.error('Error updating gift card:', giftCardUpdateError)
+          } else {
+            // Create gift card transaction record
+            const { error: transactionError } = await supabase
+              .from('dd-gift-card-transactions')
+              .insert([{
+                gift_card_id: appliedGiftCard.id,
+                vente_id: sale.id,
+                amount: -giftCardAmountToUse, // Negative for usage
+                balance_before: currentGiftCard.current_balance,
+                balance_after: newBalance,
+                transaction_type: 'usage',
+                notes: `Utilisée pour la vente ${sale.id}`,
+                created_by: currentUser.id
+              }])
+
+            if (transactionError) {
+              console.error('Error creating gift card transaction:', transactionError)
+            }
+          }
+        }
+      }
+
       // Update client loyalty points and last visit if client is selected
       if (selectedClient) {
         const pointsEarned = Math.floor(total / 1000) // 1 point per 1000f
@@ -705,6 +820,10 @@ export default function POSPage() {
       setPromotionCode("")
       setAppliedPromotion(null)
       setPromotionError("")
+      setGiftCardCode("")
+      setAppliedGiftCard(null)
+      setGiftCardAmount(0)
+      setGiftCardError("")
       setRequiresDelivery(false)
       setDeliveryDetails({
         address: "",
@@ -1130,6 +1249,70 @@ export default function POSPage() {
                   )}
                 </div>
 
+                {/* Gift Card */}
+                <div className="space-y-1.5">
+                  <Label className="text-gray-700 dark:text-gray-300 text-xs">Carte Cadeau</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Entrez le code de la carte cadeau"
+                      value={giftCardCode}
+                      onChange={(e) => {
+                        setGiftCardCode(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''))
+                        setGiftCardError("")
+                      }}
+                      disabled={!!appliedGiftCard}
+                      className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 h-8 text-xs font-mono"
+                    />
+                    {appliedGiftCard ? (
+                      <Button
+                        variant="outline"
+                        onClick={removeGiftCard}
+                        className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20 h-8 px-2"
+                        size="sm"
+                      >
+                        Retirer
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        onClick={applyGiftCard}
+                        disabled={!giftCardCode.trim()}
+                        className="h-8 w-8 p-0"
+                        size="sm"
+                      >
+                        <Check className="w-3 h-3 text-green-600 dark:text-green-400" />
+                      </Button>
+                    )}
+                  </div>
+                  {appliedGiftCard && (
+                    <div className="space-y-1.5 p-1.5 bg-purple-50 dark:bg-purple-900/20 rounded-sm">
+                      <p className="text-[10px] text-purple-800 dark:text-purple-400">
+                        ✓ Carte cadeau "{appliedGiftCard.code}" appliquée (Solde: {appliedGiftCard.balance.toFixed(0)}f)
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Label className="text-gray-700 dark:text-gray-300 text-[10px]">Montant à utiliser:</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max={Math.min(appliedGiftCard.balance, calculateSubtotal() - calculateDiscountAmount())}
+                          step="0.01"
+                          value={giftCardAmount || ''}
+                          onChange={(e) => {
+                            const amount = parseFloat(e.target.value) || 0
+                            const maxAmount = Math.min(appliedGiftCard.balance, calculateSubtotal() - calculateDiscountAmount())
+                            setGiftCardAmount(Math.min(amount, maxAmount))
+                          }}
+                          className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 h-6 text-xs w-24"
+                        />
+                        <span className="text-[10px] text-gray-500">f</span>
+                      </div>
+                    </div>
+                  )}
+                  {giftCardError && (
+                    <p className="text-[10px] text-red-600 dark:text-red-400">{giftCardError}</p>
+                  )}
+                </div>
+
                 {/* Manual Discount (only if no promotion applied and user is admin/manager) */}
                 {!checkingRole && !appliedPromotion && canManageDiscounts && (
                   <div className="space-y-1.5">
@@ -1233,6 +1416,12 @@ export default function POSPage() {
                     <span className="text-gray-600 dark:text-gray-400 text-xs">Sous-total:</span>
                     <span className="text-gray-900 dark:text-white text-xs">{calculateSubtotal().toFixed(0)}f</span>
                   </div>
+                  {appliedGiftCard && giftCardAmount > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-400 text-xs">Carte cadeau:</span>
+                      <span className="text-purple-600 dark:text-purple-400 text-xs">-{giftCardAmount.toFixed(0)}f</span>
+                    </div>
+                  )}
                   {(appliedPromotion || (discount > 0 && canManageDiscounts)) && (
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400 text-xs">Réduction:</span>
