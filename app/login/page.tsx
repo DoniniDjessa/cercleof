@@ -73,8 +73,14 @@ export default function LoginPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="text-center mb-8"
+              className="text-center mb-8 flex flex-col items-center"
             >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img 
+                src="/cbmin.png" 
+                alt="Cercle Of Logo" 
+                className="h-20 w-20 object-contain mb-4"
+              />
               <h1 className="font-display text-5xl text-foreground mb-2">{t('app.title')}</h1>
             </motion.div>
 

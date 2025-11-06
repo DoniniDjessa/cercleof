@@ -7,7 +7,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { AnimatedButton } from '@/components/ui/animated-button'
 import { ButtonLoadingSpinner } from '@/components/ui/context-loaders'
 import { 
   Bell, 
@@ -18,7 +17,6 @@ import {
   AlertCircle, 
   Info, 
   XCircle,
-  Filter,
   Calendar,
   User
 } from 'lucide-react'

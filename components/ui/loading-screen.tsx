@@ -19,9 +19,15 @@ export function LoadingScreen({
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
-          className="mb-8"
+          className="mb-8 flex flex-col items-center"
         >
-          <h1 className="font-display text-6xl text-gray-900 mb-2">Cercleof</h1>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img 
+            src="/cbmin.png" 
+            alt="Cercle Of Logo" 
+            className="h-24 w-24 object-contain mb-4"
+          />
+          <h1 className="font-display text-4xl text-gray-900 mb-2">Cercle Of</h1>
           <p className="font-title text-xl text-gray-600 text-center">
             Beauty Institute Management
           </p>

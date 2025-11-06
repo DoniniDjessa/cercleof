@@ -18,7 +18,6 @@ import {
   Trash2, 
   CreditCard,
   Gift,
-  Users,
   Award
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
@@ -47,7 +46,7 @@ interface LoyaltyCardsListProps {
   onCardUpdated?: () => void
 }
 
-export function LoyaltyCardsList({ onCardCreated, onCardUpdated }: LoyaltyCardsListProps) {
+export function LoyaltyCardsList({ onCardCreated: _onCardCreated, onCardUpdated: _onCardUpdated }: LoyaltyCardsListProps) {
   const [loyaltyCards, setLoyaltyCards] = useState<LoyaltyCard[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')

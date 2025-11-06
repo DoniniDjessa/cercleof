@@ -264,7 +264,7 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
       }
 
       // Insert product into dd-products table
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('dd-products')
         .insert([productData])
         .select()
@@ -578,6 +578,7 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
                       <div className="grid grid-cols-2 gap-2">
                         {images.map((image, index) => (
                           <div key={index} className="relative group">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                               src={URL.createObjectURL(image)}
                               alt={`Preview ${index + 1}`}

@@ -247,6 +247,21 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
 
   return (
     <div className="space-y-6">
+      {/* Dashboard Header with Logo */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img 
+            src="/cbmin.png" 
+            alt="Cercle Of Logo" 
+            className="h-12 w-12 object-contain"
+          />
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Tableau de Bord</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Vue d&apos;ensemble de votre institut</p>
+          </div>
+        </div>
+      </div>
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">

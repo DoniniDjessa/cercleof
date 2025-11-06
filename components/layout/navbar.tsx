@@ -151,8 +151,20 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
       className="sticky top-0 z-40 w-full border-b-0 shadow-sm bg-gray-100/80 dark:bg-gray-800/80 backdrop-blur-md transition-colors duration-300"
     >
       <div className="flex h-16 items-center justify-between px-4 lg:px-6">
-        {/* Left side - Menu button and search */}
+        {/* Left side - Logo, Menu button and search */}
         <div className="flex items-center space-x-4">
+          {/* Logo - hidden on mobile when sidebar is visible */}
+          <div className="hidden md:flex items-center space-x-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img 
+              src="/cbmin.png" 
+              alt="Cercle Of Logo" 
+              className="h-8 w-8 object-contain"
+            />
+            <span className="font-bold text-sm text-gray-900 dark:text-white">
+              Cercle Of
+            </span>
+          </div>
           <Button
             variant="ghost"
             size="icon"

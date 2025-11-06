@@ -485,9 +485,12 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
               transition={{ duration: 0.2 }}
               className="flex items-center space-x-2 dark:space-x-2"
             >
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-green-500 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-xs">C</span>
-              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img 
+                src="/cbmin.png" 
+                alt="Cercle Of Logo" 
+                className="w-8 h-8 object-contain rounded-lg"
+              />
               <span className="font-bold text-sm text-blue-600 dark:text-white">
                 Cercleof
               </span>
@@ -499,9 +502,14 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="w-8 h-8 bg-gradient-to-br from-blue-500 to-green-500 rounded-lg flex items-center justify-center mx-auto"
+              className="w-8 h-8 mx-auto"
             >
-              <span className="text-white font-bold text-xs">C</span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img 
+                src="/cbmin.png" 
+                alt="Cercle Of Logo" 
+                className="w-8 h-8 object-contain rounded-lg"
+              />
             </motion.div>
         )}
 
