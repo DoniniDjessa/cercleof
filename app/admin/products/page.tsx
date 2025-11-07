@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { AnimatedButton } from '@/components/ui/animated-button'
 import { TableLoadingState, ButtonLoadingSpinner } from '@/components/ui/context-loaders'
@@ -16,6 +17,14 @@ import toast from 'react-hot-toast'
 import Link from 'next/link'
 import { AddProduct } from '@/components/products/add-product'
 import { Label } from '@/components/ui/label'
+
+interface ProductVariant {
+  id: string
+  product_id: string
+  name: string
+  sku?: string
+  quantity: number
+}
 
 interface Product {
   id: string
@@ -34,6 +43,7 @@ interface Product {
   created_at: string
   created_by?: string
   images?: string[] // Array of image URLs
+  variants?: ProductVariant[]
 }
 
 export default function ProductsPage() {
@@ -49,6 +59,7 @@ export default function ProductsPage() {
   const [currentUserRole, setCurrentUserRole] = useState<string>('')
   const [stockIncreaseDialog, setStockIncreaseDialog] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null })
   const [stockQuantity, setStockQuantity] = useState('')
+  const [selectedVariantId, setSelectedVariantId] = useState<string>('global')
   const [increasingStock, setIncreasingStock] = useState(false)
   const [lowStockFilter, setLowStockFilter] = useState(false)
 
@@ -97,7 +108,16 @@ export default function ProductsPage() {
 
       const { data, error, count } = await supabase
         .from('dd-products')
-        .select('*', { count: 'exact' })
+        .select(`
+          *,
+          variants:dd-product-variants(
+            id,
+            product_id,
+            name,
+            sku,
+            quantity
+          )
+        `, { count: 'exact' })
         .order('created_at', { ascending: false })
         .range(from, to)
 
@@ -224,11 +244,13 @@ export default function ProductsPage() {
     }
     setStockIncreaseDialog({ open: true, product })
     setStockQuantity('')
+    setSelectedVariantId('global')
   }
 
   const closeStockIncreaseDialog = () => {
     setStockIncreaseDialog({ open: false, product: null })
     setStockQuantity('')
+    setSelectedVariantId('global')
   }
 
   const increaseStock = async () => {
@@ -254,7 +276,18 @@ export default function ProductsPage() {
 
       if (error) throw error
 
-      toast.success(`Stock augmenté de ${quantity} unités. Nouveau stock: ${newStock}`)
+      if (selectedVariantId !== 'global') {
+        const variant = stockIncreaseDialog.product.variants?.find(v => v.id === selectedVariantId)
+        const currentVariantQuantity = variant?.quantity ?? 0
+        const { error: variantError } = await supabase
+          .from('dd-product-variants')
+          .update({ quantity: currentVariantQuantity + quantity })
+          .eq('id', selectedVariantId)
+
+        if (variantError) throw variantError
+      }
+
+      toast.success(`Stock augmenté de ${quantity} unités${selectedVariantId !== 'global' ? ' pour la variante sélectionnée' : ''}. Nouveau stock: ${newStock}`)
       closeStockIncreaseDialog()
       fetchProducts()
     } catch (error) {
@@ -267,11 +300,18 @@ export default function ProductsPage() {
 
   // Filter products based on search term and low stock filter
   const filteredProducts = products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.sku?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.brand?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (product.show_to_website && 'site web'.includes(searchTerm.toLowerCase())) ||
-      (!product.show_to_website && 'non site web'.includes(searchTerm.toLowerCase()))
+    const searchValue = searchTerm.toLowerCase()
+    const matchesVariant = product.variants?.some(variant =>
+      variant.name.toLowerCase().includes(searchValue) ||
+      variant.sku?.toLowerCase().includes(searchValue)
+    ) || false
+
+    const matchesSearch = product.name.toLowerCase().includes(searchValue) ||
+      product.sku?.toLowerCase().includes(searchValue) ||
+      product.brand?.toLowerCase().includes(searchValue) ||
+      matchesVariant ||
+      (product.show_to_website && 'site web'.includes(searchValue)) ||
+      (!product.show_to_website && 'non site web'.includes(searchValue))
     
     if (lowStockFilter) {
       return matchesSearch && product.stock_quantity < 10
@@ -411,6 +451,7 @@ export default function ProductsPage() {
                       <TableHead className="text-gray-600 dark:text-gray-400">SKU</TableHead>
                       <TableHead className="text-gray-600 dark:text-gray-400">Prix</TableHead>
                       <TableHead className="text-gray-600 dark:text-gray-400">Stock</TableHead>
+                      <TableHead className="text-gray-600 dark:text-gray-400">Variantes</TableHead>
                       <TableHead className="text-gray-600 dark:text-gray-400">Site Web</TableHead>
                       <TableHead className="text-gray-600 dark:text-gray-400">Statut</TableHead>
                       <TableHead className="text-gray-600 dark:text-gray-400">Actions</TableHead>
@@ -467,6 +508,11 @@ export default function ProductsPage() {
                               </Button>
                             )}
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                            {product.variants?.length || 0}
+                          </span>
                         </TableCell>
                         <TableCell>
                           <Badge className={product.show_to_website ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'}>
@@ -574,6 +620,24 @@ export default function ProductsPage() {
                 <p className="text-sm text-muted-foreground dark:text-gray-400">
                   Stock actuel: <span className="font-medium text-gray-900 dark:text-white">{stockIncreaseDialog.product.stock_quantity}</span>
                 </p>
+                {stockIncreaseDialog.product.variants && stockIncreaseDialog.product.variants.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs text-muted-foreground dark:text-gray-400 mb-1">Variantes disponibles:</p>
+                    <Select value={selectedVariantId} onValueChange={setSelectedVariantId}>
+                      <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
+                        <SelectValue placeholder="Sélectionner une variante" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white dark:bg-gray-800">
+                        <SelectItem value="global">Sans variante (stock global)</SelectItem>
+                        {stockIncreaseDialog.product.variants.map(variant => (
+                          <SelectItem key={variant.id} value={variant.id}>
+                            {variant.name} • Stock: {variant.quantity}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="stock-quantity" className="text-gray-700 dark:text-gray-300">

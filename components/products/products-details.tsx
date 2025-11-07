@@ -7,10 +7,19 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Edit, Trash2, ArrowLeft, Plus, X } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { ButtonLoadingSpinner } from "@/components/ui/context-loaders"
 import toast from "react-hot-toast"
+
+interface ProductVariant {
+  id: string
+  product_id: string
+  name: string
+  sku?: string
+  quantity: number
+}
 
 interface Product {
   id: string
@@ -30,6 +39,7 @@ interface Product {
     id: string
     name: string
   }
+  variants?: ProductVariant[]
 }
 
 interface ProductsDetailsProps {
@@ -39,12 +49,22 @@ interface ProductsDetailsProps {
 export function ProductsDetails({ productId }: ProductsDetailsProps) {
   const { user: authUser } = useAuth()
   const [product, setProduct] = useState<Product | null>(null)
+  const [variants, setVariants] = useState<ProductVariant[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currentUserRole, setCurrentUserRole] = useState<string>('')
   const [stockIncreaseDialog, setStockIncreaseDialog] = useState(false)
   const [stockQuantity, setStockQuantity] = useState('')
   const [increasingStock, setIncreasingStock] = useState(false)
+  const [selectedVariantId, setSelectedVariantId] = useState<string>('global')
+  const [variantDialogOpen, setVariantDialogOpen] = useState(false)
+  const [savingVariant, setSavingVariant] = useState(false)
+  const [editingVariant, setEditingVariant] = useState<ProductVariant | null>(null)
+  const [variantForm, setVariantForm] = useState({
+    name: '',
+    sku: '',
+    quantity: ''
+  })
 
   useEffect(() => {
     if (productId) {
@@ -82,12 +102,24 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
       setLoading(true)
       const { data, error } = await supabase
         .from('dd-products')
-        .select('*, category:dd-categories(id, name)')
+        .select(`
+          *,
+          category:dd-categories(id, name),
+          variants:dd-product-variants(
+            id,
+            product_id,
+            name,
+            sku,
+            quantity
+          )
+        `)
         .eq('id', productId)
         .single()
 
       if (error) throw error
-      setProduct(data as unknown as Product)
+      const productData = data as unknown as Product
+      setProduct(productData)
+      setVariants(productData.variants || [])
     } catch (error) {
       console.error('Error fetching product:', error)
       setError('Erreur lors de la récupération du produit')
@@ -186,11 +218,13 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
     }
     setStockIncreaseDialog(true)
     setStockQuantity('')
+    setSelectedVariantId('global')
   }
 
   const closeStockIncreaseDialog = () => {
     setStockIncreaseDialog(false)
     setStockQuantity('')
+    setSelectedVariantId('global')
   }
 
   const increaseStock = async () => {
@@ -216,7 +250,18 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
 
       if (error) throw error
 
-      toast.success(`Stock augmenté de ${quantity} unités. Nouveau stock: ${newStock}`)
+      if (selectedVariantId !== 'global') {
+        const variant = variants.find(v => v.id === selectedVariantId)
+        const currentVariantQuantity = variant?.quantity ?? 0
+        const { error: variantError } = await supabase
+          .from('dd-product-variants')
+          .update({ quantity: currentVariantQuantity + quantity })
+          .eq('id', selectedVariantId)
+
+        if (variantError) throw variantError
+      }
+
+      toast.success(`Stock augmenté de ${quantity} unités${selectedVariantId !== 'global' ? ' pour la variante sélectionnée' : ''}. Nouveau stock: ${newStock}`)
       closeStockIncreaseDialog()
       fetchProduct()
     } catch (error) {
@@ -224,6 +269,119 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
       toast.error('Erreur lors de l\'augmentation du stock')
     } finally {
       setIncreasingStock(false)
+    }
+  }
+
+  const variantTotalQuantity = variants.reduce((sum, variant) => sum + variant.quantity, 0)
+
+  const openVariantDialog = (variant?: ProductVariant) => {
+    if (!product) return
+
+    setEditingVariant(variant || null)
+    setVariantForm({
+      name: variant?.name || '',
+      sku: variant?.sku || '',
+      quantity: variant ? String(variant.quantity) : ''
+    })
+    setVariantDialogOpen(true)
+  }
+
+  const closeVariantDialog = () => {
+    setVariantDialogOpen(false)
+    setEditingVariant(null)
+    setVariantForm({ name: '', sku: '', quantity: '' })
+  }
+
+  const handleVariantSave = async () => {
+    if (!product) return
+
+    const trimmedName = variantForm.name.trim()
+    const trimmedSku = variantForm.sku.trim() || null
+    const quantity = parseInt(variantForm.quantity, 10)
+
+    if (!trimmedName) {
+      toast.error('Le nom de la variante est obligatoire')
+      return
+    }
+
+    if (isNaN(quantity) || quantity < 0) {
+      toast.error('Veuillez entrer une quantité valide (0 ou plus)')
+      return
+    }
+
+    const variantsExcludingCurrent = variants.filter(v => v.id !== editingVariant?.id)
+    const existingNames = variantsExcludingCurrent.map(v => v.name.toLowerCase())
+
+    if (existingNames.includes(trimmedName.toLowerCase())) {
+      toast.error('Une variante avec ce nom existe déjà')
+      return
+    }
+
+    const otherTotal = variantsExcludingCurrent.reduce((sum, v) => sum + v.quantity, 0)
+    const availableCapacity = product.stock_quantity - otherTotal
+
+    if (quantity > availableCapacity) {
+      toast.error(`La quantité dépasse le stock disponible (${availableCapacity} restant).`)
+      return
+    }
+
+    try {
+      setSavingVariant(true)
+
+      if (editingVariant) {
+        const { error } = await supabase
+          .from('dd-product-variants')
+          .update({
+            name: trimmedName,
+            sku: trimmedSku,
+            quantity
+          })
+          .eq('id', editingVariant.id)
+
+        if (error) throw error
+        toast.success('Variante mise à jour avec succès!')
+      } else {
+        const { error } = await supabase
+          .from('dd-product-variants')
+          .insert({
+            product_id: product.id,
+            name: trimmedName,
+            sku: trimmedSku,
+            quantity
+          })
+
+        if (error) throw error
+        toast.success('Variante ajoutée avec succès!')
+      }
+
+      await fetchProduct()
+      closeVariantDialog()
+    } catch (error: any) {
+      console.error('Error saving variant:', error)
+      toast.error(error?.message || 'Erreur lors de l\'enregistrement de la variante')
+    } finally {
+      setSavingVariant(false)
+    }
+  }
+
+  const handleDeleteVariant = async (variant: ProductVariant) => {
+    if (!confirm(`Supprimer la variante "${variant.name}" ?`)) {
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('dd-product-variants')
+        .delete()
+        .eq('id', variant.id)
+
+      if (error) throw error
+
+      toast.success('Variante supprimée avec succès!')
+      await fetchProduct()
+    } catch (error: any) {
+      console.error('Error deleting variant:', error)
+      toast.error(error?.message || 'Erreur lors de la suppression de la variante')
     }
   }
 
@@ -258,6 +416,7 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
 
   const profit = product.price - product.cost
   const margin = ((profit / product.price) * 100).toFixed(1)
+  const availableVariantCapacity = Math.max(product.stock_quantity - variantTotalQuantity, 0)
 
   return (
     <div className="p-6 space-y-6">
@@ -422,6 +581,74 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
               </div>
             </CardContent>
           </Card>
+
+          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-gray-900 dark:text-white">Variantes</CardTitle>
+                <p className="text-xs text-muted-foreground dark:text-gray-400 mt-1">
+                  Total des variantes: {variantTotalQuantity} / {product.stock_quantity} unités
+                </p>
+              </div>
+              {canManageProducts && (
+                <Button
+                  size="sm"
+                  onClick={() => openVariantDialog()}
+                  className="gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Ajouter
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {variants.length === 0 ? (
+                <p className="text-sm text-muted-foreground dark:text-gray-400">
+                  Aucune variante définie pour ce produit.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {variants.map(variant => (
+                    <div key={variant.id} className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">{variant.name}</p>
+                        <p className="text-xs text-muted-foreground dark:text-gray-400">
+                          SKU: {variant.sku || '—'} • Stock: {variant.quantity}
+                        </p>
+                      </div>
+                      {canManageProducts && (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openVariantDialog(variant)}
+                            className="h-8 w-8 p-0"
+                            title="Modifier"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteVariant(variant)}
+                            className="h-8 w-8 p-0 text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
+                            title="Supprimer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {canManageProducts && availableVariantCapacity > 0 && (
+                <p className="text-xs text-muted-foreground dark:text-gray-400">
+                  Capacité restante pour les variantes: {availableVariantCapacity} unité(s).
+                </p>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* Sidebar */}
@@ -507,6 +734,24 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
                 <p className="text-sm text-muted-foreground dark:text-gray-400">
                   Stock actuel: <span className="font-medium text-gray-900 dark:text-white">{product.stock_quantity}</span>
                 </p>
+                {variants.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs text-muted-foreground dark:text-gray-400 mb-1">Sélectionnez une variante (facultatif) :</p>
+                    <Select value={selectedVariantId} onValueChange={setSelectedVariantId}>
+                      <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
+                        <SelectValue placeholder="Sélectionner une variante" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white dark:bg-gray-800">
+                        <SelectItem value="global">Sans variante (stock global)</SelectItem>
+                        {variants.map(variant => (
+                          <SelectItem key={variant.id} value={variant.id}>
+                            {variant.name} • Stock: {variant.quantity}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="stock-quantity" className="text-gray-700 dark:text-gray-300">
@@ -536,6 +781,76 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
                   className="bg-green-600 hover:bg-green-700 text-white"
                 >
                   {increasingStock ? <ButtonLoadingSpinner /> : 'Augmenter'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {variantDialogOpen && product && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <Card className="w-full max-w-md bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-gray-900 dark:text-white">
+                {editingVariant ? 'Modifier la Variante' : 'Ajouter une Variante'}
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={closeVariantDialog}
+                className="h-6 w-6 text-gray-600 dark:text-gray-400"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="variant-name" className="text-gray-700 dark:text-gray-300">Nom de la variante *</Label>
+                <Input
+                  id="variant-name"
+                  value={variantForm.name}
+                  onChange={(e) => setVariantForm(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Ex: Taille M, Couleur Rouge"
+                  className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="variant-sku" className="text-gray-700 dark:text-gray-300">SKU (optionnel)</Label>
+                <Input
+                  id="variant-sku"
+                  value={variantForm.sku}
+                  onChange={(e) => setVariantForm(prev => ({ ...prev, sku: e.target.value }))}
+                  placeholder="SKU spécifique à la variante"
+                  className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="variant-quantity" className="text-gray-700 dark:text-gray-300">Quantité *</Label>
+                <Input
+                  id="variant-quantity"
+                  type="number"
+                  min="0"
+                  value={variantForm.quantity}
+                  onChange={(e) => setVariantForm(prev => ({ ...prev, quantity: e.target.value }))}
+                  placeholder="0"
+                  className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={closeVariantDialog}
+                  className="bg-transparent border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  onClick={handleVariantSave}
+                  disabled={savingVariant}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {savingVariant ? <ButtonLoadingSpinner /> : editingVariant ? 'Mettre à jour' : 'Ajouter'}
                 </Button>
               </div>
             </CardContent>

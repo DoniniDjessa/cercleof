@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Upload, RefreshCw, X, Image as ImageIcon, Camera } from "lucide-react"
+import { Upload, RefreshCw, X, Image as ImageIcon, Camera, Plus, Trash2 } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { supabase } from "@/lib/supabase"
 import { ButtonLoadingSpinner } from "@/components/ui/context-loaders"
@@ -42,6 +42,7 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
   const [selectedCategory, setSelectedCategory] = useState<{id: string, name: string} | null>(null)
   const [images, setImages] = useState<File[]>([])
   const [uploadingImages, setUploadingImages] = useState(false)
+  const [variants, setVariants] = useState<Array<{ id: string; name: string; sku: string; quantity: string }>>([])
 
   useEffect(() => {
     fetchCategories()
@@ -123,6 +124,28 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
 
   const handleCheckboxChange = (name: string, checked: boolean) => {
     setFormData((prev) => ({ ...prev, [name]: checked }))
+  }
+
+  const addVariantRow = () => {
+    setVariants(prev => ([
+      ...prev,
+      {
+        id: `${Date.now()}-${Math.random().toString(36).substring(2)}`,
+        name: '',
+        sku: '',
+        quantity: ''
+      }
+    ]))
+  }
+
+  const updateVariantField = (variantId: string, field: 'name' | 'sku' | 'quantity', value: string) => {
+    setVariants(prev => prev.map(variant => (
+      variant.id === variantId ? { ...variant, [field]: value } : variant
+    )))
+  }
+
+  const removeVariantRow = (variantId: string) => {
+    setVariants(prev => prev.filter(variant => variant.id !== variantId))
   }
 
   const handleImageUpload = async (files: FileList | null, compress: boolean = true) => {
@@ -220,6 +243,40 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
     setLoading(true)
 
     try {
+      const stockNumber = parseInt(formData.stock || '0', 10)
+      if (isNaN(stockNumber) || stockNumber < 0) {
+        toast.error('Veuillez entrer un stock valide (0 ou plus).')
+        setLoading(false)
+        return
+      }
+
+      const variantValues = variants.map(variant => ({
+        ...variant,
+        name: variant.name.trim(),
+        sku: variant.sku.trim(),
+        quantityNumber: parseInt(variant.quantity || '0', 10)
+      }))
+
+      for (const variant of variantValues) {
+        if (!variant.name) {
+          toast.error('Le nom de chaque variante est obligatoire.')
+          setLoading(false)
+          return
+        }
+        if (isNaN(variant.quantityNumber) || variant.quantityNumber < 0) {
+          toast.error(`Quantité invalide pour la variante "${variant.name}".`)
+          setLoading(false)
+          return
+        }
+      }
+
+      const totalVariantQuantity = variantValues.reduce((sum, variant) => sum + variant.quantityNumber, 0)
+      if (totalVariantQuantity > stockNumber) {
+        toast.error('La somme des quantités des variantes ne peut pas dépasser le stock total.')
+        setLoading(false)
+        return
+      }
+
       // Get current user ID for created_by field
       const { data: currentUser, error: userError } = await supabase
         .from('dd-users')
@@ -264,7 +321,7 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
       }
 
       // Insert product into dd-products table
-      const { error } = await supabase
+      const { data: insertedProducts, error } = await supabase
         .from('dd-products')
         .insert([productData])
         .select()
@@ -273,6 +330,31 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
         console.error('Error creating product:', error)
         toast.error('Erreur lors de la création du produit: ' + error.message)
         return
+      }
+
+      const newProduct = insertedProducts?.[0]
+
+      if (!newProduct) {
+        toast.error('Impossible de récupérer le produit créé')
+        return
+      }
+
+      if (variantValues.length > 0) {
+        const variantRows = variantValues.map(variant => ({
+          product_id: newProduct.id,
+          name: variant.name,
+          sku: variant.sku || null,
+          quantity: variant.quantityNumber
+        }))
+
+        const { error: variantsError } = await supabase
+          .from('dd-product-variants')
+          .insert(variantRows)
+
+        if (variantsError) {
+          console.error('Error inserting variants:', variantsError)
+          toast.error('Produit créé mais erreur lors de l\'ajout des variantes: ' + variantsError.message)
+        }
       }
 
       toast.success("Produit créé avec succès!")
@@ -292,6 +374,7 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
         show_on_website: false
       })
       setImages([])
+      setVariants([])
 
       // Call the callback to refresh the products list
       if (onProductCreated) {
@@ -515,6 +598,87 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
                     </div>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-gray-900 dark:text-white">Variantes</CardTitle>
+                  <p className="text-xs text-muted-foreground dark:text-gray-400 mt-1">
+                    Créez des variantes (ex: tailles, couleurs). La somme des quantités doit être inférieure ou égale au stock total.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addVariantRow}
+                  className="gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Ajouter
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {variants.length === 0 ? (
+                  <p className="text-sm text-muted-foreground dark:text-gray-400">
+                    Aucune variante ajoutée.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {variants.map(variant => (
+                      <div key={variant.id} className="grid gap-3 md:grid-cols-12 items-end border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                        <div className="md:col-span-5 space-y-2">
+                          <Label className="text-gray-700 dark:text-gray-300">Nom *</Label>
+                          <Input
+                            value={variant.name}
+                            onChange={(e) => updateVariantField(variant.id, 'name', e.target.value)}
+                            placeholder="Ex: Taille M, Rouge"
+                            className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                          />
+                        </div>
+                        <div className="md:col-span-4 space-y-2">
+                          <Label className="text-gray-700 dark:text-gray-300">SKU</Label>
+                          <Input
+                            value={variant.sku}
+                            onChange={(e) => updateVariantField(variant.id, 'sku', e.target.value)}
+                            placeholder="SKU spécifique à la variante"
+                            className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                          />
+                        </div>
+                        <div className="md:col-span-2 space-y-2">
+                          <Label className="text-gray-700 dark:text-gray-300">Quantité *</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={variant.quantity}
+                            onChange={(e) => updateVariantField(variant.id, 'quantity', e.target.value)}
+                            placeholder="0"
+                            className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                          />
+                        </div>
+                        <div className="md:col-span-1 flex justify-end">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => removeVariantRow(variant.id)}
+                            className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {variants.length > 0 && (
+                  <div className="text-xs text-muted-foreground dark:text-gray-400">
+                    Total des quantités variantes: {variants.reduce((sum, variant) => sum + (parseInt(variant.quantity || '0', 10) || 0), 0)} / {formData.stock || 0}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

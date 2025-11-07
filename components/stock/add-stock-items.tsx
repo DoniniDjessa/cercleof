@@ -13,13 +13,22 @@ import { ButtonLoadingSpinner } from "@/components/ui/context-loaders"
 import { generateBatchCode } from "@/lib/code-generators"
 import toast from "react-hot-toast"
 
+interface ProductVariant {
+  id: string
+  product_id: string
+  name: string
+  sku?: string
+  quantity: number
+}
+
 interface Product {
   id: string
   name: string
-  sku: string
-  barcode: string
+  sku?: string
+  barcode?: string
   price: number
-  stock_quantity: number
+  brand?: string
+  variants?: ProductVariant[]
 }
 
 interface StockItem {

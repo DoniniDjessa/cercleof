@@ -17,12 +17,21 @@ import { compressImage } from "@/lib/image-utils"
 import toast from "react-hot-toast"
 
 
+interface ProductVariant {
+  id: string
+  product_id: string
+  name: string
+  sku?: string
+  quantity: number
+}
+
 interface Product {
   id: string
   name: string
-  sku?: string
   price: number
-  stock_quantity: number
+  sku?: string
+  barcode?: string
+  variants?: ProductVariant[]
 }
 
 interface ServiceProduct {

@@ -14,6 +14,14 @@ import { supabase } from "@/lib/supabase"
 import { QuickCreateClient } from "@/components/clients/quick-create-client"
 import toast from "react-hot-toast"
 
+interface ProductVariant {
+  id: string
+  product_id: string
+  name: string
+  sku?: string
+  quantity: number
+}
+
 interface Product {
   id: string
   name: string
@@ -25,6 +33,7 @@ interface Product {
     id: string
     name: string
   }
+  variants?: ProductVariant[]
 }
 
 interface Service {
@@ -56,11 +65,14 @@ interface Client {
 interface CartItem {
   id: string
   type: 'product' | 'service'
+  productId?: string
+  variantId?: string
   name: string
   price: number
   quantity: number
   total: number
   data: Product | Service
+  variantData?: ProductVariant
 }
 
 interface Promotion {
@@ -97,6 +109,9 @@ export default function POSPage() {
   const [showQuickCreateClient, setShowQuickCreateClient] = useState(false)
   const [currentUserRole, setCurrentUserRole] = useState<string>("")
   const [checkingRole, setCheckingRole] = useState(true)
+  const [variantSelection, setVariantSelection] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null })
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null)
+  const [variantQuantity, setVariantQuantity] = useState('1')
   
   // Promotion code states
   const [promotionCode, setPromotionCode] = useState("")
@@ -284,16 +299,25 @@ export default function POSPage() {
     }
   }
 
-  const fetchData = async () => {
+  const fetchData = async (silent = false) => {
     try {
-      setLoading(true)
+      if (!silent) {
+        setLoading(true)
+      }
       
       // Fetch products
       const { data: productsData, error: productsError } = await supabase
         .from('dd-products')
         .select(`
           *,
-          category:dd-categories(id, name)
+          category:dd-categories(id, name),
+          variants:dd-product-variants(
+            id,
+            product_id,
+            name,
+            sku,
+            quantity
+          )
         `)
         .eq('is_active', true)
         .eq('status', 'active')
@@ -339,12 +363,26 @@ export default function POSPage() {
       console.error('Error fetching data:', error)
       toast.error('Erreur lors du chargement des données')
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
   }
 
   const addToCart = (item: Product | Service, type: 'product' | 'service') => {
-    const existingItem = cart.find(cartItem => cartItem.id === item.id && cartItem.type === type)
+    if (type === 'product') {
+      const product = item as Product
+      if (product.variants && product.variants.length > 0) {
+        const firstAvailableVariant = product.variants.find(v => v.quantity > 0) || product.variants[0]
+        setVariantSelection({ open: true, product })
+        setSelectedVariantId(firstAvailableVariant?.id || null)
+        setVariantQuantity('1')
+        return
+      }
+    }
+
+    const itemKey = item.id
+    const existingItem = cart.find(cartItem => cartItem.id === itemKey && cartItem.type === type)
     
     if (existingItem) {
       updateCartQuantity(existingItem.id, existingItem.type, existingItem.quantity + 1)
@@ -352,8 +390,9 @@ export default function POSPage() {
       const service = type === 'service' ? item as Service : null
       const product = type === 'product' ? item as Product : null
       const cartItem: CartItem = {
-        id: item.id,
+        id: itemKey,
         type,
+        productId: type === 'product' ? product!.id : undefined,
         name: type === 'product' ? product!.name : (service!.name || service!.nom || 'Service'),
         price: type === 'product' ? product!.price : (service!.price || service!.prix_base || 0),
         quantity: 1,
@@ -364,10 +403,85 @@ export default function POSPage() {
     }
   }
 
+  const closeVariantSelection = () => {
+    setVariantSelection({ open: false, product: null })
+    setSelectedVariantId(null)
+    setVariantQuantity('1')
+  }
+
+  const addVariantToCart = (product: Product, variant: ProductVariant, quantity: number) => {
+    if (quantity <= 0) {
+      toast.error('La quantité doit être supérieure à 0')
+      return
+    }
+
+    if (variant.quantity === 0) {
+      toast.error('Cette variante est en rupture de stock')
+      return
+    }
+
+    if (quantity > variant.quantity) {
+      toast.error(`Stock insuffisant pour cette variante (max ${variant.quantity})`)
+      return
+    }
+
+    const existingItem = cart.find(cartItem => cartItem.type === 'product' && cartItem.variantId === variant.id)
+
+    if (existingItem) {
+      const newQuantity = existingItem.quantity + quantity
+      if (newQuantity > variant.quantity) {
+        toast.error(`Stock insuffisant pour cette variante (max ${variant.quantity})`)
+        return
+      }
+      updateCartQuantity(existingItem.id, existingItem.type, newQuantity)
+    } else {
+      const cartItem: CartItem = {
+        id: variant.id,
+        type: 'product',
+        productId: product.id,
+        variantId: variant.id,
+        name: `${product.name} • ${variant.name}`,
+        price: product.price,
+        quantity,
+        total: product.price * quantity,
+        data: product,
+        variantData: variant
+      }
+      setCart([...cart, cartItem])
+    }
+
+    closeVariantSelection()
+  }
+
   const updateCartQuantity = (id: string, type: 'product' | 'service', quantity: number) => {
     if (quantity <= 0) {
       removeFromCart(id, type)
       return
+    }
+
+    const cartItem = cart.find(item => item.id === id && item.type === type)
+
+    if (!cartItem) {
+      return
+    }
+
+    if (type === 'product') {
+      const product = cartItem.data as Product
+
+      if (cartItem.variantId) {
+        const variant = product.variants?.find(v => v.id === cartItem.variantId) || cartItem.variantData
+        const maxQuantity = variant?.quantity ?? 0
+
+        if (quantity > maxQuantity) {
+          toast.error(`Stock insuffisant pour cette variante (max ${maxQuantity})`)
+          return
+        }
+      } else {
+        if (quantity > product.stock_quantity) {
+          toast.error(`Stock insuffisant pour ce produit (max ${product.stock_quantity})`)
+          return
+        }
+      }
     }
 
     setCart(cart.map(item => 
@@ -612,8 +726,9 @@ export default function POSPage() {
       // Create sale items
       const saleItems = cart.map(item => ({
         vente_id: sale.id,
-        product_id: item.type === 'product' ? item.id : null,
+        product_id: item.type === 'product' ? (item.productId || item.id) : null,
         service_id: item.type === 'service' ? item.id : null,
+        variant_id: item.type === 'product' ? item.variantId || null : null,
         quantite: item.quantity,
         prix_unitaire: item.price,
         total: item.total
@@ -662,13 +777,29 @@ export default function POSPage() {
       for (const item of cart) {
         if (item.type === 'product') {
           const product = item.data as Product
+          const productId = item.productId || product.id
           const { error: stockError } = await supabase
             .from('dd-products')
             .update({ stock_quantity: product.stock_quantity - item.quantity })
-            .eq('id', item.id)
+            .eq('id', productId)
 
           if (stockError) {
-            console.error('Error updating stock:', stockError)
+            console.error('Error updating product stock:', stockError)
+          }
+
+          if (item.variantId) {
+            const variant = product.variants?.find(v => v.id === item.variantId) || item.variantData
+            const currentVariantQuantity = variant?.quantity ?? 0
+            const newVariantQuantity = Math.max(currentVariantQuantity - item.quantity, 0)
+
+            const { error: variantError } = await supabase
+              .from('dd-product-variants')
+              .update({ quantity: newVariantQuantity })
+              .eq('id', item.variantId)
+
+            if (variantError) {
+              console.error('Error updating variant stock:', variantError)
+            }
           }
         }
       }
@@ -944,6 +1075,9 @@ export default function POSPage() {
         await fetchDailySales()
       }
       
+      // Refresh products/services data silently to reflect stock updates
+      await fetchData(true)
+      
       // Reset form
       setCart([])
       setSelectedClient(null)
@@ -1002,6 +1136,29 @@ export default function POSPage() {
     
     return matchesSearch && matchesCategory
   })
+
+  const handleConfirmVariant = () => {
+    const product = variantSelection.product
+    if (!product) {
+      return
+    }
+
+    const variant = product.variants?.find(v => v.id === selectedVariantId)
+
+    if (!variant) {
+      toast.error('Veuillez sélectionner une variante')
+      return
+    }
+
+    const quantity = parseInt(variantQuantity, 10)
+
+    if (isNaN(quantity) || quantity <= 0) {
+      toast.error('Veuillez entrer une quantité valide')
+      return
+    }
+
+    addVariantToCart(product, variant, quantity)
+  }
 
   return (
     <div className="p-4 space-y-4">
@@ -1283,43 +1440,61 @@ export default function POSPage() {
                 </p>
               ) : (
                 <div className="space-y-3">
-                  {cart.map((item, index) => (
-                    <div key={`${item.id}-${item.type}`} className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900 dark:text-white text-[10px]">{item.name}</p>
-                        <p className="text-[9px] text-gray-500 dark:text-gray-400">
-                          {item.price.toFixed(0)}f × {item.quantity}
-                        </p>
+                  {cart.map((item) => {
+                    const product = item.type === 'product' ? item.data as Product : null
+                    const variant = item.type === 'product' && item.variantId
+                      ? product?.variants?.find(v => v.id === item.variantId) || item.variantData
+                      : null
+                    const variantRemaining = variant ? Math.max((variant.quantity ?? 0) - item.quantity, 0) : null
+                    const maxQuantity = item.type === 'product'
+                      ? (variant ? variant?.quantity ?? 0 : product?.stock_quantity ?? 0)
+                      : Infinity
+                    const disableIncrement = item.type === 'product' && item.quantity >= maxQuantity
+
+                    return (
+                      <div key={`${item.id}-${item.type}`} className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900 dark:text-white text-[10px]">{item.name}</p>
+                          <p className="text-[9px] text-gray-500 dark:text-gray-400">
+                            {item.price.toFixed(0)}f × {item.quantity}
+                          </p>
+                          {variant && (
+                            <p className="text-[9px] text-gray-400 dark:text-gray-500">
+                              Stock variante restant: {variantRemaining} / {variant.quantity}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => updateCartQuantity(item.id, item.type, item.quantity - 1)}
+                            className="h-6 w-6 p-0"
+                          >
+                            <Minus className="w-2 h-2" />
+                          </Button>
+                          <span className="w-6 text-center text-[10px] font-medium">{item.quantity}</span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => updateCartQuantity(item.id, item.type, item.quantity + 1)}
+                            className="h-6 w-6 p-0"
+                            disabled={disableIncrement}
+                          >
+                            <Plus className="w-2 h-2" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => removeFromCart(item.id, item.type)}
+                            className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20 h-6 w-6 p-0"
+                          >
+                            <Trash2 className="w-2 h-2" />
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => updateCartQuantity(item.id, item.type, item.quantity - 1)}
-                          className="h-6 w-6 p-0"
-                        >
-                          <Minus className="w-2 h-2" />
-                        </Button>
-                        <span className="w-6 text-center text-[10px] font-medium">{item.quantity}</span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => updateCartQuantity(item.id, item.type, item.quantity + 1)}
-                          className="h-6 w-6 p-0"
-                        >
-                          <Plus className="w-2 h-2" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => removeFromCart(item.id, item.type)}
-                          className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20 h-6 w-6 p-0"
-                        >
-                          <Trash2 className="w-2 h-2" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </CardContent>

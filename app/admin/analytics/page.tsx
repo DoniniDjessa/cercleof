@@ -34,10 +34,20 @@ interface AnalyticsData {
   expenseGrowth: number
 }
 
+interface VariantAnalytics {
+  variantId: string
+  variantName: string
+  productId: string
+  productName: string
+  totalSold: number
+  totalRevenue: number
+}
+
 export default function AnalyticsPage() {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [timeRange, setTimeRange] = useState('30')
+  const [variantAnalytics, setVariantAnalytics] = useState<VariantAnalytics[]>([])
 
   useEffect(() => {
     fetchAnalytics()
@@ -46,6 +56,7 @@ export default function AnalyticsPage() {
   const fetchAnalytics = async () => {
     try {
       setLoading(true)
+      setVariantAnalytics([])
       
       const days = parseInt(timeRange)
       const startDate = new Date()
@@ -145,6 +156,59 @@ export default function AnalyticsPage() {
 
       const revenueGrowth = prevRevenue ? ((totalRevenue - prevRevenue) / prevRevenue) * 100 : 0
       const expenseGrowth = prevExpense ? ((totalExpenses - prevExpense) / prevExpense) * 100 : 0
+
+      // Fetch variant analytics
+      const { data: variantSalesData, error: variantSalesError } = await supabase
+        .from('dd-ventes-items')
+        .select(`
+          quantite,
+          total,
+          created_at,
+          variant_id,
+          variant:dd-product-variants(
+            id,
+            name,
+            product_id
+          ),
+          product:dd-products(
+            id,
+            name
+          )
+        `)
+        .not('variant_id', 'is', null)
+        .gte('created_at', startDate.toISOString())
+
+      if (!variantSalesError && variantSalesData) {
+        const analyticsMap = new Map<string, VariantAnalytics>()
+
+        variantSalesData.forEach((entry: any) => {
+          const variant = entry.variant
+          const product = entry.product
+          if (!variant || !product) return
+
+          const key = variant.id
+          const existing = analyticsMap.get(key) || {
+            variantId: variant.id,
+            variantName: variant.name,
+            productId: product.id,
+            productName: product.name,
+            totalSold: 0,
+            totalRevenue: 0
+          }
+
+          existing.totalSold += entry.quantite || 0
+          existing.totalRevenue += entry.total || 0
+          analyticsMap.set(key, existing)
+        })
+
+        const sortedAnalytics = Array.from(analyticsMap.values())
+          .sort((a, b) => b.totalSold - a.totalSold)
+          .slice(0, 5)
+
+        setVariantAnalytics(sortedAnalytics)
+      } else if (variantSalesError) {
+        console.error('Error fetching variant analytics:', variantSalesError)
+      }
 
       setAnalyticsData({
         totalRevenue: totalRevenue + totalSales,
@@ -427,6 +491,32 @@ export default function AnalyticsPage() {
               </CardContent>
             </Card>
           </div>
+
+          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Variante(s) les plus vendues</CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 space-y-3">
+              {variantAnalytics.length === 0 ? (
+                <p className="text-sm text-muted-foreground dark:text-gray-400">
+                  Aucune donnée de variante disponible pour la période sélectionnée.
+                </p>
+              ) : (
+                variantAnalytics.map(variant => (
+                  <div key={variant.variantId} className="flex items-center justify-between border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{variant.productName}</p>
+                      <p className="text-xs text-muted-foreground dark:text-gray-400">Variante: {variant.variantName}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{variant.totalSold} vendue(s)</p>
+                      <p className="text-xs text-muted-foreground dark:text-gray-400">{formatCurrency(variant.totalRevenue)}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
         </>
       )}
     </div>
