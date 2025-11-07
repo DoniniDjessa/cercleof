@@ -118,6 +118,21 @@ export default function POSPage() {
     notes: ""
   })
   
+  // Receipt state
+  const [showReceipt, setShowReceipt] = useState(false)
+  const [receiptData, setReceiptData] = useState<{
+    sale: any
+    items: CartItem[]
+    client: Client | null
+    subtotal: number
+    discount: number
+    giftCardAmount: number
+    total: number
+    paymentMethod: string
+    date: Date
+    user: string
+  } | null>(null)
+  
   // Daily sales amount states
   const [showDailySalesModal, setShowDailySalesModal] = useState(false)
   const [dailySalesAmount, setDailySalesAmount] = useState(0)
@@ -905,6 +920,23 @@ export default function POSPage() {
         }
       }
 
+      // Store receipt data before resetting
+      setReceiptData({
+        sale,
+        items: [...cart],
+        client: selectedClient,
+        subtotal,
+        discount: discountAmount,
+        giftCardAmount: giftCardAmountToUse,
+        total,
+        paymentMethod,
+        date: new Date(),
+        user: userDisplayName
+      })
+      
+      // Show receipt
+      setShowReceipt(true)
+      
       toast.success(`Vente effectuée avec succès! Total: ${total.toFixed(0)}f`)
       
       // Refresh daily sales if modal is open
@@ -1633,6 +1665,343 @@ export default function POSPage() {
                   )}
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Receipt Modal */}
+      {showReceipt && receiptData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowReceipt(false)}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-sm mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Reçu de Vente</h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowReceipt(false)}
+                className="h-8 w-8"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="p-4">
+              {/* Receipt Content */}
+              <div className="bg-white dark:bg-gray-900 border-2 border-gray-300 dark:border-gray-600 rounded p-4 font-mono text-xs">
+                {/* Header */}
+                <div className="text-center mb-4 border-b border-dashed border-gray-400 dark:border-gray-500 pb-3">
+                  <p className="font-bold text-sm mb-1">CERCLÉ OF</p>
+                  <p className="text-[10px] text-gray-600 dark:text-gray-400">Institut de Beauté</p>
+                  <p className="text-[10px] text-gray-600 dark:text-gray-400 mt-1">
+                    {receiptData.date.toLocaleDateString('fr-FR', { 
+                      day: '2-digit', 
+                      month: '2-digit', 
+                      year: 'numeric' 
+                    })} {receiptData.date.toLocaleTimeString('fr-FR', { 
+                      hour: '2-digit', 
+                      minute: '2-digit' 
+                    })}
+                  </p>
+                </div>
+
+                {/* Sale ID */}
+                <div className="mb-3 text-[10px] text-gray-600 dark:text-gray-400">
+                  <p>Vente: #{receiptData.sale.id.slice(-8).toUpperCase()}</p>
+                </div>
+
+                {/* Client Info */}
+                {receiptData.client && (
+                  <div className="mb-3 text-[10px] text-gray-600 dark:text-gray-400 border-b border-dashed border-gray-400 dark:border-gray-500 pb-2">
+                    <p>Client: {receiptData.client.first_name} {receiptData.client.last_name}</p>
+                    {receiptData.client.phone && (
+                      <p>Tel: {receiptData.client.phone}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Items */}
+                <div className="mb-3 border-b border-dashed border-gray-400 dark:border-gray-500 pb-2">
+                  {receiptData.items.map((item, index) => (
+                    <div key={index} className="mb-2">
+                      <div className="flex justify-between items-start mb-1">
+                        <div className="flex-1">
+                          <p className="font-semibold">{item.name}</p>
+                          <p className="text-[10px] text-gray-600 dark:text-gray-400">
+                            {item.quantity} x {item.price.toFixed(0)}f
+                          </p>
+                        </div>
+                        <p className="font-semibold ml-2">{item.total.toFixed(0)}f</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Totals */}
+                <div className="space-y-1 mb-3">
+                  <div className="flex justify-between text-[10px]">
+                    <span>Sous-total:</span>
+                    <span>{receiptData.subtotal.toFixed(0)}f</span>
+                  </div>
+                  {receiptData.discount > 0 && (
+                    <div className="flex justify-between text-[10px] text-red-600 dark:text-red-400">
+                      <span>Réduction:</span>
+                      <span>-{receiptData.discount.toFixed(0)}f</span>
+                    </div>
+                  )}
+                  {receiptData.giftCardAmount > 0 && (
+                    <div className="flex justify-between text-[10px] text-blue-600 dark:text-blue-400">
+                      <span>Carte Cadeau:</span>
+                      <span>-{receiptData.giftCardAmount.toFixed(0)}f</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-bold text-sm border-t border-dashed border-gray-400 dark:border-gray-500 pt-2 mt-2">
+                    <span>TOTAL:</span>
+                    <span>{receiptData.total.toFixed(0)}f</span>
+                  </div>
+                </div>
+
+                {/* Payment Method */}
+                <div className="mb-3 text-[10px] border-b border-dashed border-gray-400 dark:border-gray-500 pb-2">
+                  <p>
+                    Paiement: {
+                      receiptData.paymentMethod === 'cash' ? 'Espèces' :
+                      receiptData.paymentMethod === 'carte' ? 'Carte' :
+                      receiptData.paymentMethod === 'mobile_money' ? 'Mobile Money' :
+                      receiptData.paymentMethod
+                    }
+                  </p>
+                </div>
+
+                {/* Footer */}
+                <div className="text-center text-[10px] text-gray-600 dark:text-gray-400 mt-4 pt-3 border-t border-dashed border-gray-400 dark:border-gray-500">
+                  <p>Merci de votre visite!</p>
+                  <p className="mt-1">Vendu par: {receiptData.user}</p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 mt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowReceipt(false)}
+                  className="flex-1 text-xs"
+                >
+                  Fermer
+                </Button>
+                <Button
+                  onClick={() => {
+                    // Print receipt
+                    if (!receiptData) return
+                    
+                    // Escape HTML to prevent XSS and ensure clean text
+                    const escapeHtml = (text: string) => {
+                      const div = document.createElement('div')
+                      div.textContent = text
+                      return div.innerHTML
+                    }
+                    
+                    const formatDate = receiptData.date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                    const formatTime = receiptData.date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+                    const saleId = receiptData.sale.id.slice(-8).toUpperCase()
+                    const paymentMethodText = receiptData.paymentMethod === 'cash' ? 'Espèces' :
+                      receiptData.paymentMethod === 'carte' ? 'Carte' :
+                      receiptData.paymentMethod === 'mobile_money' ? 'Mobile Money' :
+                      receiptData.paymentMethod
+                    
+                    const receiptHTML = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reçu de Vente</title>
+  <style>
+    * { 
+      margin: 0; 
+      padding: 0; 
+      box-sizing: border-box; 
+    }
+    @page {
+      size: 80mm auto;
+      margin: 0;
+    }
+    body {
+      font-family: 'Courier New', 'Courier', monospace;
+      font-size: 12px;
+      line-height: 1.4;
+      padding: 10px;
+      max-width: 80mm;
+      margin: 0 auto;
+      color: #000;
+      background: #fff;
+    }
+    .header { 
+      text-align: center; 
+      margin-bottom: 10px; 
+      padding-bottom: 8px; 
+      border-bottom: 1px dashed #000; 
+    }
+    .header h1 { 
+      font-size: 16px; 
+      font-weight: bold; 
+      margin-bottom: 4px; 
+      text-transform: uppercase;
+    }
+    .header p { 
+      font-size: 10px; 
+      color: #333; 
+    }
+    .section { 
+      margin-bottom: 8px; 
+      padding-bottom: 8px; 
+      border-bottom: 1px dashed #000; 
+    }
+    .section p {
+      margin-bottom: 2px;
+    }
+    .item { 
+      margin-bottom: 6px; 
+      display: flex;
+      flex-direction: column;
+    }
+    .item-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 2px;
+    }
+    .item-name { 
+      font-weight: bold; 
+      margin-bottom: 2px; 
+    }
+    .item-details { 
+      font-size: 10px; 
+      color: #333; 
+    }
+    .item-total {
+      text-align: right;
+      font-weight: bold;
+      margin-top: 2px;
+    }
+    .totals { 
+      margin-top: 8px; 
+    }
+    .total-row { 
+      display: flex; 
+      justify-content: space-between; 
+      font-size: 11px; 
+      margin-bottom: 3px; 
+    }
+    .total-final { 
+      font-weight: bold; 
+      font-size: 14px; 
+      margin-top: 5px; 
+      padding-top: 5px; 
+      border-top: 2px solid #000; 
+    }
+    .footer { 
+      text-align: center; 
+      margin-top: 10px; 
+      padding-top: 8px; 
+      border-top: 1px dashed #000; 
+      font-size: 10px; 
+      color: #333; 
+    }
+    @media print {
+      body { 
+        padding: 5px; 
+        margin: 0;
+      }
+      .no-print {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>CERCLÉ OF</h1>
+    <p>Institut de Beauté</p>
+    <p>${escapeHtml(formatDate)} ${escapeHtml(formatTime)}</p>
+  </div>
+  <div class="section">
+    <p>Vente: #${escapeHtml(saleId)}</p>
+  </div>
+  ${receiptData.client ? `
+    <div class="section">
+      <p>Client: ${escapeHtml(receiptData.client.first_name)} ${escapeHtml(receiptData.client.last_name)}</p>
+      ${receiptData.client.phone ? `<p>Tel: ${escapeHtml(receiptData.client.phone)}</p>` : ''}
+    </div>
+  ` : ''}
+  <div class="section">
+    ${receiptData.items.map(item => `
+      <div class="item">
+        <div class="item-name">${escapeHtml(item.name)}</div>
+        <div class="item-row">
+          <span class="item-details">${item.quantity} x ${item.price.toFixed(0)}f</span>
+          <span class="item-total">${item.total.toFixed(0)}f</span>
+        </div>
+      </div>
+    `).join('')}
+  </div>
+  <div class="totals">
+    <div class="total-row">
+      <span>Sous-total:</span>
+      <span>${receiptData.subtotal.toFixed(0)}f</span>
+    </div>
+    ${receiptData.discount > 0 ? `
+      <div class="total-row">
+        <span>Réduction:</span>
+        <span>-${receiptData.discount.toFixed(0)}f</span>
+      </div>
+    ` : ''}
+    ${receiptData.giftCardAmount > 0 ? `
+      <div class="total-row">
+        <span>Carte Cadeau:</span>
+        <span>-${receiptData.giftCardAmount.toFixed(0)}f</span>
+      </div>
+    ` : ''}
+    <div class="total-row total-final">
+      <span>TOTAL:</span>
+      <span>${receiptData.total.toFixed(0)}f</span>
+    </div>
+  </div>
+  <div class="section">
+    <p>Paiement: ${escapeHtml(paymentMethodText)}</p>
+  </div>
+  <div class="footer">
+    <p>Merci de votre visite!</p>
+    <p>Vendu par: ${escapeHtml(receiptData.user)}</p>
+  </div>
+</body>
+</html>`
+                    
+                    const printWindow = window.open('', '_blank', 'width=300,height=600')
+                    if (printWindow) {
+                      printWindow.document.open()
+                      printWindow.document.write(receiptHTML)
+                      printWindow.document.close()
+                      
+                      // Wait for content to fully load before printing
+                      printWindow.onload = () => {
+                        setTimeout(() => {
+                          printWindow.focus()
+                          printWindow.print()
+                        }, 100)
+                      }
+                      
+                      // Fallback if onload doesn't fire
+                      setTimeout(() => {
+                        if (printWindow.document.readyState === 'complete') {
+                          printWindow.focus()
+                          printWindow.print()
+                        }
+                      }, 500)
+                    }
+                  }}
+                  className="flex-1 text-xs bg-purple-600 hover:bg-purple-700 text-white"
+                >
+                  Imprimer
+                </Button>
+              </div>
             </div>
           </div>
         </div>

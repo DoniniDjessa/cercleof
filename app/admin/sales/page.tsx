@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useAuth } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -62,6 +63,7 @@ interface SaleItem {
 }
 
 export default function SalesPage() {
+  const { user: authUser } = useAuth()
   const [sales, setSales] = useState<Sale[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
@@ -69,11 +71,45 @@ export default function SalesPage() {
   const [totalPages, setTotalPages] = useState(1)
   const [dateFilter, setDateFilter] = useState<string>('all')
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: '', end: '' })
+  const [currentUserRole, setCurrentUserRole] = useState<string>('')
   const itemsPerPage = 20
+
+  useEffect(() => {
+    fetchCurrentUserRole()
+  }, [authUser])
 
   useEffect(() => {
     fetchSales()
   }, [currentPage, dateFilter, dateRange])
+
+  const fetchCurrentUserRole = async () => {
+    try {
+      if (!authUser?.id) {
+        setCurrentUserRole('')
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('dd-users')
+        .select('role')
+        .eq('auth_user_id', authUser.id)
+        .single()
+
+      if (error && error.code === 'PGRST116') {
+        setCurrentUserRole('')
+        return
+      }
+
+      if (error) throw error
+      setCurrentUserRole(data?.role || '')
+    } catch (error) {
+      console.error('Error fetching user role:', error)
+      setCurrentUserRole('')
+    }
+  }
+
+  // Check if user can delete sales (admin, manager, superadmin)
+  const canDeleteSales = currentUserRole === 'admin' || currentUserRole === 'manager' || currentUserRole === 'superadmin'
 
   const fetchSales = async () => {
     try {
@@ -231,7 +267,9 @@ export default function SalesPage() {
         }
         itemsByVenteId.get(venteId)?.push({
           ...item,
-          product: item.product_id ? productsMap.get(item.product_id) : undefined,
+          product: item.product_id 
+            ? (productsMap.get(item.product_id) || { id: item.product_id, name: 'inconnu', sku: '' })
+            : undefined,
           service: item.service_id ? servicesMap.get(item.service_id) : undefined
         })
       })
@@ -255,23 +293,169 @@ export default function SalesPage() {
   }
 
   const deleteSale = async (saleId: string) => {
+    if (!canDeleteSales) {
+      toast.error('Vous n\'avez pas la permission de supprimer des ventes')
+      return
+    }
+
     if (!confirm('Êtes-vous sûr de vouloir supprimer cette vente ? Cette action ne peut pas être annulée.')) {
       return
     }
 
     try {
-      const { error } = await supabase
+      console.log('Starting deletion of sale:', saleId)
+
+      // First, check if there are any deliveries
+      const { data: deliveries, error: checkDeliveriesError } = await supabase
+        .from('dd-livraisons')
+        .select('id')
+        .eq('vente_id', saleId)
+
+      if (checkDeliveriesError && checkDeliveriesError.code !== 'PGRST116') {
+        console.warn('Error checking deliveries:', checkDeliveriesError)
+      }
+
+      // Delete related deliveries (livraisons) if they exist
+      if (deliveries && deliveries.length > 0) {
+        console.log(`Found ${deliveries.length} delivery(ies) to delete`)
+        const { error: deliveryError, data: deletedDeliveries } = await supabase
+          .from('dd-livraisons')
+          .delete()
+          .eq('vente_id', saleId)
+          .select()
+
+        if (deliveryError) {
+          console.error('Error deleting deliveries:', deliveryError)
+          toast.error(`Erreur lors de la suppression des livraisons: ${deliveryError.message}`)
+          return
+        }
+        console.log(`Deleted ${deletedDeliveries?.length || deliveries.length} delivery(ies)`)
+      }
+
+      // Check if there are any sale items
+      const { data: saleItems, error: checkItemsError } = await supabase
+        .from('dd-ventes-items')
+        .select('id')
+        .eq('vente_id', saleId)
+
+      if (checkItemsError && checkItemsError.code !== 'PGRST116') {
+        console.warn('Error checking sale items:', checkItemsError)
+      }
+
+      // Delete sale items (should cascade, but doing it explicitly to be sure)
+      if (saleItems && saleItems.length > 0) {
+        console.log(`Found ${saleItems.length} sale item(s) to delete`)
+        const { error: itemsError, data: deletedItems } = await supabase
+          .from('dd-ventes-items')
+          .delete()
+          .eq('vente_id', saleId)
+          .select()
+
+        if (itemsError) {
+          console.error('Error deleting sale items:', itemsError)
+          // Check if it's a permission error
+          if (itemsError.message?.includes('policy') || itemsError.message?.includes('permission')) {
+            toast.error('Permission insuffisante pour supprimer les articles de vente. Vérifiez vos permissions RLS.')
+            return
+          }
+          // For other errors, we'll still try to delete the sale as it might cascade
+          console.warn('Continuing with sale deletion despite items deletion error')
+        } else {
+          console.log(`Deleted ${deletedItems?.length || saleItems.length} sale item(s)`)
+        }
+      }
+
+      // Then delete the sale
+      console.log('Deleting sale:', saleId)
+      const { error: deleteError, data: deletedSale } = await supabase
         .from('dd-ventes')
         .delete()
         .eq('id', saleId)
+        .select()
 
-      if (error) throw error
+      if (deleteError) {
+        console.error('Error deleting sale:', deleteError)
+        // Check for specific error codes
+        if (deleteError.code === '23503' || deleteError.message?.includes('foreign key') || deleteError.message?.includes('violates foreign key')) {
+          toast.error('Impossible de supprimer la vente car elle est référencée dans d\'autres données (livraisons, actions, etc.)')
+        } else if (deleteError.message?.includes('policy') || deleteError.message?.includes('permission') || deleteError.message?.includes('RLS')) {
+          toast.error('Permission insuffisante pour supprimer la vente. Vérifiez vos permissions RLS (vous devez être admin ou manager).')
+        } else {
+          toast.error(`Erreur lors de la suppression de la vente: ${deleteError.message}`)
+        }
+        return
+      }
 
+      if (!deletedSale || deletedSale.length === 0) {
+        console.error('No rows deleted - sale may not exist or RLS prevented deletion')
+        console.error('Current user role:', currentUserRole)
+        console.error('Can delete sales:', canDeleteSales)
+        // Check if sale still exists
+        const { data: stillExists } = await supabase
+          .from('dd-ventes')
+          .select('id')
+          .eq('id', saleId)
+          .maybeSingle()
+        
+        if (stillExists) {
+          toast.error('La suppression a échoué. La politique RLS bloque probablement la suppression. Vérifiez que vous êtes admin/manager et que la politique RLS est correctement configurée (auth_user_id au lieu de id).')
+        } else {
+          toast.error('Aucune ligne supprimée. La vente n\'existe peut-être pas.')
+        }
+        return
+      }
+
+      console.log(`Successfully deleted sale. Rows affected: ${deletedSale.length}`)
+
+      // Wait a bit to ensure the deletion is committed
+      await new Promise(resolve => setTimeout(resolve, 200))
+
+      // Verify deletion was successful by checking if the sale still exists
+      const { data: verifySale, error: verifyError } = await supabase
+        .from('dd-ventes')
+        .select('id')
+        .eq('id', saleId)
+        .maybeSingle()
+
+      if (verifySale) {
+        // Sale still exists - deletion failed silently
+        console.error('Sale still exists after deletion attempt', verifySale)
+        toast.error('La suppression a échoué. La vente existe toujours dans la base de données. Vérifiez vos permissions RLS.')
+        // Don't update local state if deletion failed
+        return
+      }
+
+      // If verifyError exists but it's a "not found" error, that's good - sale was deleted
+      if (verifyError && verifyError.code !== 'PGRST116') {
+        console.warn('Error verifying deletion (but this might be OK):', verifyError)
+      }
+
+      // Immediately remove from local state for instant UI update
+      setSales(prevSales => {
+        const updated = prevSales.filter(sale => sale.id !== saleId)
+        // Update total pages if needed
+        const newTotalPages = Math.ceil((updated.length) / itemsPerPage)
+        if (newTotalPages < totalPages) {
+          setTotalPages(newTotalPages)
+        }
+        // If we're on a page that becomes empty, go back to page 1
+        // But don't trigger useEffect by changing page - just update the count
+        if (updated.length === 0 && currentPage > 1) {
+          // Don't change page here - it would trigger fetchSales()
+          // The user can navigate manually if needed
+        }
+        return updated
+      })
+      
       toast.success('Vente supprimée avec succès!')
-      fetchSales()
-    } catch (error) {
+      
+      // Don't refresh immediately - the local state update is sufficient
+      // The data will refresh naturally when filters change or page changes
+      // This prevents stale data from being fetched before deletion is fully committed
+      // If user wants fresh data, they can change filters or navigate
+    } catch (error: any) {
       console.error('Error deleting sale:', error)
-      toast.error('Erreur lors de la suppression de la vente')
+      toast.error(`Erreur lors de la suppression de la vente: ${error?.message || 'Erreur inconnue'}`)
     }
   }
 
@@ -555,14 +739,16 @@ export default function SalesPage() {
                           >
                             <Eye className="w-3 h-3" />
                           </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => deleteSale(sale.id)}
-                            className="h-6 w-6 p-0 text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
+                          {canDeleteSales && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => deleteSale(sale.id)}
+                              className="h-6 w-6 p-0 text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

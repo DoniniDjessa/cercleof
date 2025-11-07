@@ -19,7 +19,8 @@ import {
   X,
   Eye,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Trash2
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 
@@ -239,6 +240,66 @@ export default function ActionsPage() {
     }
   }
 
+  const deleteAction = async (actionId: string, actionDescription: string) => {
+    if (!isAdmin) {
+      toast.error('Vous n\'avez pas la permission de supprimer des actions')
+      return
+    }
+
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer cette action ?\n\n"${actionDescription}"\n\nCette action ne peut pas être annulée.`)) {
+      return
+    }
+
+    try {
+      console.log('Deleting action:', actionId)
+      
+      const { error: deleteError, data: deletedAction } = await supabase
+        .from('dd-actions')
+        .delete()
+        .eq('id', actionId)
+        .select()
+
+      if (deleteError) {
+        console.error('Error deleting action:', deleteError)
+        if (deleteError.message?.includes('policy') || deleteError.message?.includes('permission') || deleteError.message?.includes('RLS')) {
+          toast.error('Permission insuffisante pour supprimer cette action. Vérifiez vos permissions RLS.')
+        } else {
+          toast.error(`Erreur lors de la suppression: ${deleteError.message}`)
+        }
+        return
+      }
+
+      if (!deletedAction || deletedAction.length === 0) {
+        console.error('No rows deleted - action may not exist or RLS prevented deletion')
+        toast.error('Aucune ligne supprimée. L\'action n\'existe peut-être pas ou vous n\'avez pas les permissions nécessaires.')
+        return
+      }
+
+      console.log(`Successfully deleted action. Rows affected: ${deletedAction.length}`)
+
+      // Remove from local state immediately
+      setActions(prevActions => prevActions.filter(action => action.id !== actionId))
+      
+      // Clean up action details if expanded
+      if (expandedAction === actionId) {
+        setExpandedAction(null)
+        setActionDetails(prev => {
+          const updated = { ...prev }
+          delete updated[actionId]
+          return updated
+        })
+      }
+      
+      toast.success('Action supprimée avec succès!')
+      
+      // Refresh the list
+      await fetchActions()
+    } catch (error: any) {
+      console.error('Error deleting action:', error)
+      toast.error(`Erreur lors de la suppression: ${error?.message || 'Erreur inconnue'}`)
+    }
+  }
+
   const filteredActions = actions.filter(action =>
     action.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
     action.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -406,22 +467,37 @@ export default function ActionsPage() {
                           )}
                         </TableCell>
                         <TableCell>
-                          {action.type === 'vente' && action.cible_table === 'dd-ventes' ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => toggleActionDetails(action.id, action)}
-                              className="h-8 w-8 p-0"
-                            >
-                              {expandedAction === action.id ? (
-                                <ChevronUp className="w-4 h-4" />
-                              ) : (
-                                <ChevronDown className="w-4 h-4" />
-                              )}
-                            </Button>
-                          ) : (
-                            <span className="text-gray-400">-</span>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {action.type === 'vente' && action.cible_table === 'dd-ventes' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => toggleActionDetails(action.id, action)}
+                                className="h-8 w-8 p-0"
+                                title="Voir les détails"
+                              >
+                                {expandedAction === action.id ? (
+                                  <ChevronUp className="w-4 h-4" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4" />
+                                )}
+                              </Button>
+                            )}
+                            {isAdmin && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => deleteAction(action.id, action.description)}
+                                className="h-8 w-8 p-0 text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
+                                title="Supprimer"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
+                            {!isAdmin && action.type !== 'vente' && action.cible_table !== 'dd-ventes' && (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                       {expandedAction === action.id && action.type === 'vente' && action.cible_table === 'dd-ventes' && (
@@ -465,7 +541,7 @@ export default function ActionsPage() {
                                       {actionDetails[action.id].items?.map((item: any) => (
                                         <div key={item.id} className="text-xs flex justify-between">
                                           <span>
-                                            {item.product ? item.product.name : item.service ? item.service.name : 'N/A'} x {item.quantite}
+                                            {item.product ? item.product.name : item.service ? item.service.name : item.product_id ? 'inconnu' : 'N/A'} x {item.quantite}
                                           </span>
                                           <span>{item.total?.toFixed(0)}f</span>
                                         </div>

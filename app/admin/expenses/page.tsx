@@ -199,6 +199,11 @@ export default function ExpensesPage() {
   }
 
   const deleteExpense = async (expenseId: string) => {
+    if (!isAdmin) {
+      toast.error('Vous n\'avez pas la permission de supprimer des dépenses')
+      return
+    }
+
     if (!confirm('Êtes-vous sûr de vouloir supprimer cette dépense ? Cette action ne peut pas être annulée.')) {
       return
     }
@@ -509,14 +514,16 @@ export default function ExpensesPage() {
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => deleteExpense(expense.id)}
-                            className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          {isAdmin && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => deleteExpense(expense.id)}
+                              className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -754,14 +761,16 @@ export default function ExpensesPage() {
                                 >
                                   <Eye className="w-4 h-4" />
                                 </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => deleteExpense(expense.id)}
-                                  className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
+                                {isAdmin && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => deleteExpense(expense.id)}
+                                    className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                )}
                               </div>
                             </TableCell>
                           </TableRow>

@@ -113,85 +113,107 @@ export default function ProductsPage() {
     }
   }
 
+  const archiveProduct = async (productId: string, productName: string) => {
+    if (!canManageProducts) {
+      toast.error('Vous n\'avez pas la permission d\'archiver des produits')
+      return
+    }
+
+    if (!confirm(`Êtes-vous sûr de vouloir archiver le produit "${productName}" ?`)) {
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('dd-products')
+        .update({ is_active: false, status: 'archived' })
+        .eq('id', productId)
+
+      if (error) throw error
+      
+      fetchProducts()
+      toast.success('Produit archivé avec succès!')
+    } catch (error) {
+      console.error('Error archiving product:', error)
+      toast.error('Erreur lors de l\'archivage du produit')
+    }
+  }
+
   const deleteProduct = async (productId: string, productName: string) => {
     if (!canManageProducts) {
       toast.error('Vous n\'avez pas la permission de supprimer des produits')
       return
     }
 
-    // Check if product is referenced in sales items
-    const { data: salesItems, error: checkError } = await supabase
-      .from('dd-ventes-items')
-      .select('id')
-      .eq('product_id', productId)
-      .limit(1)
+    try {
+      // First, check if product is already archived
+      const { data: product, error: fetchError } = await supabase
+        .from('dd-products')
+        .select('status, is_active')
+        .eq('id', productId)
+        .single()
 
-    if (checkError) {
-      console.error('Error checking product references:', checkError)
-    }
+      if (fetchError) {
+        console.error('Error fetching product:', fetchError)
+        toast.error(`Erreur lors de la récupération du produit: ${fetchError.message}`)
+        return
+      }
 
-    if (salesItems && salesItems.length > 0) {
-      // Product is referenced in sales - do soft delete instead
-      const confirmSoftDelete = confirm(
-        `Le produit "${productName}" est référencé dans des ventes et ne peut pas être supprimé définitivement.\n\n` +
-        `Voulez-vous le désactiver (soft delete) ? Il sera masqué mais les données de vente seront conservées.`
-      )
+      if (!product) {
+        toast.error('Produit introuvable')
+        return
+      }
+
+      // If product is already archived, do permanent delete
+      const isArchived = product.status === 'archived' || !product.is_active
       
-      if (!confirmSoftDelete) {
-        return
-      }
+      if (isArchived) {
+        if (!confirm(`Êtes-vous sûr de vouloir SUPPRIMER DÉFINITIVEMENT le produit "${productName}" ? Cette action ne peut pas être annulée.`)) {
+          return
+        }
 
-      try {
-        const { error } = await supabase
-          .from('dd-products')
-          .update({ is_active: false, status: 'archived' })
-          .eq('id', productId)
-
-        if (error) throw error
-        
-        fetchProducts()
-        toast.success('Produit désactivé avec succès!')
-      } catch (error) {
-        console.error('Error deactivating product:', error)
-        toast.error('Erreur lors de la désactivation du produit')
-      }
-    } else {
-      // Product is not referenced - can do hard delete
-      if (!confirm(`Êtes-vous sûr de vouloir supprimer le produit "${productName}" ? Cette action ne peut pas être annulée.`)) {
-        return
-      }
-
-      try {
-        const { error } = await supabase
+        // Try to delete the product
+        // Note: If there are foreign key constraints, the database will prevent deletion
+        // In that case, the product will remain archived but not deleted
+        const { error: deleteError } = await supabase
           .from('dd-products')
           .delete()
           .eq('id', productId)
 
-        if (error) {
+        if (deleteError) {
+          console.error('Delete error:', deleteError)
           // Check if it's a foreign key constraint error
-          if (error.code === '23503' || error.message?.includes('foreign key')) {
-            // Try soft delete instead
-            const { error: softDeleteError } = await supabase
-              .from('dd-products')
-              .update({ is_active: false, status: 'archived' })
-              .eq('id', productId)
-
-            if (softDeleteError) throw softDeleteError
-            
-            fetchProducts()
-            toast.success('Le produit ne peut pas être supprimé définitivement. Il a été désactivé.')
+          if (deleteError.code === '23503' || deleteError.message?.includes('foreign key') || deleteError.message?.includes('violates foreign key')) {
+            toast.error('Ce produit ne peut pas être supprimé car il est référencé dans des ventes. Il restera archivé. Supprimez d\'abord les ventes associées si vous souhaitez le supprimer définitivement.')
           } else {
-            throw error
+            toast.error(`Erreur lors de la suppression: ${deleteError.message}`)
           }
         } else {
           fetchProducts()
-          toast.success('Produit supprimé avec succès!')
+          toast.success('Produit supprimé définitivement!')
         }
-      } catch (error: any) {
-        console.error('Error deleting product:', error)
-        const errorMessage = error.message || 'Erreur lors de la suppression du produit'
-        toast.error(errorMessage)
+      } else {
+        // First delete click - archive the product
+        if (!confirm(`Êtes-vous sûr de vouloir archiver le produit "${productName}" ? Vous pourrez le supprimer définitivement lors du prochain clic.`)) {
+          return
+        }
+
+        const { error: updateError } = await supabase
+          .from('dd-products')
+          .update({ is_active: false, status: 'archived' })
+          .eq('id', productId)
+
+        if (updateError) {
+          console.error('Archive error:', updateError)
+          toast.error(`Erreur lors de l'archivage: ${updateError.message}`)
+        } else {
+          fetchProducts()
+          toast.success('Produit archivé avec succès! Cliquez à nouveau pour supprimer définitivement.')
+        }
       }
+    } catch (error: any) {
+      console.error('Unexpected error in deleteProduct:', error)
+      toast.error(`Erreur inattendue: ${error?.message || 'Erreur inconnue'}`)
     }
   }
 
@@ -468,7 +490,12 @@ export default function ProductsPage() {
                                 size="sm" 
                                 variant="ghost" 
                                 className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
-                                onClick={() => deleteProduct(product.id, product.name)}
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  deleteProduct(product.id, product.name)
+                                }}
+                                title={product.status === 'archived' || !product.is_active ? 'Supprimer définitivement' : 'Archiver'}
                               >
                                 <Trash2 className="w-4 h-4" />
                               </Button>
