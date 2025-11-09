@@ -8,10 +8,11 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Upload, RefreshCw, X, Image as ImageIcon, Camera, Plus, Trash2 } from "lucide-react"
+import { Upload, RefreshCw, X, Image as ImageIcon, Camera, Plus, Trash2, ChevronsUpDown, Check } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { supabase } from "@/lib/supabase"
 import { ButtonLoadingSpinner } from "@/components/ui/context-loaders"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { generateSKU, generateBarcode } from "@/lib/code-generators"
 import { compressImages } from "@/lib/image-utils"
 import toast from "react-hot-toast"
@@ -115,7 +116,8 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
   const [selectedDomain, setSelectedDomain] = useState<string>(() => cascadeDomains[0] ?? "")
   const [selectedTranche, setSelectedTranche] = useState<string>("")
   const [selectedForme, setSelectedForme] = useState<string>("")
-  const [selectedBenefice, setSelectedBenefice] = useState<string>("")
+  const [selectedBenefices, setSelectedBenefices] = useState<string[]>([])
+  const [beneficesPopoverOpen, setBeneficesPopoverOpen] = useState(false)
   const availableTranches = useMemo(
     () => CATEGORY_CASCADE[selectedDomain] ?? [],
     [selectedDomain]
@@ -126,33 +128,65 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
   )
   const availableFormes = selectedTrancheNode?.sous_tranches.formes ?? []
   const availableBenefices = selectedTrancheNode?.sous_tranches.benefices ?? []
+  const primaryBenefice = selectedBenefices[0] ?? ""
+
+  useEffect(() => {
+    setSelectedBenefices(prev => {
+      const filtered = prev.filter(benefice => availableBenefices.includes(benefice))
+      if (filtered.length === prev.length && filtered.every((value, index) => value === prev[index])) {
+        return prev
+      }
+      return filtered
+    })
+  }, [availableBenefices])
+  useEffect(() => {
+    setBeneficesPopoverOpen(false)
+  }, [selectedDomain, selectedTranche, selectedForme])
+
+  const handleToggleBenefice = useCallback((benefice: string) => {
+    setSelectedBenefices(prev => {
+      if (prev.includes(benefice)) {
+        return prev.filter(item => item !== benefice)
+      }
+      return [...prev, benefice]
+    })
+  }, [])
   const formattedDomain = useMemo(() => {
     if (!selectedDomain) return ""
     if (selectedDomain === selectedDomain.toUpperCase()) return selectedDomain
     return selectedDomain.charAt(0).toUpperCase() + selectedDomain.slice(1)
   }, [selectedDomain])
   const cascadeCategoryName = useMemo(() => {
-    if (!formattedDomain && !selectedTranche && !selectedForme && !selectedBenefice) return ""
-    return [formattedDomain, selectedTranche, selectedForme, selectedBenefice].filter(Boolean).join(" • ")
-  }, [formattedDomain, selectedTranche, selectedForme, selectedBenefice])
+    if (!formattedDomain && !selectedTranche && !selectedForme && !primaryBenefice) return ""
+    return [formattedDomain, selectedTranche, selectedForme, primaryBenefice].filter(Boolean).join(" • ")
+  }, [formattedDomain, selectedTranche, selectedForme, primaryBenefice])
   const cascadeDescription = useMemo(() => {
     if (!selectedTranche) return ""
     return [
       `Domaine: ${formattedDomain || "—"}`,
       `Tranche principale: ${selectedTranche}`,
       `Forme: ${selectedForme || "—"}`,
-      `Bénéfice: ${selectedBenefice || "—"}`
+      `Bénéfices: ${selectedBenefices.length > 0 ? selectedBenefices.join(", ") : "—"}`
     ].join(" | ")
-  }, [formattedDomain, selectedTranche, selectedForme, selectedBenefice])
+  }, [formattedDomain, selectedTranche, selectedForme, selectedBenefices])
   const matchingCategory = useMemo(() => {
     if (!cascadeCategoryName) return null
     return categories.find(cat => cat.name === cascadeCategoryName) ?? null
   }, [categories, cascadeCategoryName])
   const cascadeTags = useMemo(
-    () => [selectedDomain, selectedTranche, selectedForme, selectedBenefice].filter(Boolean),
-    [selectedDomain, selectedTranche, selectedForme, selectedBenefice]
+    () => {
+      const baseTags = [selectedDomain, selectedTranche, selectedForme].filter(Boolean) as string[]
+      return [...baseTags, ...selectedBenefices]
+    },
+    [selectedDomain, selectedTranche, selectedForme, selectedBenefices]
   )
-  const classificationComplete = Boolean(selectedTranche && selectedForme && selectedBenefice)
+  const classificationComplete = Boolean(selectedTranche && selectedForme && selectedBenefices.length > 0)
+  const beneficeSummary = useMemo(() => {
+    if (selectedBenefices.length === 0) return "Sélectionner des bénéfices"
+    if (selectedBenefices.length <= 2) return selectedBenefices.join(", ")
+    const [first, second] = selectedBenefices
+    return `${first}, ${second} +${selectedBenefices.length - 2}`
+  }, [selectedBenefices])
 
   const startCroppingFile = useCallback(async (file: File) => {
     try {
@@ -462,7 +496,7 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
         return
       }
 
-      if (!selectedDomain || !selectedTranche || !selectedForme || !selectedBenefice) {
+      if (!selectedDomain || !selectedTranche || !selectedForme || selectedBenefices.length === 0) {
         toast.error('Veuillez compléter la classification (domaine, tranche principale, forme et bénéfice).')
         setLoading(false)
         return
@@ -673,7 +707,7 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
                         setSelectedDomain(value)
                         setSelectedTranche("")
                         setSelectedForme("")
-                        setSelectedBenefice("")
+            setSelectedBenefices([])
                       }}
                     >
                       <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
@@ -703,7 +737,7 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
                         onValueChange={(value) => {
                           setSelectedTranche(value)
                           setSelectedForme("")
-                          setSelectedBenefice("")
+                          setSelectedBenefices([])
                         }}
                       >
                         <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
@@ -722,7 +756,10 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
                       <Label className="text-gray-700 dark:text-gray-300">Forme *</Label>
                       <Select
                         value={selectedForme}
-                        onValueChange={setSelectedForme}
+                        onValueChange={(value) => {
+                          setSelectedForme(value)
+                          setSelectedBenefices([])
+                        }}
                         disabled={availableFormes.length === 0}
                       >
                         <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
@@ -738,23 +775,62 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-gray-700 dark:text-gray-300">Bénéfice *</Label>
-                      <Select
-                        value={selectedBenefice}
-                        onValueChange={setSelectedBenefice}
-                        disabled={availableBenefices.length === 0}
-                      >
-                        <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
-                          <SelectValue placeholder="Sélectionner un bénéfice" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableBenefices.map((benefice) => (
-                            <SelectItem key={benefice} value={benefice}>
-                              {benefice}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Label className="text-xs text-gray-700 dark:text-gray-300 uppercase tracking-wide">Bénéfices *</Label>
+                      <Popover open={beneficesPopoverOpen} onOpenChange={setBeneficesPopoverOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full justify-between bg-gray-50 text-xs font-medium text-gray-900 dark:bg-gray-700 dark:text-gray-100"
+                            disabled={availableBenefices.length === 0}
+                          >
+                            <span className="line-clamp-2 text-left capitalize">
+                              {availableBenefices.length === 0 ? "Aucun bénéfice disponible" : beneficeSummary}
+                            </span>
+                            <ChevronsUpDown className="h-4 w-4 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-72 p-0" align="start">
+                          {availableBenefices.length === 0 ? (
+                            <p className="px-3 py-2 text-xs text-muted-foreground">
+                              Aucun bénéfice disponible pour cette sélection.
+                            </p>
+                          ) : (
+                            <div className="max-h-64 overflow-y-auto py-1">
+                              {availableBenefices.map((benefice) => {
+                                const isSelected = selectedBenefices.includes(benefice)
+                                return (
+                                  <button
+                                    key={benefice}
+                                    type="button"
+                                    onClick={() => handleToggleBenefice(benefice)}
+                                    className={`flex w-full items-center justify-between px-3 py-2 text-xs text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700 ${
+                                      isSelected ? "bg-gray-100 font-semibold dark:bg-gray-700" : ""
+                                    }`}
+                                  >
+                                    <span className="pr-2 text-left">{benefice}</span>
+                                    {isSelected && <Check className="h-4 w-4 text-pink-500" />}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          )}
+                          {selectedBenefices.length > 0 && (
+                            <div className="border-t border-gray-200 bg-gray-50 px-3 py-2 text-right text-xs dark:border-gray-700 dark:bg-gray-900/60">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedBenefices([])
+                                  setBeneficesPopoverOpen(false)
+                                }}
+                                className="text-pink-600 transition hover:text-pink-700 dark:text-pink-400 dark:hover:text-pink-300"
+                              >
+                                Tout effacer
+                              </button>
+                            </div>
+                          )}
+                        </PopoverContent>
+                      </Popover>
                     </div>
                   </div>
 
