@@ -509,12 +509,6 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
         return
       }
 
-      if (!matchingCategory) {
-        toast.error('La catégorie correspondante est introuvable. Vérifiez la structure pré-définie.')
-        setLoading(false)
-        return
-      }
-
       // Get current user ID for created_by field
       const { data: currentUser, error: userError } = await supabase
         .from('dd-users')
@@ -526,6 +520,35 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
         console.error('Error fetching current user:', userError)
         toast.error('Error fetching user information')
         return
+      }
+
+      let categoryToUse = matchingCategory
+
+      if (!categoryToUse) {
+        const { data: createdCategory, error: createCategoryError } = await supabase
+          .from('dd-categories')
+          .insert({
+            name: cascadeCategoryName,
+            type: 'product',
+            is_active: true,
+            created_by: currentUser.id
+          })
+          .select('id, name')
+          .single()
+
+        if (createCategoryError) {
+          console.error('Error creating missing category:', createCategoryError)
+          toast.error('Impossible de créer automatiquement la catégorie correspondante.')
+          setLoading(false)
+          return
+        }
+
+        if (createdCategory) {
+          categoryToUse = createdCategory
+          setCategories(prev => [...prev, createdCategory])
+          setSelectedCategory({ id: createdCategory.id, name: createdCategory.name })
+          setFormData(prev => ({ ...prev, category: createdCategory.id }))
+        }
       }
 
       // Upload images first
@@ -544,7 +567,7 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
       const productData = {
         name: formData.name,
         description: formData.description || null,
-        category_id: formData.category || null,
+        category_id: categoryToUse?.id || formData.category || null,
         brand: formData.brand || null,
         price: parseFloat(formData.price) || 0,
         cost: parseFloat(formData.cost) || 0,
