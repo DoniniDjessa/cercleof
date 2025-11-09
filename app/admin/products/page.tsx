@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { AnimatedButton } from '@/components/ui/animated-button'
 import { TableLoadingState, ButtonLoadingSpinner } from '@/components/ui/context-loaders'
-import { Search, Eye, Trash2, Package, DollarSign, TrendingUp, Plus, X } from 'lucide-react'
+import { Search, Eye, Trash2, Package, DollarSign, TrendingUp, Plus, X, Image as ImageIcon } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
@@ -62,6 +62,7 @@ export default function ProductsPage() {
   const [selectedVariantId, setSelectedVariantId] = useState<string>('global')
   const [increasingStock, setIncreasingStock] = useState(false)
   const [lowStockFilter, setLowStockFilter] = useState(false)
+  const [missingImagesFilter, setMissingImagesFilter] = useState(false)
 
   useEffect(() => {
     fetchProducts()
@@ -313,9 +314,17 @@ export default function ProductsPage() {
       (product.show_to_website && 'site web'.includes(searchValue)) ||
       (!product.show_to_website && 'non site web'.includes(searchValue))
     
-    if (lowStockFilter) {
-      return matchesSearch && product.stock_quantity < 10
+    if (lowStockFilter && product.stock_quantity >= 10) {
+      return false
     }
+
+    if (missingImagesFilter) {
+      const hasImages = Array.isArray(product.images) && product.images.length > 0
+      if (hasImages) {
+        return false
+      }
+    }
+
     return matchesSearch
   })
 
@@ -414,7 +423,7 @@ export default function ProductsPage() {
               <CardTitle className="text-gray-900 dark:text-white">Rechercher des Produits</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-3">
                 <div className="flex-1 relative">
                   <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground dark:text-gray-400" />
                   <Input
@@ -424,14 +433,24 @@ export default function ProductsPage() {
                     className="pl-10 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
                   />
                 </div>
-                <Button
-                  variant={lowStockFilter ? "default" : "outline"}
-                  onClick={() => setLowStockFilter(!lowStockFilter)}
-                  className={lowStockFilter ? "bg-red-600 hover:bg-red-700 text-white" : "bg-transparent border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"}
-                >
-                  <Package className="w-4 h-4 mr-2" />
-                  Stock Faibles
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant={lowStockFilter ? "default" : "outline"}
+                    onClick={() => setLowStockFilter(!lowStockFilter)}
+                    className={`gap-2 ${lowStockFilter ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-transparent border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                  >
+                    <Package className="w-4 h-4" />
+                    Stock faibles
+                  </Button>
+                  <Button
+                    variant={missingImagesFilter ? "default" : "outline"}
+                    onClick={() => setMissingImagesFilter(!missingImagesFilter)}
+                    className={`gap-2 ${missingImagesFilter ? 'bg-orange-500 hover:bg-orange-600 text-white' : 'bg-transparent border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                  >
+                    <ImageIcon className="w-4 h-4" />
+                    Sans image
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>

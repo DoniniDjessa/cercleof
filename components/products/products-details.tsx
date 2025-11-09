@@ -81,6 +81,9 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
     status: 'active',
     show_to_website: false
   })
+  const [imageDialogOpen, setImageDialogOpen] = useState(false)
+  const [imageFiles, setImageFiles] = useState<File[]>([])
+  const [isUploadingImages, setIsUploadingImages] = useState(false)
 
   useEffect(() => {
     if (productId) {
@@ -311,6 +314,68 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
       quantity: variant ? String(variant.quantity) : ''
     })
     setVariantDialogOpen(true)
+  }
+
+  const handleImageFilesChange = (files: FileList | null) => {
+    if (!files) return
+    const validFiles = Array.from(files).filter(file => file.type.startsWith('image/'))
+    if (validFiles.length === 0) {
+      toast.error('Veuillez sélectionner des fichiers image valides.')
+      return
+    }
+    setImageFiles(validFiles)
+  }
+
+  const handleUploadImages = async () => {
+    if (!product || imageFiles.length === 0) {
+      toast.error('Veuillez sélectionner au moins une image.')
+      return
+    }
+
+    setIsUploadingImages(true)
+    try {
+      const uploadedUrls: string[] = []
+
+      for (const file of imageFiles) {
+        const fileExt = file.name.split('.').pop()
+        const fileName = `${product.id}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
+        const filePath = `products/${fileName}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('cb-bucket')
+          .upload(filePath, file)
+
+        if (uploadError) {
+          console.error('Error uploading image:', uploadError)
+          throw uploadError
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('cb-bucket')
+          .getPublicUrl(filePath)
+
+        uploadedUrls.push(publicUrl)
+      }
+
+      const updatedImages = [...(product.images || []), ...uploadedUrls]
+
+      const { error: updateError } = await supabase
+        .from('dd-products')
+        .update({ images: updatedImages })
+        .eq('id', product.id)
+
+      if (updateError) throw updateError
+
+      setProduct({ ...product, images: updatedImages })
+      toast.success('Images ajoutées avec succès !')
+      setImageFiles([])
+      setImageDialogOpen(false)
+    } catch (err) {
+      console.error('Error uploading images:', err)
+      toast.error('Erreur lors du téléchargement des images.')
+    } finally {
+      setIsUploadingImages(false)
+    }
   }
 
   const closeVariantDialog = () => {
@@ -569,12 +634,16 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-6">
           {/* Product Images */}
-          {product.images && product.images.length > 0 && (
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <CardHeader>
-                <CardTitle className="text-gray-900 dark:text-white">Images du Produit</CardTitle>
-              </CardHeader>
-              <CardContent>
+          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-gray-900 dark:text-white">Images du Produit</CardTitle>
+              <Button size="sm" className="gap-2" onClick={() => setImageDialogOpen(true)}>
+                <Plus className="w-4 h-4" />
+                Ajouter
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {product.images && product.images.length > 0 ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {product.images.map((image, index) => (
                     <div key={index} className="relative group">
@@ -587,9 +656,18 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
                     </div>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-6 text-center">
+                  <p className="text-sm text-muted-foreground dark:text-gray-400">
+                    Aucune image n&apos;est encore associée à ce produit.
+                  </p>
+                  <Button size="sm" onClick={() => setImageDialogOpen(true)}>
+                    Ajouter des images
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Product Info */}
           <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
@@ -1121,6 +1199,80 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
                   className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
                   {savingVariant ? <ButtonLoadingSpinner /> : editingVariant ? 'Mettre à jour' : 'Ajouter'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {imageDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <Card className="w-full max-w-lg bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-gray-900 dark:text-white">
+                Ajouter des images au produit
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setImageDialogOpen(false)
+                  setImageFiles([])
+                }}
+                className="h-8 w-8 text-gray-600 dark:text-gray-400"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="product-images" className="text-gray-700 dark:text-gray-300">
+                  Sélectionnez une ou plusieurs images
+                </Label>
+                <Input
+                  id="product-images"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(e) => handleImageFilesChange(e.target.files)}
+                  className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                />
+              </div>
+
+              {imageFiles.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground dark:text-gray-400">
+                    {imageFiles.length} image(s) sélectionnée(s)
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {imageFiles.map((file, index) => (
+                      <div key={index} className="rounded-lg border border-gray-200 dark:border-gray-600 p-3 text-xs text-gray-700 dark:text-gray-300 truncate">
+                        {file.name}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setImageDialogOpen(false)
+                    setImageFiles([])
+                  }}
+                  className="border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+                  disabled={isUploadingImages}
+                >
+                  Annuler
+                </Button>
+                <Button
+                  onClick={handleUploadImages}
+                  disabled={imageFiles.length === 0 || isUploadingImages}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {isUploadingImages ? <ButtonLoadingSpinner /> : 'Téléverser'}
                 </Button>
               </div>
             </CardContent>
