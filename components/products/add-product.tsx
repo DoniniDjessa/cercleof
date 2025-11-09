@@ -114,22 +114,49 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
   const [processingCrop, setProcessingCrop] = useState(false)
   const cascadeDomains = useMemo(() => Object.keys(CATEGORY_CASCADE), [])
   const [selectedDomain, setSelectedDomain] = useState<string>(() => cascadeDomains[0] ?? "")
-  const [selectedTranche, setSelectedTranche] = useState<string>("")
-  const [selectedForme, setSelectedForme] = useState<string>("")
+  const [selectedTranches, setSelectedTranches] = useState<string[]>([])
+  const [selectedFormes, setSelectedFormes] = useState<string[]>([])
   const [selectedBenefices, setSelectedBenefices] = useState<string[]>([])
+  const [tranchePopoverOpen, setTranchePopoverOpen] = useState(false)
+  const [formePopoverOpen, setFormePopoverOpen] = useState(false)
   const [beneficesPopoverOpen, setBeneficesPopoverOpen] = useState(false)
   const availableTranches = useMemo(
     () => CATEGORY_CASCADE[selectedDomain] ?? [],
     [selectedDomain]
   )
-  const selectedTrancheNode = useMemo(
-    () => availableTranches.find(item => item.tranche_principale === selectedTranche),
-    [availableTranches, selectedTranche]
+  const selectedTrancheNodes = useMemo(
+    () => availableTranches.filter(item => selectedTranches.includes(item.tranche_principale)),
+    [availableTranches, selectedTranches]
   )
-  const availableFormes = selectedTrancheNode?.sous_tranches.formes ?? []
-  const availableBenefices = selectedTrancheNode?.sous_tranches.benefices ?? []
+  const availableFormes = useMemo(() => {
+    if (selectedTrancheNodes.length === 0) return []
+    const formes = new Set<string>()
+    selectedTrancheNodes.forEach(node => {
+      node.sous_tranches.formes.forEach(forme => formes.add(forme))
+    })
+    return Array.from(formes)
+  }, [selectedTrancheNodes])
+  const availableBenefices = useMemo(() => {
+    if (selectedTrancheNodes.length === 0) return []
+    const benefices = new Set<string>()
+    selectedTrancheNodes.forEach(node => {
+      node.sous_tranches.benefices.forEach(benefice => benefices.add(benefice))
+    })
+    return Array.from(benefices)
+  }, [selectedTrancheNodes])
+  const primaryTranche = selectedTranches[0] ?? ""
+  const primaryForme = selectedFormes[0] ?? ""
   const primaryBenefice = selectedBenefices[0] ?? ""
 
+  useEffect(() => {
+    setSelectedFormes(prev => {
+      const filtered = prev.filter(forme => availableFormes.includes(forme))
+      if (filtered.length === prev.length && filtered.every((value, index) => value === prev[index])) {
+        return prev
+      }
+      return filtered
+    })
+  }, [availableFormes])
   useEffect(() => {
     setSelectedBenefices(prev => {
       const filtered = prev.filter(benefice => availableBenefices.includes(benefice))
@@ -140,8 +167,40 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
     })
   }, [availableBenefices])
   useEffect(() => {
+    setTranchePopoverOpen(false)
+  }, [selectedDomain])
+  useEffect(() => {
+    setFormePopoverOpen(false)
+  }, [selectedTranches])
+  useEffect(() => {
     setBeneficesPopoverOpen(false)
-  }, [selectedDomain, selectedTranche, selectedForme])
+  }, [selectedDomain, selectedTranches, selectedFormes])
+
+  const handleToggleTranche = useCallback((tranche: string) => {
+    setSelectedTranches(prev => {
+      if (prev.includes(tranche)) {
+        return prev.filter(item => item !== tranche)
+      }
+      if (prev.length >= 2) {
+        toast.error("Vous pouvez sélectionner au maximum deux tranches.")
+        return prev
+      }
+      return [...prev, tranche]
+    })
+  }, [])
+
+  const handleToggleForme = useCallback((forme: string) => {
+    setSelectedFormes(prev => {
+      if (prev.includes(forme)) {
+        return prev.filter(item => item !== forme)
+      }
+      if (prev.length >= 2) {
+        toast.error("Vous pouvez sélectionner au maximum deux formes.")
+        return prev
+      }
+      return [...prev, forme]
+    })
+  }, [])
 
   const handleToggleBenefice = useCallback((benefice: string) => {
     setSelectedBenefices(prev => {
@@ -156,31 +215,39 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
     if (selectedDomain === selectedDomain.toUpperCase()) return selectedDomain
     return selectedDomain.charAt(0).toUpperCase() + selectedDomain.slice(1)
   }, [selectedDomain])
+  const trancheSummary = useMemo(() => {
+    if (selectedTranches.length === 0) return "Sélectionner des tranches"
+    if (selectedTranches.length === 1) return selectedTranches[0]
+    return `${selectedTranches[0]}, ${selectedTranches[1]}`
+  }, [selectedTranches])
+
+  const formeSummary = useMemo(() => {
+    if (selectedFormes.length === 0) return "Sélectionner des formes"
+    if (selectedFormes.length === 1) return selectedFormes[0]
+    return `${selectedFormes[0]}, ${selectedFormes[1]}`
+  }, [selectedFormes])
+
   const cascadeCategoryName = useMemo(() => {
-    if (!formattedDomain && !selectedTranche && !selectedForme && !primaryBenefice) return ""
-    return [formattedDomain, selectedTranche, selectedForme, primaryBenefice].filter(Boolean).join(" • ")
-  }, [formattedDomain, selectedTranche, selectedForme, primaryBenefice])
+    if (!formattedDomain && !primaryTranche && !primaryForme && !primaryBenefice) return ""
+    return [formattedDomain, primaryTranche, primaryForme, primaryBenefice].filter(Boolean).join(" • ")
+  }, [formattedDomain, primaryTranche, primaryForme, primaryBenefice])
   const cascadeDescription = useMemo(() => {
-    if (!selectedTranche) return ""
+    if (selectedTranches.length === 0) return ""
     return [
       `Domaine: ${formattedDomain || "—"}`,
-      `Tranche principale: ${selectedTranche}`,
-      `Forme: ${selectedForme || "—"}`,
+      `Tranches principales: ${selectedTranches.join(", ")}`,
+      `Formes: ${selectedFormes.length > 0 ? selectedFormes.join(", ") : "—"}`,
       `Bénéfices: ${selectedBenefices.length > 0 ? selectedBenefices.join(", ") : "—"}`
     ].join(" | ")
-  }, [formattedDomain, selectedTranche, selectedForme, selectedBenefices])
+  }, [formattedDomain, selectedTranches, selectedFormes, selectedBenefices])
   const matchingCategory = useMemo(() => {
     if (!cascadeCategoryName) return null
     return categories.find(cat => cat.name === cascadeCategoryName) ?? null
   }, [categories, cascadeCategoryName])
-  const cascadeTags = useMemo(
-    () => {
-      const baseTags = [selectedDomain, selectedTranche, selectedForme].filter(Boolean) as string[]
-      return [...baseTags, ...selectedBenefices]
-    },
-    [selectedDomain, selectedTranche, selectedForme, selectedBenefices]
-  )
-  const classificationComplete = Boolean(selectedTranche && selectedForme && selectedBenefices.length > 0)
+  const cascadeTags = useMemo(() => {
+    const tags = [selectedDomain, ...selectedTranches, ...selectedFormes, ...selectedBenefices].filter(Boolean) as string[]
+    return Array.from(new Set(tags))
+  }, [selectedDomain, selectedTranches, selectedFormes, selectedBenefices])
   const beneficeSummary = useMemo(() => {
     if (selectedBenefices.length === 0) return "Sélectionner des bénéfices"
     if (selectedBenefices.length <= 2) return selectedBenefices.join(", ")
@@ -503,8 +570,8 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
         return
       }
 
-      if (!selectedDomain || !selectedTranche || !selectedForme || selectedBenefices.length === 0) {
-        toast.error('Veuillez compléter la classification (domaine, tranche principale, forme et bénéfice).')
+      if (!selectedDomain || selectedTranches.length === 0 || selectedFormes.length === 0 || selectedBenefices.length === 0) {
+        toast.error('Veuillez compléter la classification (domaine, tranches, formes et bénéfices).')
         setLoading(false)
         return
       }
@@ -735,9 +802,9 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
                       value={selectedDomain}
                       onValueChange={(value) => {
                         setSelectedDomain(value)
-                        setSelectedTranche("")
-                        setSelectedForme("")
-            setSelectedBenefices([])
+                        setSelectedTranches([])
+                        setSelectedFormes([])
+                        setSelectedBenefices([])
                       }}
                     >
                       <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
@@ -762,47 +829,115 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
                   <div className="grid gap-4 md:grid-cols-3">
                     <div className="space-y-2">
                       <Label className="text-gray-700 dark:text-gray-300">Tranche principale *</Label>
-                      <Select
-                        value={selectedTranche}
-                        onValueChange={(value) => {
-                          setSelectedTranche(value)
-                          setSelectedForme("")
-                          setSelectedBenefices([])
-                        }}
-                      >
-                        <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
-                          <SelectValue placeholder="Sélectionner une tranche" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableTranches.map((item) => (
-                            <SelectItem key={item.tranche_principale} value={item.tranche_principale}>
-                              {item.tranche_principale}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Popover open={tranchePopoverOpen} onOpenChange={setTranchePopoverOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full justify-between bg-gray-50 text-sm font-medium text-gray-900 dark:bg-gray-700 dark:text-gray-100"
+                            disabled={availableTranches.length === 0}
+                          >
+                            <span className="line-clamp-2 text-left">{availableTranches.length === 0 ? "Aucune tranche disponible" : trancheSummary}</span>
+                            <ChevronsUpDown className="h-4 w-4 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-72 p-0" align="start">
+                          {availableTranches.length === 0 ? (
+                            <p className="px-3 py-2 text-xs text-muted-foreground">
+                              Aucune tranche disponible pour ce domaine.
+                            </p>
+                          ) : (
+                            <div className="max-h-64 overflow-y-auto py-1">
+                              {availableTranches.map((item) => {
+                                const tranche = item.tranche_principale
+                                const isSelected = selectedTranches.includes(tranche)
+                                return (
+                                  <button
+                                    key={tranche}
+                                    type="button"
+                                    onClick={() => handleToggleTranche(tranche)}
+                                    className={`flex w-full items-center justify-between px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700 ${isSelected ? "bg-gray-100 font-semibold dark:bg-gray-700" : ""}`}
+                                  >
+                                    <span className="pr-2 text-left">{tranche}</span>
+                                    {isSelected && <Check className="h-4 w-4 text-pink-500" />}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          )}
+                          {selectedTranches.length > 0 && (
+                            <div className="border-t border-gray-200 bg-gray-50 px-3 py-2 text-right text-xs dark:border-gray-700 dark:bg-gray-900/60">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedTranches([])
+                                  setSelectedFormes([])
+                                  setSelectedBenefices([])
+                                  setTranchePopoverOpen(false)
+                                }}
+                                className="text-pink-600 transition hover:text-pink-700 dark:text-pink-400 dark:hover:text-pink-300"
+                              >
+                                Tout effacer
+                              </button>
+                            </div>
+                          )}
+                        </PopoverContent>
+                      </Popover>
                     </div>
                     <div className="space-y-2">
                       <Label className="text-gray-700 dark:text-gray-300">Forme *</Label>
-                      <Select
-                        value={selectedForme}
-                        onValueChange={(value) => {
-                          setSelectedForme(value)
-                          setSelectedBenefices([])
-                        }}
-                        disabled={availableFormes.length === 0}
-                      >
-                        <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
-                          <SelectValue placeholder="Sélectionner une forme" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableFormes.map((forme) => (
-                            <SelectItem key={forme} value={forme}>
-                              {forme}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Popover open={formePopoverOpen} onOpenChange={setFormePopoverOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full justify-between bg-gray-50 text-sm font-medium text-gray-900 dark:bg-gray-700 dark:text-gray-100"
+                            disabled={availableFormes.length === 0}
+                          >
+                            <span className="line-clamp-2 text-left">{availableFormes.length === 0 ? "Aucune forme disponible" : formeSummary}</span>
+                            <ChevronsUpDown className="h-4 w-4 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-72 p-0" align="start">
+                          {availableFormes.length === 0 ? (
+                            <p className="px-3 py-2 text-xs text-muted-foreground">
+                              Sélectionnez d'abord une tranche principale.
+                            </p>
+                          ) : (
+                            <div className="max-h-64 overflow-y-auto py-1">
+                              {availableFormes.map((forme) => {
+                                const isSelected = selectedFormes.includes(forme)
+                                return (
+                                  <button
+                                    key={forme}
+                                    type="button"
+                                    onClick={() => handleToggleForme(forme)}
+                                    className={`flex w-full items-center justify-between px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700 ${isSelected ? "bg-gray-100 font-semibold dark:bg-gray-700" : ""}`}
+                                  >
+                                    <span className="pr-2 text-left">{forme}</span>
+                                    {isSelected && <Check className="h-4 w-4 text-pink-500" />}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          )}
+                          {selectedFormes.length > 0 && (
+                            <div className="border-t border-gray-200 bg-gray-50 px-3 py-2 text-right text-xs dark:border-gray-700 dark:bg-gray-900/60">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedFormes([])
+                                  setSelectedBenefices([])
+                                  setFormePopoverOpen(false)
+                                }}
+                                className="text-pink-600 transition hover:text-pink-700 dark:text-pink-400 dark:hover:text-pink-300"
+                              >
+                                Tout effacer
+                              </button>
+                            </div>
+                          )}
+                        </PopoverContent>
+                      </Popover>
                     </div>
                     <div className="space-y-2">
                       <Label className="text-xs text-gray-700 dark:text-gray-300 uppercase tracking-wide">Bénéfices *</Label>
