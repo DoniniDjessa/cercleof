@@ -260,15 +260,22 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
   useEffect(() => {
     if (formData.name && selectedCategory) {
       const newSKU = generateSKU(selectedCategory.name, formData.name)
-      const newBarcode = generateBarcode()
-      
       setFormData(prev => ({
         ...prev,
-        sku: newSKU,
-        barcode: newBarcode
+        sku: newSKU
       }))
     }
   }, [formData.name, selectedCategory])
+
+  useEffect(() => {
+    if (formData.name) {
+      const newBarcode = generateBarcode()
+      setFormData(prev => ({
+        ...prev,
+        barcode: newBarcode
+      }))
+    }
+  }, [formData.name])
 
   const fetchCategories = async () => {
     try {

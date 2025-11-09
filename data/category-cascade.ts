@@ -116,6 +116,7 @@ const BASE_CASCADE = [
         "Désodorisant",
         "Antibactérien",
         "Apaisant",
+        "Hydratant",
         "Éclaircissant"
       ]
     }
