@@ -67,7 +67,8 @@ const BASE_CASCADE = [
         "Apaisant",
         "Exfoliant",
         "Régénérant",
-        "Anti-vergetures"
+        "Anti-vergetures",
+        "Nettoyant"
       ]
     }
   },
