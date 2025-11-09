@@ -229,10 +229,10 @@ export default function POSPage() {
         // Fetch all sales with user information
         const { data: sales, error } = await supabase
           .from('dd-ventes')
-          .select(`
-            total_net,
-            user:dd-users!user_id(id, pseudo, email, first_name, last_name)
-          `)
+        .select(`
+          total_net,
+          user:"dd-users"!user_id(id, pseudo, email, first_name, last_name)
+        `)
           .gte('created_at', todayStart)
           .lt('created_at', todayEnd)
           .eq('status', 'paye')
@@ -310,8 +310,8 @@ export default function POSPage() {
         .from('dd-products')
         .select(`
           *,
-          category:dd-categories(id, name),
-          variants:dd-product-variants(
+          category:"dd-categories"(id, name),
+          variants:"dd-product-variants"(
             id,
             product_id,
             name,
@@ -329,7 +329,7 @@ export default function POSPage() {
         .from('dd-services')
         .select(`
           *,
-          category:dd-categories(id, name)
+          category:"dd-categories"(id, name)
         `)
         .eq('is_active', true)
 

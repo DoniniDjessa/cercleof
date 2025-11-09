@@ -110,7 +110,7 @@ export default function ActionsPage() {
         .from('dd-actions')
         .select(`
           *,
-          user:dd-users!dd-actions_user_id_fkey(
+          user:"dd-users"!dd-actions_user_id_fkey(
             id,
             first_name,
             last_name,
@@ -184,16 +184,16 @@ export default function ActionsPage() {
       if (action.type === 'vente' && action.cible_table === 'dd-ventes' && action.cible_id) {
         const { data: saleData, error: saleError } = await supabase
           .from('dd-ventes')
-          .select(`
+        .select(`
+          *,
+          client:"dd-clients"(id, first_name, last_name, email, phone),
+          user:"dd-users"!dd-ventes_user_id_fkey(id, first_name, last_name, email, pseudo),
+          items:"dd-ventes-items"(
             *,
-            client:dd-clients(id, first_name, last_name, email, phone),
-            user:dd-users!dd-ventes_user_id_fkey(id, first_name, last_name, email, pseudo),
-            items:dd-ventes-items(
-              *,
-              product:dd-products(id, name, sku),
-              service:dd-services(id, name)
-            )
-          `)
+            product:"dd-products"(id, name, sku),
+            service:"dd-services"(id, name)
+          )
+        `)
           .eq('id', action.cible_id)
           .single()
 

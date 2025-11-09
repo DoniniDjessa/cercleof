@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState, useEffect, useCallback } from "react"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,6 +15,65 @@ import { ButtonLoadingSpinner } from "@/components/ui/context-loaders"
 import { generateSKU, generateBarcode } from "@/lib/code-generators"
 import { compressImages } from "@/lib/image-utils"
 import toast from "react-hot-toast"
+import Cropper, { Area } from "react-easy-crop"
+
+async function readFileAsDataURL(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(new Error("Impossible de lire le fichier sélectionné"))
+    reader.readAsDataURL(file)
+  })
+}
+
+async function createImage(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    image.crossOrigin = "anonymous"
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error("Impossible de charger l'image"))
+    image.src = url
+  })
+}
+
+async function cropImageFile(file: File, previewUrl: string, cropArea: Area): Promise<File> {
+  const image = await createImage(previewUrl)
+  const canvas = document.createElement("canvas")
+  const context = canvas.getContext("2d")
+
+  if (!context) {
+    throw new Error("Impossible de préparer le canvas pour le recadrage")
+  }
+
+  canvas.width = cropArea.width
+  canvas.height = cropArea.height
+
+  context.drawImage(
+    image,
+    cropArea.x,
+    cropArea.y,
+    cropArea.width,
+    cropArea.height,
+    0,
+    0,
+    cropArea.width,
+    cropArea.height
+  )
+
+  const mimeType = file.type || "image/jpeg"
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error("Échec de la génération de l'image recadrée"))
+        return
+      }
+
+      const croppedFile = new File([blob], file.name, { type: mimeType })
+      resolve(croppedFile)
+    }, mimeType)
+  })
+}
 
 interface AddProductProps {
   onProductCreated?: () => void
@@ -43,11 +102,42 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
   const [images, setImages] = useState<File[]>([])
   const [uploadingImages, setUploadingImages] = useState(false)
   const [variants, setVariants] = useState<Array<{ id: string; name: string; sku: string; quantity: string }>>([])
+  const [cropQueue, setCropQueue] = useState<File[]>([])
+  const [isCropModalOpen, setIsCropModalOpen] = useState(false)
+  const [currentCropFile, setCurrentCropFile] = useState<File | null>(null)
+  const [currentCropPreview, setCurrentCropPreview] = useState<string>("")
+  const [crop, setCrop] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(1)
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null)
+  const [processingCrop, setProcessingCrop] = useState(false)
+
+  const startCroppingFile = useCallback(async (file: File) => {
+    try {
+      const preview = await readFileAsDataURL(file)
+      setCurrentCropFile(file)
+      setCurrentCropPreview(preview)
+      setCrop({ x: 0, y: 0 })
+      setZoom(1)
+      setCroppedAreaPixels(null)
+      setIsCropModalOpen(true)
+    } catch (error) {
+      console.error('Error preparing image for crop:', error)
+      toast.error("Erreur lors de la préparation de l'image pour recadrage")
+      setCropQueue(prev => prev.filter(item => item !== file))
+    }
+  }, [])
 
   useEffect(() => {
     fetchCategories()
     fetchCurrentUserRole()
   }, [])
+
+  useEffect(() => {
+    if (!isCropModalOpen && cropQueue.length > 0) {
+      const nextFile = cropQueue[0]
+      startCroppingFile(nextFile)
+    }
+  }, [cropQueue, isCropModalOpen, startCroppingFile])
 
   const fetchCurrentUserRole = async () => {
     try {
@@ -148,7 +238,7 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
     setVariants(prev => prev.filter(variant => variant.id !== variantId))
   }
 
-  const handleImageUpload = async (files: FileList | null, compress: boolean = true) => {
+  const handleImageUpload = (files: FileList | null) => {
     if (!files) return
     
     const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'))
@@ -158,28 +248,18 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
       return
     }
 
-    // Limit to 5 images maximum
-    if (images.length + imageFiles.length > 5) {
+    // Limit to 5 images maximum (including files en file d'attente)
+    if (images.length + cropQueue.length + imageFiles.length > 5) {
       toast.error('Vous ne pouvez pas ajouter plus de 5 images')
       return
     }
 
-    try {
-      // Compress images before adding them
-      const processedFiles = compress 
-        ? await compressImages(imageFiles, { maxWidth: 1920, maxHeight: 1920, quality: 0.8, maxSizeMB: 2 })
-        : imageFiles
-      
-      setImages(prev => [...prev, ...processedFiles])
-      toast.success(`${processedFiles.length} image(s) ajoutée(s)${compress ? ' (compressée(s))' : ''}`)
-    } catch (error) {
-      console.error('Error processing images:', error)
-      toast.error('Erreur lors du traitement des images')
-    }
+    setCropQueue(prev => [...prev, ...imageFiles])
+    toast.success(`${imageFiles.length} image(s) ajoutée(s) pour recadrage`)
   }
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    handleImageUpload(e.target.files, true)
+    handleImageUpload(e.target.files)
     // Reset input to allow selecting same file again
     e.target.value = ''
   }
@@ -191,9 +271,65 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
     input.capture = 'environment' // Use back camera on mobile
     input.onchange = (e) => {
       const target = e.target as HTMLInputElement
-      handleImageUpload(target.files, true)
+      handleImageUpload(target.files)
     }
     input.click()
+  }
+
+  const finishCropStep = () => {
+    setCropQueue(prev => prev.slice(1))
+    setIsCropModalOpen(false)
+    setCurrentCropFile(null)
+    setCurrentCropPreview("")
+    setCrop({ x: 0, y: 0 })
+    setZoom(1)
+    setCroppedAreaPixels(null)
+    setProcessingCrop(false)
+  }
+
+  const handleCropCancel = () => {
+    finishCropStep()
+  }
+
+  const handleUseOriginalImage = async () => {
+    if (!currentCropFile) return
+    try {
+      setProcessingCrop(true)
+      const [compressedFile] = await compressImages(
+        [currentCropFile],
+        { maxWidth: 1920, maxHeight: 1920, quality: 0.8, maxSizeMB: 2 }
+      )
+      setImages(prev => [...prev, compressedFile])
+      toast.success('Image ajoutée sans recadrage')
+      finishCropStep()
+    } catch (error) {
+      console.error('Error keeping original image:', error)
+      toast.error('Erreur lors de l\'ajout de l\'image originale')
+      setProcessingCrop(false)
+    }
+  }
+
+  const handleCropConfirm = async () => {
+    if (!currentCropFile || !currentCropPreview || !croppedAreaPixels) {
+      toast.error('Veuillez sélectionner une zone à recadrer')
+      return
+    }
+
+    try {
+      setProcessingCrop(true)
+      const croppedFile = await cropImageFile(currentCropFile, currentCropPreview, croppedAreaPixels)
+      const [compressedFile] = await compressImages(
+        [croppedFile],
+        { maxWidth: 1920, maxHeight: 1920, quality: 0.8, maxSizeMB: 2 }
+      )
+      setImages(prev => [...prev, compressedFile])
+      toast.success('Image recadrée ajoutée')
+      finishCropStep()
+    } catch (error) {
+      console.error('Error cropping image:', error)
+      toast.error('Erreur lors du recadrage de l\'image')
+      setProcessingCrop(false)
+    }
   }
 
   const removeImage = (index: number) => {
@@ -814,14 +950,101 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
             variant="outline" 
             className="bg-transparent border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
             onClick={() => window.history.replaceState({}, '', '/admin/products')}
+            disabled={loading || uploadingImages}
           >
             Annuler
           </Button>
-          <Button type="submit" disabled={loading || uploadingImages}>
+          <Button 
+            type="submit" 
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+            disabled={loading || uploadingImages}
+          >
             {loading || uploadingImages ? <ButtonLoadingSpinner /> : 'Créer le Produit'}
           </Button>
         </div>
       </form>
+
+      {isCropModalOpen && currentCropPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <Card className="w-full max-w-3xl bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 shadow-xl">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-gray-900 dark:text-white">Recadrer l'image</CardTitle>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-gray-600 dark:text-gray-300"
+                onClick={handleCropCancel}
+                disabled={processingCrop}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="relative w-full h-[380px] bg-black rounded-lg overflow-hidden">
+                <Cropper
+                  image={currentCropPreview}
+                  crop={crop}
+                  zoom={zoom}
+                  aspect={1}
+                  onCropChange={setCrop}
+                  onZoomChange={setZoom}
+                  onCropComplete={(_, areaPixels) => setCroppedAreaPixels(areaPixels)}
+                  cropShape="rect"
+                  objectFit="contain"
+                  showGrid
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-gray-700 dark:text-gray-300">Zoom</Label>
+                <input
+                  type="range"
+                  min={1}
+                  max={3}
+                  step={0.1}
+                  value={zoom}
+                  onChange={(e) => setZoom(Number(e.target.value))}
+                  className="w-full accent-blue-600"
+                  disabled={processingCrop}
+                />
+              </div>
+              {cropQueue.length > 1 && (
+                <p className="text-xs text-muted-foreground dark:text-gray-400">
+                  Images restantes à traiter : {cropQueue.length - 1}
+                </p>
+              )}
+            </CardContent>
+            <CardFooter className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="bg-transparent border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                onClick={handleUseOriginalImage}
+                disabled={processingCrop}
+              >
+                Utiliser l'originale
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="bg-transparent border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                onClick={handleCropCancel}
+                disabled={processingCrop}
+              >
+                Ignorer
+              </Button>
+              <Button
+                type="button"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={handleCropConfirm}
+                disabled={processingCrop}
+              >
+                {processingCrop ? <ButtonLoadingSpinner /> : 'Appliquer le recadrage'}
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }

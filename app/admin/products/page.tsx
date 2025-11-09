@@ -110,7 +110,7 @@ export default function ProductsPage() {
         .from('dd-products')
         .select(`
           *,
-          variants:dd-product-variants(
+          variants:"dd-product-variants"(
             id,
             product_id,
             name,

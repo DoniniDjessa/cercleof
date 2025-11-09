@@ -165,12 +165,12 @@ export default function AnalyticsPage() {
           total,
           created_at,
           variant_id,
-          variant:dd-product-variants(
+          variant:"dd-product-variants"(
             id,
             name,
             product_id
           ),
-          product:dd-products(
+          product:"dd-products"(
             id,
             name
           )

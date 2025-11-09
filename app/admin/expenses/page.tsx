@@ -108,7 +108,7 @@ export default function ExpensesPage() {
         .from('dd-depenses')
         .select(`
           *,
-          user:dd-users!enregistre_par(id, first_name, last_name)
+          user:"dd-users"!enregistre_par(id, first_name, last_name)
         `, { count: 'exact' })
 
       // Note: We'll filter by category after fetching since Supabase doesn't support NOT IN easily

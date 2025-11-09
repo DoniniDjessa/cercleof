@@ -104,8 +104,8 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
         .from('dd-products')
         .select(`
           *,
-          category:dd-categories(id, name),
-          variants:dd-product-variants(
+          category:"dd-categories"(id, name),
+          variants:"dd-product-variants"(
             id,
             product_id,
             name,
