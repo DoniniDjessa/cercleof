@@ -28,6 +28,7 @@ interface Product {
   barcode?: string
   price: number
   brand?: string
+  stock_quantity?: number
   variants?: ProductVariant[]
 }
 
