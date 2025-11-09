@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Edit, Trash2, ArrowLeft, Plus, X } from "lucide-react"
 import { supabase } from "@/lib/supabase"
@@ -35,6 +37,7 @@ interface Product {
   images: string[]
   brand?: string
   created_at: string
+  tags?: string[]
   category?: {
     id: string
     name: string
@@ -64,6 +67,19 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
     name: '',
     sku: '',
     quantity: ''
+  })
+  const [isEditingProduct, setIsEditingProduct] = useState(false)
+  const [updatingProduct, setUpdatingProduct] = useState(false)
+  const [productForm, setProductForm] = useState({
+    name: '',
+    description: '',
+    brand: '',
+    sku: '',
+    barcode: '',
+    price: '',
+    cost: '',
+    status: 'active',
+    show_to_website: false
   })
 
   useEffect(() => {
@@ -120,6 +136,17 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
       const productData = data as unknown as Product
       setProduct(productData)
       setVariants(productData.variants || [])
+      setProductForm({
+        name: productData.name || '',
+        description: productData.description || '',
+        brand: productData.brand || '',
+        sku: productData.sku || '',
+        barcode: productData.barcode || '',
+        price: productData.price?.toString() || '',
+        cost: productData.cost?.toString() || '',
+        status: productData.status || 'active',
+        show_to_website: productData.show_to_website || false
+      })
     } catch (error) {
       console.error('Error fetching product:', error)
       setError('Erreur lors de la récupération du produit')
@@ -364,6 +391,106 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
     }
   }
 
+  const resetProductForm = () => {
+    if (!product) return
+    setProductForm({
+      name: product.name || '',
+      description: product.description || '',
+      brand: product.brand || '',
+      sku: product.sku || '',
+      barcode: product.barcode || '',
+      price: product.price?.toString() || '',
+      cost: product.cost?.toString() || '',
+      status: product.status || 'active',
+      show_to_website: product.show_to_website || false
+    })
+  }
+
+  const handleProductInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    setProductForm(prev => ({ ...prev, [name]: value }))
+  }
+
+  const handleProductSelectChange = (value: string) => {
+    setProductForm(prev => ({ ...prev, status: value }))
+  }
+
+  const handleProductCheckboxChange = (checked: boolean) => {
+    setProductForm(prev => ({ ...prev, show_to_website: checked }))
+  }
+
+  const handleProductEditCancel = () => {
+    resetProductForm()
+    setIsEditingProduct(false)
+  }
+
+  const handleProductFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!product) return
+
+    const trimmedName = productForm.name.trim()
+    if (!trimmedName) {
+      toast.error('Le nom du produit est obligatoire.')
+      return
+    }
+
+    const priceNumber = parseFloat(productForm.price || '0')
+    const costNumber = parseFloat(productForm.cost || '0')
+
+    if (isNaN(priceNumber) || priceNumber <= 0) {
+      toast.error('Veuillez saisir un prix valide.')
+      return
+    }
+
+    if (isNaN(costNumber) || costNumber < 0) {
+      toast.error('Veuillez saisir un coût valide (0 ou plus).')
+      return
+    }
+
+    try {
+      setUpdatingProduct(true)
+      const { data, error } = await supabase
+        .from('dd-products')
+        .update({
+          name: trimmedName,
+          description: productForm.description.trim() || null,
+          brand: productForm.brand.trim() || null,
+          sku: productForm.sku.trim() || null,
+          barcode: productForm.barcode.trim() || null,
+          price: priceNumber,
+          cost: costNumber,
+          status: productForm.status,
+          show_to_website: productForm.show_to_website
+        })
+        .eq('id', product.id)
+        .select(`
+          *,
+          category:"dd-categories"(id, name),
+          variants:"dd-product-variants"(
+            id,
+            product_id,
+            name,
+            sku,
+            quantity
+          )
+        `)
+        .single()
+
+      if (error) throw error
+
+      const updated = data as unknown as Product
+      setProduct(updated)
+      setVariants(updated.variants || [])
+      setIsEditingProduct(false)
+      toast.success('Produit mis à jour avec succès!')
+    } catch (err) {
+      console.error('Error updating product:', err)
+      toast.error('Erreur lors de la mise à jour du produit.')
+    } finally {
+      setUpdatingProduct(false)
+    }
+  }
+
   const handleDeleteVariant = async (variant: ProductVariant) => {
     if (!confirm(`Supprimer la variante "${variant.name}" ?`)) {
       return
@@ -467,41 +594,170 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
           {/* Product Info */}
           <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <CardHeader>
-              <CardTitle className="text-gray-900 dark:text-white">Informations du Produit</CardTitle>
+              <CardTitle className="text-gray-900 dark:text-white">
+                {isEditingProduct ? 'Modifier le Produit' : 'Informations du Produit'}
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground dark:text-gray-400">Catégorie</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{product.category?.name || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground dark:text-gray-400">Statut</p>
-                  <Badge className={
-                    product.status === 'active' 
-                      ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                      : product.status === 'draft'
-                      ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
-                      : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
-                  }>
-                    {product.status === 'active' ? 'Actif' : product.status === 'draft' ? 'Brouillon' : 'Archivé'}
-                  </Badge>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground dark:text-gray-400">Marque</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{product.brand || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground dark:text-gray-400">Site Web</p>
-                  <Badge className={product.show_to_website ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'}>
-                    {product.show_to_website ? 'Oui' : 'Non'}
-                  </Badge>
-                </div>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground dark:text-gray-400 mb-2">Description</p>
-                <p className="text-sm text-gray-900 dark:text-white">{product.description || 'Aucune description'}</p>
-              </div>
+              {isEditingProduct ? (
+                <form className="space-y-4" onSubmit={handleProductFormSubmit}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="product-name">Nom *</Label>
+                      <Input
+                        id="product-name"
+                        name="name"
+                        value={productForm.name}
+                        onChange={handleProductInputChange}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Statut</Label>
+                      <Select value={productForm.status} onValueChange={handleProductSelectChange}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Statut" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="active">Actif</SelectItem>
+                          <SelectItem value="draft">Brouillon</SelectItem>
+                          <SelectItem value="archived">Archivé</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="product-brand">Marque</Label>
+                      <Input
+                        id="product-brand"
+                        name="brand"
+                        value={productForm.brand}
+                        onChange={handleProductInputChange}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="product-sku">SKU</Label>
+                      <Input
+                        id="product-sku"
+                        name="sku"
+                        value={productForm.sku}
+                        onChange={handleProductInputChange}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="product-barcode">Code-barres</Label>
+                      <Input
+                        id="product-barcode"
+                        name="barcode"
+                        value={productForm.barcode}
+                        onChange={handleProductInputChange}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Afficher sur le site web</Label>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="product-show-site"
+                          checked={productForm.show_to_website}
+                          onCheckedChange={(checked) => handleProductCheckboxChange(Boolean(checked))}
+                        />
+                        <Label htmlFor="product-show-site" className="text-sm text-gray-700 dark:text-gray-300">
+                          Oui, afficher ce produit sur le site web
+                        </Label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="product-description">Description</Label>
+                    <Textarea
+                      id="product-description"
+                      name="description"
+                      value={productForm.description}
+                      onChange={handleProductInputChange}
+                      rows={4}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="product-price">Prix *</Label>
+                      <Input
+                        id="product-price"
+                        name="price"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={productForm.price}
+                        onChange={handleProductInputChange}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="product-cost">Coût *</Label>
+                      <Input
+                        id="product-cost"
+                        name="cost"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={productForm.cost}
+                        onChange={handleProductInputChange}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleProductEditCancel}
+                      className="border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+                      disabled={updatingProduct}
+                    >
+                      Annuler
+                    </Button>
+                    <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={updatingProduct}>
+                      {updatingProduct ? <ButtonLoadingSpinner /> : 'Enregistrer'}
+                    </Button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground dark:text-gray-400">Catégorie</p>
+                      <p className="font-medium text-gray-900 dark:text-white">{product.category?.name || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground dark:text-gray-400">Statut</p>
+                      <Badge className={
+                        product.status === 'active' 
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                          : product.status === 'draft'
+                          ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
+                          : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
+                      }>
+                        {product.status === 'active' ? 'Actif' : product.status === 'draft' ? 'Brouillon' : 'Archivé'}
+                      </Badge>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground dark:text-gray-400">Marque</p>
+                      <p className="font-medium text-gray-900 dark:text-white">{product.brand || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground dark:text-gray-400">Site Web</p>
+                      <Badge className={product.show_to_website ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'}>
+                        {product.show_to_website ? 'Oui' : 'Non'}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground dark:text-gray-400 mb-2">Description</p>
+                    <p className="text-sm text-gray-900 dark:text-white">{product.description || 'Aucune description'}</p>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -661,10 +917,24 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
             <CardContent className="space-y-2">
               {canManageProducts && (
                 <>
-                  <Button className="w-full gap-2 bg-blue-600 hover:bg-blue-700 text-white">
-                    <Edit className="w-4 h-4" />
-                    Modifier le Produit
-                  </Button>
+                  {isEditingProduct ? (
+                    <Button
+                      variant="outline"
+                      className="w-full gap-2 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+                      onClick={handleProductEditCancel}
+                      disabled={updatingProduct}
+                    >
+                      Annuler la modification
+                    </Button>
+                  ) : (
+                    <Button
+                      className="w-full gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+                      onClick={() => setIsEditingProduct(true)}
+                    >
+                      <Edit className="w-4 h-4" />
+                      Modifier le Produit
+                    </Button>
+                  )}
                   <Button 
                     variant="destructive" 
                     className="w-full gap-2"

@@ -263,6 +263,19 @@ const SKIN_TYPES = [
     if (selectedSkinTypes.length <= 2) return selectedSkinTypes.join(", ")
     return `${selectedSkinTypes[0]}, ${selectedSkinTypes[1]} +${selectedSkinTypes.length - 2}`
   }, [selectedSkinTypes])
+  const matchingCategory = useMemo(() => {
+    if (!cascadeCategoryName) return null
+    return categories.find(cat => cat.name === cascadeCategoryName) ?? null
+  }, [categories, cascadeCategoryName])
+
+  const skuCategoryName = useMemo(() => {
+    if (matchingCategory?.name) return matchingCategory.name
+    if (cascadeCategoryName) return cascadeCategoryName
+    if (selectedTranches.length > 0) return selectedTranches[0]
+    if (selectedDomain) return selectedDomain
+    return "Produit"
+  }, [matchingCategory, cascadeCategoryName, selectedTranches, selectedDomain])
+
   const cascadeDescription = useMemo(() => {
     if (selectedTranches.length === 0) return ""
     return [
@@ -273,10 +286,6 @@ const SKIN_TYPES = [
       `Types de peau: ${selectedSkinTypes.length > 0 ? selectedSkinTypes.join(", ") : "—"}`
     ].join(" | ")
   }, [formattedDomain, selectedTranches, selectedFormes, selectedBenefices, selectedSkinTypes])
-  const matchingCategory = useMemo(() => {
-    if (!cascadeCategoryName) return null
-    return categories.find(cat => cat.name === cascadeCategoryName) ?? null
-  }, [categories, cascadeCategoryName])
   const cascadeTags = useMemo(() => {
     const skinTypeTags = selectedSkinTypes.map(type => `Peau:${type}`)
     const tags = [selectedDomain, ...selectedTranches, ...selectedFormes, ...selectedBenefices, ...skinTypeTags].filter(Boolean) as string[]
@@ -361,14 +370,14 @@ const SKIN_TYPES = [
 
   // Auto-generate SKU and barcode when category or product name changes
   useEffect(() => {
-    if (formData.name && selectedCategory && !skuManuallyEdited) {
-      const newSKU = generateSKU(selectedCategory.name, formData.name)
+    if (formData.name && skuCategoryName && !skuManuallyEdited) {
+      const newSKU = generateSKU(skuCategoryName, formData.name)
       setFormData(prev => ({
         ...prev,
         sku: newSKU
       }))
     }
-  }, [formData.name, selectedCategory, skuManuallyEdited])
+  }, [formData.name, skuCategoryName, skuManuallyEdited])
 
   useEffect(() => {
     if (formData.name && !barcodeManuallyEdited) {
@@ -1055,7 +1064,7 @@ const SKIN_TYPES = [
                     </div>
                   </div>
 
-a                  <div className="space-y-2">
+                  <div className="space-y-2">
                     <Label className="text-xs text-gray-700 dark:text-gray-300 uppercase tracking-wide">Types de peau (optionnel)</Label>
                     <Popover open={skinTypePopoverOpen} onOpenChange={setSkinTypePopoverOpen}>
                       <PopoverTrigger asChild>
