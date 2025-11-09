@@ -1,15 +1,16 @@
 'use client'
 
 import { ProductsDetails } from '@/components/products/products-details'
-import { use } from 'react'
+import { useParams } from 'next/navigation'
 
-interface ProductDetailsPageProps {
-  params: Promise<{
-    id: string
-  }>
-}
+export default function ProductDetailsPage() {
+  const params = useParams()
+  const idParam = params?.id
+  const id = Array.isArray(idParam) ? idParam[0] : idParam
 
-export default function ProductDetailsPage({ params }: ProductDetailsPageProps) {
-  const { id } = use(params)
+  if (!id) {
+    return null
+  }
+
   return <ProductsDetails productId={id} />
 }

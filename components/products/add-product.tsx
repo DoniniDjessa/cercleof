@@ -101,6 +101,8 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
   })
   const [categories, setCategories] = useState<Array<{id: string, name: string}>>([])
   const [selectedCategory, setSelectedCategory] = useState<{id: string, name: string} | null>(null)
+  const [skuManuallyEdited, setSkuManuallyEdited] = useState(false)
+  const [barcodeManuallyEdited, setBarcodeManuallyEdited] = useState(false)
   const [images, setImages] = useState<File[]>([])
   const [uploadingImages, setUploadingImages] = useState(false)
   const [variants, setVariants] = useState<Array<{ id: string; name: string; sku: string; quantity: string }>>([])
@@ -113,13 +115,26 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null)
   const [processingCrop, setProcessingCrop] = useState(false)
   const cascadeDomains = useMemo(() => Object.keys(CATEGORY_CASCADE), [])
+const SKIN_TYPES = [
+  "Peau normale",
+  "Peau sèche",
+  "Peau grasse",
+  "Peau mixte",
+  "Peau sensible",
+  "Peau mature",
+  "Peau déshydratée",
+  "Peau sujette à l'acné",
+  "Peau hyperpigmentée"
+]
   const [selectedDomain, setSelectedDomain] = useState<string>(() => cascadeDomains[0] ?? "")
   const [selectedTranches, setSelectedTranches] = useState<string[]>([])
   const [selectedFormes, setSelectedFormes] = useState<string[]>([])
   const [selectedBenefices, setSelectedBenefices] = useState<string[]>([])
+  const [selectedSkinTypes, setSelectedSkinTypes] = useState<string[]>([])
   const [tranchePopoverOpen, setTranchePopoverOpen] = useState(false)
   const [formePopoverOpen, setFormePopoverOpen] = useState(false)
   const [beneficesPopoverOpen, setBeneficesPopoverOpen] = useState(false)
+  const [skinTypePopoverOpen, setSkinTypePopoverOpen] = useState(false)
   const availableTranches = useMemo(
     () => CATEGORY_CASCADE[selectedDomain] ?? [],
     [selectedDomain]
@@ -175,6 +190,9 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
   useEffect(() => {
     setBeneficesPopoverOpen(false)
   }, [selectedDomain, selectedTranches, selectedFormes])
+  useEffect(() => {
+    setSkinTypePopoverOpen(false)
+  }, [selectedSkinTypes])
 
   const handleToggleTranche = useCallback((tranche: string) => {
     setSelectedTranches(prev => {
@@ -210,6 +228,15 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
       return [...prev, benefice]
     })
   }, [])
+
+  const handleToggleSkinType = useCallback((skinType: string) => {
+    setSelectedSkinTypes(prev => {
+      if (prev.includes(skinType)) {
+        return prev.filter(item => item !== skinType)
+      }
+      return [...prev, skinType]
+    })
+  }, [])
   const formattedDomain = useMemo(() => {
     if (!selectedDomain) return ""
     if (selectedDomain === selectedDomain.toUpperCase()) return selectedDomain
@@ -231,23 +258,30 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
     if (!formattedDomain && !primaryTranche && !primaryForme && !primaryBenefice) return ""
     return [formattedDomain, primaryTranche, primaryForme, primaryBenefice].filter(Boolean).join(" • ")
   }, [formattedDomain, primaryTranche, primaryForme, primaryBenefice])
+  const skinTypeSummary = useMemo(() => {
+    if (selectedSkinTypes.length === 0) return "Sélectionner des types de peau (optionnel)"
+    if (selectedSkinTypes.length <= 2) return selectedSkinTypes.join(", ")
+    return `${selectedSkinTypes[0]}, ${selectedSkinTypes[1]} +${selectedSkinTypes.length - 2}`
+  }, [selectedSkinTypes])
   const cascadeDescription = useMemo(() => {
     if (selectedTranches.length === 0) return ""
     return [
       `Domaine: ${formattedDomain || "—"}`,
       `Tranches principales: ${selectedTranches.join(", ")}`,
       `Formes: ${selectedFormes.length > 0 ? selectedFormes.join(", ") : "—"}`,
-      `Bénéfices: ${selectedBenefices.length > 0 ? selectedBenefices.join(", ") : "—"}`
+      `Bénéfices: ${selectedBenefices.length > 0 ? selectedBenefices.join(", ") : "—"}`,
+      `Types de peau: ${selectedSkinTypes.length > 0 ? selectedSkinTypes.join(", ") : "—"}`
     ].join(" | ")
-  }, [formattedDomain, selectedTranches, selectedFormes, selectedBenefices])
+  }, [formattedDomain, selectedTranches, selectedFormes, selectedBenefices, selectedSkinTypes])
   const matchingCategory = useMemo(() => {
     if (!cascadeCategoryName) return null
     return categories.find(cat => cat.name === cascadeCategoryName) ?? null
   }, [categories, cascadeCategoryName])
   const cascadeTags = useMemo(() => {
-    const tags = [selectedDomain, ...selectedTranches, ...selectedFormes, ...selectedBenefices].filter(Boolean) as string[]
+    const skinTypeTags = selectedSkinTypes.map(type => `Peau:${type}`)
+    const tags = [selectedDomain, ...selectedTranches, ...selectedFormes, ...selectedBenefices, ...skinTypeTags].filter(Boolean) as string[]
     return Array.from(new Set(tags))
-  }, [selectedDomain, selectedTranches, selectedFormes, selectedBenefices])
+  }, [selectedDomain, selectedTranches, selectedFormes, selectedBenefices, selectedSkinTypes])
   const beneficeSummary = useMemo(() => {
     if (selectedBenefices.length === 0) return "Sélectionner des bénéfices"
     if (selectedBenefices.length <= 2) return selectedBenefices.join(", ")
@@ -285,6 +319,8 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
         return { ...prev, category: matchingCategory.id }
       })
       setSelectedCategory({ id: matchingCategory.id, name: matchingCategory.name })
+      setSkuManuallyEdited(false)
+      setBarcodeManuallyEdited(false)
     }
   }, [matchingCategory])
 
@@ -325,24 +361,24 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
 
   // Auto-generate SKU and barcode when category or product name changes
   useEffect(() => {
-    if (formData.name && selectedCategory) {
+    if (formData.name && selectedCategory && !skuManuallyEdited) {
       const newSKU = generateSKU(selectedCategory.name, formData.name)
       setFormData(prev => ({
         ...prev,
         sku: newSKU
       }))
     }
-  }, [formData.name, selectedCategory])
+  }, [formData.name, selectedCategory, skuManuallyEdited])
 
   useEffect(() => {
-    if (formData.name) {
+    if (formData.name && !barcodeManuallyEdited) {
       const newBarcode = generateBarcode()
       setFormData(prev => ({
         ...prev,
         barcode: newBarcode
       }))
     }
-  }, [formData.name])
+  }, [formData.name, barcodeManuallyEdited])
 
   const fetchCategories = async () => {
     try {
@@ -362,6 +398,13 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
+
+    if (name === "sku") {
+      setSkuManuallyEdited(true)
+    } else if (name === "barcode") {
+      setBarcodeManuallyEdited(true)
+    }
+
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
@@ -615,6 +658,8 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
           setCategories(prev => [...prev, createdCategory])
           setSelectedCategory({ id: createdCategory.id, name: createdCategory.name })
           setFormData(prev => ({ ...prev, category: createdCategory.id }))
+          setSkuManuallyEdited(false)
+          setBarcodeManuallyEdited(false)
         }
       }
 
@@ -704,6 +749,14 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
       })
       setImages([])
       setVariants([])
+      setSelectedDomain(cascadeDomains[0] ?? "")
+      setSelectedCategory(null)
+      setSelectedTranches([])
+      setSelectedFormes([])
+      setSelectedBenefices([])
+      setSelectedSkinTypes([])
+      setSkuManuallyEdited(false)
+      setBarcodeManuallyEdited(false)
 
       // Call the callback to refresh the products list
       if (onProductCreated) {
@@ -805,6 +858,9 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
                         setSelectedTranches([])
                         setSelectedFormes([])
                         setSelectedBenefices([])
+                        setSelectedSkinTypes([])
+                        setSkuManuallyEdited(false)
+                        setBarcodeManuallyEdited(false)
                       }}
                     >
                       <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
@@ -892,8 +948,8 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
                             type="button"
                             variant="outline"
                             className="w-full justify-between bg-gray-50 text-sm font-medium text-gray-900 dark:bg-gray-700 dark:text-gray-100"
-                            disabled={availableFormes.length === 0}
-                          >
+                        disabled={availableFormes.length === 0}
+                      >
                             <span className="line-clamp-2 text-left">{availableFormes.length === 0 ? "Aucune forme disponible" : formeSummary}</span>
                             <ChevronsUpDown className="h-4 w-4 opacity-50" />
                           </Button>
@@ -947,8 +1003,8 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
                             type="button"
                             variant="outline"
                             className="w-full justify-between bg-gray-50 text-xs font-medium text-gray-900 dark:bg-gray-700 dark:text-gray-100"
-                            disabled={availableBenefices.length === 0}
-                          >
+                        disabled={availableBenefices.length === 0}
+                      >
                             <span className="line-clamp-2 text-left capitalize">
                               {availableBenefices.length === 0 ? "Aucun bénéfice disponible" : beneficeSummary}
                             </span>
@@ -997,6 +1053,56 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
                         </PopoverContent>
                       </Popover>
                     </div>
+                  </div>
+
+a                  <div className="space-y-2">
+                    <Label className="text-xs text-gray-700 dark:text-gray-300 uppercase tracking-wide">Types de peau (optionnel)</Label>
+                    <Popover open={skinTypePopoverOpen} onOpenChange={setSkinTypePopoverOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full justify-between bg-gray-50 text-xs font-medium text-gray-900 dark:bg-gray-700 dark:text-gray-100"
+                        >
+                          <span className="line-clamp-2 text-left capitalize">{skinTypeSummary}</span>
+                          <ChevronsUpDown className="h-4 w-4 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-72 p-0" align="start">
+                        <div className="max-h-64 overflow-y-auto py-1">
+                          {SKIN_TYPES.map((skinType) => {
+                            const isSelected = selectedSkinTypes.includes(skinType)
+                            return (
+                              <button
+                                key={skinType}
+                                type="button"
+                                onClick={() => handleToggleSkinType(skinType)}
+                                className={`flex w-full items-center justify-between px-3 py-2 text-xs text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700 ${
+                                  isSelected ? "bg-gray-100 font-semibold dark:bg-gray-700" : ""
+                                }`}
+                              >
+                                <span className="pr-2 text-left">{skinType}</span>
+                                {isSelected && <Check className="h-4 w-4 text-pink-500" />}
+                              </button>
+                            )
+                          })}
+                        </div>
+                        {selectedSkinTypes.length > 0 && (
+                          <div className="border-t border-gray-200 bg-gray-50 px-3 py-2 text-right text-xs dark:border-gray-700 dark:bg-gray-900/60">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedSkinTypes([])
+                                setSkinTypePopoverOpen(false)
+                              }}
+                              className="text-pink-600 transition hover:text-pink-700 dark:text-pink-400 dark:hover:text-pink-300"
+                            >
+                              Tout effacer
+                            </button>
+                          </div>
+                        )}
+                      </PopoverContent>
+                    </Popover>
                   </div>
 
                   <div className="space-y-2">
@@ -1095,13 +1201,13 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
                         onChange={handleChange}
                         placeholder="SKU généré automatiquement"
                         className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
-                        readOnly
                       />
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
                         onClick={() => {
+                          setSkuManuallyEdited(false)
                           if (selectedCategory) {
                             const newSKU = generateSKU(selectedCategory.name, formData.name)
                             setFormData(prev => ({ ...prev, sku: newSKU }))
@@ -1123,13 +1229,13 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
                         onChange={handleChange}
                         placeholder="Code-barres généré automatiquement"
                         className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
-                        readOnly
                       />
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
                         onClick={() => {
+                          setBarcodeManuallyEdited(false)
                           const newBarcode = generateBarcode()
                           setFormData(prev => ({ ...prev, barcode: newBarcode }))
                         }}
