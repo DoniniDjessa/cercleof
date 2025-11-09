@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,6 +16,7 @@ import { generateSKU, generateBarcode } from "@/lib/code-generators"
 import { compressImages } from "@/lib/image-utils"
 import toast from "react-hot-toast"
 import Cropper, { Area } from "react-easy-crop"
+import { CATEGORY_CASCADE } from "@/data/category-cascade"
 
 async function readFileAsDataURL(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -110,6 +111,48 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
   const [zoom, setZoom] = useState(1)
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null)
   const [processingCrop, setProcessingCrop] = useState(false)
+  const cascadeDomains = useMemo(() => Object.keys(CATEGORY_CASCADE), [])
+  const [selectedDomain, setSelectedDomain] = useState<string>(() => cascadeDomains[0] ?? "")
+  const [selectedTranche, setSelectedTranche] = useState<string>("")
+  const [selectedForme, setSelectedForme] = useState<string>("")
+  const [selectedBenefice, setSelectedBenefice] = useState<string>("")
+  const availableTranches = useMemo(
+    () => CATEGORY_CASCADE[selectedDomain] ?? [],
+    [selectedDomain]
+  )
+  const selectedTrancheNode = useMemo(
+    () => availableTranches.find(item => item.tranche_principale === selectedTranche),
+    [availableTranches, selectedTranche]
+  )
+  const availableFormes = selectedTrancheNode?.sous_tranches.formes ?? []
+  const availableBenefices = selectedTrancheNode?.sous_tranches.benefices ?? []
+  const formattedDomain = useMemo(() => {
+    if (!selectedDomain) return ""
+    if (selectedDomain === selectedDomain.toUpperCase()) return selectedDomain
+    return selectedDomain.charAt(0).toUpperCase() + selectedDomain.slice(1)
+  }, [selectedDomain])
+  const cascadeCategoryName = useMemo(() => {
+    if (!formattedDomain && !selectedTranche && !selectedForme && !selectedBenefice) return ""
+    return [formattedDomain, selectedTranche, selectedForme, selectedBenefice].filter(Boolean).join(" • ")
+  }, [formattedDomain, selectedTranche, selectedForme, selectedBenefice])
+  const cascadeDescription = useMemo(() => {
+    if (!selectedTranche) return ""
+    return [
+      `Domaine: ${formattedDomain || "—"}`,
+      `Tranche principale: ${selectedTranche}`,
+      `Forme: ${selectedForme || "—"}`,
+      `Bénéfice: ${selectedBenefice || "—"}`
+    ].join(" | ")
+  }, [formattedDomain, selectedTranche, selectedForme, selectedBenefice])
+  const matchingCategory = useMemo(() => {
+    if (!cascadeCategoryName) return null
+    return categories.find(cat => cat.name === cascadeCategoryName) ?? null
+  }, [categories, cascadeCategoryName])
+  const cascadeTags = useMemo(
+    () => [selectedDomain, selectedTranche, selectedForme, selectedBenefice].filter(Boolean),
+    [selectedDomain, selectedTranche, selectedForme, selectedBenefice]
+  )
+  const classificationComplete = Boolean(selectedTranche && selectedForme && selectedBenefice)
 
   const startCroppingFile = useCallback(async (file: File) => {
     try {
@@ -131,6 +174,18 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
     fetchCategories()
     fetchCurrentUserRole()
   }, [])
+
+  useEffect(() => {
+    if (matchingCategory) {
+      setFormData(prev => {
+        if (prev.category === matchingCategory.id) {
+          return prev
+        }
+        return { ...prev, category: matchingCategory.id }
+      })
+      setSelectedCategory({ id: matchingCategory.id, name: matchingCategory.name })
+    }
+  }, [matchingCategory])
 
   useEffect(() => {
     if (!isCropModalOpen && cropQueue.length > 0) {
@@ -204,12 +259,6 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
 
   const handleSelectChange = (name: string, value: string) => {
     setFormData((prev) => ({ ...prev, [name]: value }))
-    
-    // Update selected category when category changes
-    if (name === 'category') {
-      const category = categories.find(cat => cat.id === value)
-      setSelectedCategory(category || null)
-    }
   }
 
   const handleCheckboxChange = (name: string, checked: boolean) => {
@@ -413,6 +462,18 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
         return
       }
 
+      if (!selectedDomain || !selectedTranche || !selectedForme || !selectedBenefice) {
+        toast.error('Veuillez compléter la classification (domaine, tranche principale, forme et bénéfice).')
+        setLoading(false)
+        return
+      }
+
+      if (!matchingCategory) {
+        toast.error('La catégorie correspondante est introuvable. Vérifiez la structure pré-définie.')
+        setLoading(false)
+        return
+      }
+
       // Get current user ID for created_by field
       const { data: currentUser, error: userError } = await supabase
         .from('dd-users')
@@ -453,7 +514,8 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
         show_to_website: formData.show_on_website,
         images: imageUrls,
         is_active: true,
-        created_by: currentUser.id
+        created_by: currentUser.id,
+        tags: cascadeTags
       }
 
       // Insert product into dd-products table
@@ -599,33 +661,136 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
                     className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
                   />
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-4 rounded-lg border border-dashed border-gray-200 dark:border-gray-700 p-4 bg-gray-50/60 dark:bg-gray-900/30">
                   <div className="space-y-2">
-                    <Label htmlFor="category" className="text-gray-700 dark:text-gray-300">Catégorie</Label>
-                    <Select value={formData.category} onValueChange={(value) => handleSelectChange('category', value)}>
-                      <SelectTrigger id="category" className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
-                        <SelectValue placeholder="Sélectionner une catégorie" />
+                    <Label className="text-gray-700 dark:text-gray-300">Domaine *</Label>
+                    <p className="text-xs text-muted-foreground dark:text-gray-400">
+                      <span className="font-medium">Cosmetics</span> = produits externes • <span className="font-medium">COB</span> = produits maison.
+                    </p>
+                    <Select
+                      value={selectedDomain}
+                      onValueChange={(value) => {
+                        setSelectedDomain(value)
+                        setSelectedTranche("")
+                        setSelectedForme("")
+                        setSelectedBenefice("")
+                      }}
+                    >
+                      <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
+                        <SelectValue placeholder="Sélectionner un domaine" />
                       </SelectTrigger>
                       <SelectContent>
-                        {categories.map((category) => (
-                          <SelectItem key={category.id} value={category.id}>
-                            {category.name}
-                          </SelectItem>
-                        ))}
+                        {cascadeDomains.map((domain) => {
+                          const label =
+                            domain === domain.toUpperCase()
+                              ? domain
+                              : domain.charAt(0).toUpperCase() + domain.slice(1)
+                          return (
+                            <SelectItem key={domain} value={domain}>
+                              {label}
+                            </SelectItem>
+                          )
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
+
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="space-y-2">
+                      <Label className="text-gray-700 dark:text-gray-300">Tranche principale *</Label>
+                      <Select
+                        value={selectedTranche}
+                        onValueChange={(value) => {
+                          setSelectedTranche(value)
+                          setSelectedForme("")
+                          setSelectedBenefice("")
+                        }}
+                      >
+                        <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
+                          <SelectValue placeholder="Sélectionner une tranche" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableTranches.map((item) => (
+                            <SelectItem key={item.tranche_principale} value={item.tranche_principale}>
+                              {item.tranche_principale}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-gray-700 dark:text-gray-300">Forme *</Label>
+                      <Select
+                        value={selectedForme}
+                        onValueChange={setSelectedForme}
+                        disabled={availableFormes.length === 0}
+                      >
+                        <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
+                          <SelectValue placeholder="Sélectionner une forme" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableFormes.map((forme) => (
+                            <SelectItem key={forme} value={forme}>
+                              {forme}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-gray-700 dark:text-gray-300">Bénéfice *</Label>
+                      <Select
+                        value={selectedBenefice}
+                        onValueChange={setSelectedBenefice}
+                        disabled={availableBenefices.length === 0}
+                      >
+                        <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
+                          <SelectValue placeholder="Sélectionner un bénéfice" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableBenefices.map((benefice) => (
+                            <SelectItem key={benefice} value={benefice}>
+                              {benefice}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
-                    <Label htmlFor="brand" className="text-gray-700 dark:text-gray-300">Marque</Label>
-                    <Input 
-                      id="brand" 
-                      name="brand"
-                      value={formData.brand}
-                      onChange={handleChange}
-                      placeholder="Entrez le nom de la marque"
-                      className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                    <Label className="text-gray-700 dark:text-gray-300">Catégorie</Label>
+                    <Input
+                      value={matchingCategory?.name || cascadeCategoryName || ""}
+                      readOnly
+                      placeholder="Sélectionnez la classification pour voir la catégorie correspondante"
+                      className="bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
                     />
                   </div>
+
+                  {cascadeDescription && (
+                    <div className="space-y-2">
+                      <Label className="text-gray-700 dark:text-gray-300">Résumé de classification</Label>
+                      <Textarea
+                        value={cascadeDescription}
+                        readOnly
+                        rows={2}
+                        className="bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="brand" className="text-gray-700 dark:text-gray-300">Marque</Label>
+                  <Input 
+                    id="brand" 
+                    name="brand"
+                    value={formData.brand}
+                    onChange={handleChange}
+                    placeholder="Entrez le nom de la marque"
+                    className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                  />
                 </div>
               </CardContent>
             </Card>

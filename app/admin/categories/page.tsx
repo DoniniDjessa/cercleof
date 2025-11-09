@@ -1,29 +1,13 @@
 'use client'
 
-import { useSearchParams } from 'next/navigation'
-import { AddCategory } from '@/components/categories/add-category'
-import { CategoriesList } from '@/components/categories/categories-list'
-
 export default function CategoriesPage() {
-  const searchParams = useSearchParams()
-  const categoryType = (searchParams.get('type') as 'product' | 'service') || 'product'
-  const action = searchParams.get('action')
-
-  const showCreateForm = action === 'create'
-
   return (
-    <>
-      {showCreateForm ? (
-        <AddCategory 
-          categoryType={categoryType}
-          onCategoryCreated={() => {
-            // Redirect back to list
-            window.history.replaceState({}, '', `/admin/categories?type=${categoryType}`)
-          }}
-        />
-      ) : (
-        <CategoriesList categoryType={categoryType} />
-      )}
-    </>
+    <div className="p-6">
+      <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Gestion des catégories désactivée</h1>
+      <p className="mt-2 text-sm text-muted-foreground dark:text-gray-400">
+        La page de gestion des catégories est temporairement suspendue. Vous pourrez y accéder à nouveau lorsqu&apos;elle
+        sera réactivée.
+      </p>
+    </div>
   )
 }
