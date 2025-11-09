@@ -51,6 +51,7 @@ const BASE_CASCADE = [
         "Crème",
         "Huile",
         "Beurre",
+        "Lotion",
         "Gommage",
         "Gel",
         "Baume",
