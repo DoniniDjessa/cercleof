@@ -28,6 +28,18 @@ const pwaConfig = withPWA({
   disable: process.env.NODE_ENV === "development",
   runtimeCaching: [
     {
+      // PWA icons and manifest - NetworkFirst with short cache (must be first!)
+      urlPattern: /\/(icons\/|apple-touch-icon|favicon|manifest\.json)/i,
+      handler: "NetworkFirst",
+      options: {
+        cacheName: "pwa-assets-v2",
+        expiration: {
+          maxEntries: 20,
+          maxAgeSeconds: 60 * 60, // 1 hour (short cache for PWA assets)
+        },
+      },
+    },
+    {
       urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
       handler: "NetworkFirst",
       options: {
@@ -39,6 +51,7 @@ const pwaConfig = withPWA({
       },
     },
     {
+      // Other images - CacheFirst (excludes PWA icons due to order)
       urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/i,
       handler: "CacheFirst",
       options: {

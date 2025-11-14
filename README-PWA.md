@@ -14,33 +14,34 @@ Your app is now configured as a Progressive Web App (PWA), making it installable
 
 ### 1. Generate App Icons
 
-You need to create app icons for the PWA. Here are your options:
+The app includes a script to automatically generate all required icons from your logo (`public/cbmin.png`).
 
-#### Option A: Using PWA Asset Generator (Recommended)
+#### Using the Built-in Script (Recommended)
+```bash
+# Generate all icons from cbmin.png
+node scripts/generate-icons.js
+```
+
+This script will generate:
+- PWA icons in `public/icons/` (72x72 to 512x512)
+- Favicons in `public/` and `app/`
+- Apple touch icon for iOS
+- All icons for Next.js App Router in `app/`
+
+#### Alternative: Using PWA Asset Generator
 ```bash
 # Install globally
 npm install -g pwa-asset-generator
 
-# Generate icons from your logo (replace logo.png with your logo file)
-pwa-asset-generator logo.png public/icons --icon-only --favicon
+# Generate icons from your logo
+pwa-asset-generator public/cbmin.png public/icons --icon-only --favicon
 ```
 
-#### Option B: Using Online Tools
+#### Alternative: Using Online Tools
 1. Visit https://realfavicongenerator.net/
-2. Upload your logo
+2. Upload your logo (`public/cbmin.png`)
 3. Configure settings
 4. Download and extract to `public/icons/`
-
-#### Option C: Manual Creation
-Create PNG icons with these sizes in `public/icons/`:
-- icon-72x72.png
-- icon-96x96.png
-- icon-128x128.png
-- icon-144x144.png
-- icon-152x152.png
-- icon-192x192.png
-- icon-384x384.png
-- icon-512x512.png
 
 ### 2. Build and Test
 
@@ -98,13 +99,43 @@ npm start
 - Check browser console for errors
 - Verify HTTPS is enabled (required for PWA)
 
-### Icons Not Showing
-- Ensure icons are in `public/icons/` directory
-- Check icon file names match manifest.json
-- Verify icon files are valid PNG images
+### Icons Not Showing / Old Logo Still Appearing
+If you see the old Vercel logo after updating icons:
+
+1. **Regenerate icons**:
+   ```bash
+   node scripts/generate-icons.js
+   ```
+
+2. **Rebuild the app** (to update service worker):
+   ```bash
+   npm run build
+   npm start
+   ```
+
+3. **Clear PWA cache**:
+   - **Chrome/Edge Desktop**: 
+     - Open DevTools (F12)
+     - Go to Application tab
+     - Click "Clear storage" → "Clear site data"
+     - Or uninstall and reinstall the PWA
+   
+   - **Mobile (Android)**:
+     - Settings → Apps → [Your App] → Clear Cache
+     - Or uninstall and reinstall the app
+   
+   - **iOS (Safari)**:
+     - Settings → Safari → Clear History and Website Data
+     - Or delete and re-add to home screen
+
+4. **Force service worker update**:
+   - The service worker is configured with `skipWaiting: true` and uses `NetworkFirst` for icons
+   - Wait a few minutes or restart the browser
+   - The new cache name (`pwa-assets-v2`) will force a refresh
 
 ### Installation Prompt Not Appearing
 - Ensure all PWA requirements are met (HTTPS, manifest, service worker)
 - Check browser PWA support
 - Verify icons are present and valid
+- Run `npm run build` to generate the service worker (required for production)
 
