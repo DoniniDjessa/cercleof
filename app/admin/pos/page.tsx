@@ -2407,76 +2407,140 @@ export default function POSPage() {
                   {/* WhatsApp Button */}
                   <Button
                     variant="outline"
-                    onClick={() => {
+                    onClick={async () => {
                       if (!receiptData) return
                       setSendingWhatsapp(true)
                       
-                      // Send receipt as text message via WhatsApp Web API
-                      const formatDate = receiptData.date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                      const formatTime = receiptData.date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-                      const saleId = receiptData.sale.id.slice(-8).toUpperCase()
-                      
-                      let receiptText = `*CERCLÉ OF - Reçu de Vente*\n`
-                      receiptText += `Vente: #${saleId}\n`
-                      receiptText += `Date: ${formatDate} ${formatTime}\n\n`
-                      
-                      if (receiptData.client) {
-                        receiptText += `Client: ${receiptData.client.first_name} ${receiptData.client.last_name}\n`
-                        if (receiptData.client.phone) {
-                          receiptText += `Tel: ${receiptData.client.phone}\n`
+                      try {
+                        toast.loading('Génération de l\'image...', { id: 'whatsapp-receipt' })
+                        
+                        const escapeHtml = (text: string) => {
+                          const div = document.createElement('div')
+                          div.textContent = text
+                          return div.innerHTML
                         }
-                        receiptText += `\n`
-                      }
-                      
-                      receiptText += `*Articles:*\n`
-                      receiptData.items.forEach(item => {
-                        receiptText += `${item.name} - ${item.quantity}x ${item.price.toFixed(0)}f = ${item.total.toFixed(0)}f\n`
-                      })
-                      
-                      receiptText += `\nSous-total: ${receiptData.subtotal.toFixed(0)}f\n`
-                      if (receiptData.discount > 0) {
-                        receiptText += `Réduction: -${receiptData.discount.toFixed(0)}f\n`
-                      }
-                      if (receiptData.giftCardAmount > 0) {
-                        receiptText += `Carte Cadeau: -${receiptData.giftCardAmount.toFixed(0)}f\n`
-                      }
-                      receiptText += `*TOTAL: ${receiptData.total.toFixed(0)}f*\n\n`
-                      
-                      const paymentMethodText = receiptData.paymentMethod === 'cash' ? 'Espèces' :
-                        receiptData.paymentMethod === 'carte' ? 'Carte' :
-                        receiptData.paymentMethod === 'mobile_money' ? 'Mobile Money' :
-                        receiptData.paymentMethod
-                      receiptText += `Paiement: ${paymentMethodText}\n`
-                      receiptText += `Vendu par: ${receiptData.user}\n\n`
-                      receiptText += `Merci de votre visite!`
-                      
-                      // Format phone number
-                      let phoneNumber = whatsappPhone.trim()
-                      if (!phoneNumber.startsWith('+')) {
-                        phoneNumber = phoneNumber.startsWith('225') ? `+${phoneNumber}` : `+225${phoneNumber.replace(/^225/, '')}`
-                      }
-                      
-                      // Remove any non-digit characters except +
-                      phoneNumber = phoneNumber.replace(/[^\d+]/g, '')
-                      
-                      if (!phoneNumber || phoneNumber.length < 10) {
-                        toast.error('Veuillez entrer un numéro de téléphone valide')
+                        
+                        const formatDate = receiptData.date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                        const formatTime = receiptData.date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+                        const saleId = receiptData.sale.id.slice(-8).toUpperCase()
+                        const paymentMethodText = receiptData.paymentMethod === 'cash' ? 'Espèces' :
+                          receiptData.paymentMethod === 'carte' ? 'Carte' :
+                          receiptData.paymentMethod === 'mobile_money' ? 'Mobile Money' :
+                          receiptData.paymentMethod
+                        
+                        const receiptHTML = generateReceiptHTML(receiptData, escapeHtml, formatDate, formatTime, saleId, paymentMethodText)
+                        
+                        // Extract body content from HTML string
+                        const parser = new DOMParser()
+                        const doc = parser.parseFromString(receiptHTML, 'text/html')
+                        const bodyContent = doc.body.innerHTML
+                        
+                        // Create a temporary container for the receipt
+                        const tempDiv = document.createElement('div')
+                        tempDiv.innerHTML = bodyContent
+                        tempDiv.style.position = 'fixed'
+                        tempDiv.style.top = '-9999px'
+                        tempDiv.style.left = '-9999px'
+                        tempDiv.style.width = '300px'
+                        tempDiv.style.backgroundColor = '#ffffff'
+                        tempDiv.style.padding = '10px'
+                        tempDiv.style.fontFamily = "'Courier New', 'Courier', monospace"
+                        tempDiv.style.fontSize = '12px'
+                        tempDiv.style.color = '#000000'
+                        document.body.appendChild(tempDiv)
+                        
+                        // Wait a bit for rendering
+                        await new Promise(resolve => setTimeout(resolve, 100))
+                        
+                        // Convert to canvas and then to PNG
+                        const canvas = await html2canvas(tempDiv, {
+                          backgroundColor: '#ffffff',
+                          scale: 2,
+                          width: 300,
+                          height: tempDiv.scrollHeight,
+                          logging: false,
+                          useCORS: true,
+                          allowTaint: false,
+                          removeContainer: false
+                        })
+                        
+                        // Remove temporary element
+                        document.body.removeChild(tempDiv)
+                        
+                        // Convert canvas to blob
+                        const blob = await new Promise<Blob | null>((resolve) => {
+                          canvas.toBlob((blob) => resolve(blob), 'image/png', 1.0)
+                        })
+                        
+                        if (!blob) {
+                          toast.error('Erreur lors de la génération de l\'image', { id: 'whatsapp-receipt' })
+                          setSendingWhatsapp(false)
+                          return
+                        }
+                        
+                        // Upload image to Supabase storage
+                        toast.loading('Upload de l\'image...', { id: 'whatsapp-receipt' })
+                        
+                        const fileExt = 'png'
+                        const fileName = `receipt-${saleId}-${Date.now()}.${fileExt}`
+                        const filePath = `receipts/${fileName}`
+                        
+                        const { error: uploadError } = await supabase.storage
+                          .from('cb-bucket')
+                          .upload(filePath, blob, {
+                            contentType: 'image/png',
+                            upsert: false
+                          })
+                        
+                        if (uploadError) {
+                          console.error('Error uploading receipt image:', uploadError)
+                          toast.error('Erreur lors de l\'upload de l\'image', { id: 'whatsapp-receipt' })
+                          setSendingWhatsapp(false)
+                          return
+                        }
+                        
+                        // Get public URL
+                        const { data: urlData } = supabase.storage
+                          .from('cb-bucket')
+                          .getPublicUrl(filePath)
+                        
+                        const imageUrl = urlData.publicUrl
+                        
+                        // Format phone number
+                        let phoneNumber = whatsappPhone.trim()
+                        if (!phoneNumber.startsWith('+')) {
+                          phoneNumber = phoneNumber.startsWith('225') ? `+${phoneNumber}` : `+225${phoneNumber.replace(/^225/, '')}`
+                        }
+                        
+                        // Remove any non-digit characters except +
+                        phoneNumber = phoneNumber.replace(/[^\d+]/g, '')
+                        
+                        if (!phoneNumber || phoneNumber.length < 10) {
+                          toast.error('Veuillez entrer un numéro de téléphone valide', { id: 'whatsapp-receipt' })
+                          setSendingWhatsapp(false)
+                          return
+                        }
+                        
+                        // Create message with image link
+                        const message = `*CERCLÉ OF - Reçu de Vente*\n\nVente: #${saleId}\nDate: ${formatDate} ${formatTime}\n\nVoir le reçu: ${imageUrl}\n\nMerci de votre visite!`
+                        
+                        // Open WhatsApp Web with pre-filled message containing image link
+                        const whatsappUrl = `https://wa.me/${phoneNumber.replace(/^\+/, '')}?text=${encodeURIComponent(message)}`
+                        window.open(whatsappUrl, '_blank')
+                        
+                        toast.success('WhatsApp ouvert avec le reçu', { id: 'whatsapp-receipt' })
                         setSendingWhatsapp(false)
-                        return
+                      } catch (error) {
+                        console.error('Error sending receipt via WhatsApp:', error)
+                        toast.error('Erreur lors de l\'envoi du reçu', { id: 'whatsapp-receipt' })
+                        setSendingWhatsapp(false)
                       }
-                      
-                      // Open WhatsApp Web with pre-filled message
-                      const whatsappUrl = `https://wa.me/${phoneNumber.replace(/^\+/, '')}?text=${encodeURIComponent(receiptText)}`
-                      window.open(whatsappUrl, '_blank')
-                      
-                      toast.success('WhatsApp ouvert avec le reçu')
-                      setSendingWhatsapp(false)
                     }}
                     disabled={sendingWhatsapp}
                     className="flex flex-col items-center gap-1 h-auto py-2 text-xs"
                   >
                     <MessageCircle className="w-4 h-4" />
-                    <span>WhatsApp</span>
+                    <span>{sendingWhatsapp ? 'Envoi...' : 'WhatsApp'}</span>
                   </Button>
                 </div>
                 
