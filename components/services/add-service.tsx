@@ -104,18 +104,32 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
 
   const fetchCategories = async () => {
     try {
+      // Fetch all service categories (both parent and subcategories)
       const { data, error } = await supabase
         .from('dd-categories')
-        .select('id, name')
+        .select('id, name, parent_id')
         .eq('type', 'service')
         .eq('is_active', true)
-        .order('name')
+        .order('parent_id', { ascending: true, nullsFirst: true })
+        .order('name', { ascending: true })
 
       if (error) throw error
       setCategories(data || [])
     } catch (error) {
       console.error('Error fetching categories:', error)
     }
+  }
+  
+  // Helper function to format category name for display
+  const getCategoryDisplayName = (categoryId: string): string => {
+    const category = categories.find(c => c.id === categoryId)
+    if (!category) return ''
+    
+    if (category.parent_id) {
+      const parent = categories.find(c => c.id === category.parent_id)
+      return parent ? `${parent.name} > ${category.name}` : category.name
+    }
+    return category.name
   }
 
   const fetchProducts = async () => {
@@ -543,11 +557,16 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
                       <SelectValue placeholder="Sélectionnez une catégorie" />
                     </SelectTrigger>
                     <SelectContent>
-                      {categories.map((category) => (
-                        <SelectItem key={category.id} value={category.id}>
-                          {category.name}
-                        </SelectItem>
-                      ))}
+                      {categories.map((category) => {
+                        const displayName = category.parent_id
+                          ? `${categories.find(c => c.id === category.parent_id)?.name || ''} > ${category.name}`
+                          : category.name
+                        return (
+                          <SelectItem key={category.id} value={category.id}>
+                            {displayName}
+                          </SelectItem>
+                        )
+                      })}
                     </SelectContent>
                   </Select>
                 </div>

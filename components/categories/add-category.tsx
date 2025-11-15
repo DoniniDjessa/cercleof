@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,17 +16,22 @@ import toast from "react-hot-toast"
 interface AddCategoryProps {
   onCategoryCreated?: () => void
   categoryType: 'product' | 'service'
+  categoryId?: string | null
 }
 
-export function AddCategory({ onCategoryCreated, categoryType }: AddCategoryProps) {
+export function AddCategory({ onCategoryCreated, categoryType, categoryId }: AddCategoryProps) {
+  const router = useRouter()
   const { user: authUser } = useAuth()
   const [loading, setLoading] = useState(false)
+  const [fetching, setFetching] = useState(false)
+  const [categories, setCategories] = useState<Array<{id: string, name: string, parent_id?: string}>>([])
   const [formData, setFormData] = useState({
     name: "",
     description: "",
     type: categoryType,
     parent_id: ""
   })
+  const isEditMode = !!categoryId
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -33,7 +39,71 @@ export function AddCategory({ onCategoryCreated, categoryType }: AddCategoryProp
   }
 
   const handleSelectChange = (name: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [name]: value }))
+    // Convert special values to empty string for database
+    const normalizedValue = value === "none" ? "" : value
+    setFormData((prev) => ({ ...prev, [name]: normalizedValue }))
+  }
+
+  useEffect(() => {
+    fetchParentCategories()
+    if (categoryId) {
+      fetchCategoryData()
+    }
+  }, [categoryType, categoryId])
+  
+  const fetchCategoryData = async () => {
+    if (!categoryId) return
+    
+    try {
+      setFetching(true)
+      const { data, error } = await supabase
+        .from('dd-categories')
+        .select('*')
+        .eq('id', categoryId)
+        .single()
+
+      if (error) throw error
+
+      if (data) {
+        setFormData({
+          name: data.name || "",
+          description: data.description || "",
+          type: data.type || categoryType,
+          parent_id: data.parent_id || ""
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching category:', error)
+      toast.error('Erreur lors du chargement de la catégorie')
+    } finally {
+      setFetching(false)
+    }
+  }
+
+  const fetchParentCategories = async () => {
+    try {
+      // Fetch only parent categories (categories without parent_id) for the same type
+      // Exclude the current category if editing to prevent circular references
+      let query = supabase
+        .from('dd-categories')
+        .select('id, name, parent_id')
+        .eq('type', categoryType)
+        .eq('is_active', true)
+        .is('parent_id', null) // Only get parent categories
+        .order('name')
+
+      // Exclude current category from parent options when editing
+      if (isEditMode && categoryId) {
+        query = query.neq('id', categoryId)
+      }
+
+      const { data, error } = await query
+
+      if (error) throw error
+      setCategories(data || [])
+    } catch (error) {
+      console.error('Error fetching parent categories:', error)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -54,29 +124,60 @@ export function AddCategory({ onCategoryCreated, categoryType }: AddCategoryProp
         return
       }
 
-      // Prepare category data for insertion
-      const categoryData = {
+      // Prepare category data
+      const categoryData: Record<string, unknown> = {
         name: formData.name,
         description: formData.description || null,
         type: formData.type,
         parent_id: formData.parent_id || null,
-        is_active: true,
-        created_by: currentUser.id
       }
 
-      // Insert category into dd-categories table
-      const { data, error } = await supabase
-        .from('dd-categories')
-        .insert([categoryData])
-        .select()
+      let data, error
 
-      if (error) {
-        console.error('Error creating category:', error)
-        toast.error('Erreur lors de la création de la catégorie: ' + error.message)
-        return
+      if (isEditMode && categoryId) {
+        // Update existing category
+        const updateData = { ...categoryData }
+        // Don't update created_by when editing
+        const { data: updateResult, error: updateError } = await supabase
+          .from('dd-categories')
+          .update(updateData)
+          .eq('id', categoryId)
+          .select()
+
+        data = updateResult
+        error = updateError
+
+        if (error) {
+          console.error('Error updating category:', error)
+          toast.error('Erreur lors de la mise à jour de la catégorie: ' + error.message)
+          return
+        }
+
+        toast.success("Catégorie mise à jour avec succès!")
+      } else {
+        // Insert new category
+        const insertData = {
+          ...categoryData,
+          is_active: true,
+          created_by: currentUser.id
+        }
+
+        const { data: insertResult, error: insertError } = await supabase
+          .from('dd-categories')
+          .insert([insertData])
+          .select()
+
+        data = insertResult
+        error = insertError
+
+        if (error) {
+          console.error('Error creating category:', error)
+          toast.error('Erreur lors de la création de la catégorie: ' + error.message)
+          return
+        }
+
+        toast.success("Catégorie créée avec succès!")
       }
-
-      toast.success("Catégorie créée avec succès!")
       
       // Reset form
       setFormData({
@@ -85,6 +186,9 @@ export function AddCategory({ onCategoryCreated, categoryType }: AddCategoryProp
         type: categoryType,
         parent_id: ""
       })
+      
+      // Refresh parent categories list
+      fetchParentCategories()
 
       // Call the callback to refresh the categories list
       if (onCategoryCreated) {
@@ -103,13 +207,26 @@ export function AddCategory({ onCategoryCreated, categoryType }: AddCategoryProp
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground dark:text-white">
-          Ajouter une Catégorie {categoryType === 'product' ? 'Produit' : 'Service'}
+          {isEditMode ? 'Modifier' : 'Ajouter'} une Catégorie {categoryType === 'product' ? 'Produit' : 'Service'}
         </h1>
         <p className="text-sm text-muted-foreground dark:text-gray-400">
-          Créer une nouvelle catégorie pour vos {categoryType === 'product' ? 'produits' : 'services'}
+          {isEditMode 
+            ? `Modifier la catégorie pour vos ${categoryType === 'product' ? 'produits' : 'services'}`
+            : `Créer une nouvelle catégorie pour vos ${categoryType === 'product' ? 'produits' : 'services'}`
+          }
         </p>
       </div>
+      
+      {fetching && (
+        <div className="flex items-center justify-center py-8">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600 dark:text-gray-400">Chargement de la catégorie...</p>
+          </div>
+        </div>
+      )}
 
+      {!fetching && (
       <form onSubmit={handleSubmit}>
         <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
           <CardHeader>
@@ -140,18 +257,32 @@ export function AddCategory({ onCategoryCreated, categoryType }: AddCategoryProp
                 className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="type" className="text-gray-700 dark:text-gray-300">Type de Catégorie</Label>
-              <Select value={formData.type} onValueChange={(value) => handleSelectChange('type', value)}>
-                <SelectTrigger id="type" className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="product">Produit</SelectItem>
-                  <SelectItem value="service">Service</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {categoryType === 'service' && (
+              <div className="space-y-2">
+                <Label htmlFor="parent_id" className="text-gray-700 dark:text-gray-300">
+                  Catégorie Parente (optionnel)
+                </Label>
+                <Select 
+                  value={formData.parent_id || "none"} 
+                  onValueChange={(value) => handleSelectChange('parent_id', value)}
+                >
+                  <SelectTrigger id="parent_id" className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
+                    <SelectValue placeholder="Aucune (catégorie principale)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Aucune (catégorie principale)</SelectItem>
+                    {categories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Laissez vide pour créer une catégorie principale, ou sélectionnez une catégorie existante pour créer une sous-catégorie
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -160,15 +291,16 @@ export function AddCategory({ onCategoryCreated, categoryType }: AddCategoryProp
             type="button" 
             variant="outline" 
             className="bg-transparent border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-            onClick={() => window.history.replaceState({}, '', `/admin/categories?type=${categoryType}`)}
+            onClick={() => router.push(`/admin/categories?type=${categoryType}`)}
           >
             Annuler
           </Button>
-          <Button type="submit" disabled={loading}>
-            {loading ? <ButtonLoadingSpinner /> : 'Créer la Catégorie'}
+          <Button type="submit" disabled={loading || fetching}>
+            {loading ? <ButtonLoadingSpinner /> : isEditMode ? 'Mettre à jour la Catégorie' : 'Créer la Catégorie'}
           </Button>
         </div>
       </form>
+      )}
     </div>
   )
 }

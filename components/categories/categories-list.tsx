@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -26,6 +27,7 @@ interface CategoriesListProps {
 }
 
 export function CategoriesList({ categoryType }: CategoriesListProps) {
+  const router = useRouter()
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -43,12 +45,13 @@ export function CategoriesList({ categoryType }: CategoriesListProps) {
       const from = (currentPage - 1) * itemsPerPage
       const to = from + itemsPerPage - 1
 
+      // Fetch all categories (no pagination for now to show hierarchy properly)
       const { data, error, count } = await supabase
         .from('dd-categories')
         .select('*', { count: 'exact' })
         .eq('type', categoryType)
-        .order('created_at', { ascending: false })
-        .range(from, to)
+        .order('parent_id', { ascending: true, nullsFirst: true })
+        .order('name', { ascending: true })
 
       if (error) throw error
       
@@ -130,7 +133,7 @@ export function CategoriesList({ categoryType }: CategoriesListProps) {
             Gérez les catégories de vos {categoryType === 'product' ? 'produits' : 'services'}
           </p>
         </div>
-        <Button onClick={() => window.history.replaceState({}, '', `/admin/categories?type=${categoryType}&action=create`)}>
+        <Button onClick={() => router.push(`/admin/categories?type=${categoryType}&action=create`)}>
           Ajouter une Catégorie
         </Button>
       </div>
@@ -201,12 +204,25 @@ export function CategoriesList({ categoryType }: CategoriesListProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredCategories.map((category) => (
+                {filteredCategories.map((category) => {
+                  const parentCategory = category.parent_id 
+                    ? categories.find(c => c.id === category.parent_id)
+                    : null
+                  
+                  return (
                   <TableRow key={category.id} className="border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                     <TableCell className="font-medium text-gray-900 dark:text-white">
                       <div className="flex items-center gap-2">
-                        <Tag className="w-4 h-4 text-muted-foreground dark:text-gray-400" />
-                        {category.name}
+                        <Tag className={`w-4 h-4 text-muted-foreground dark:text-gray-400 ${category.parent_id ? 'ml-6' : ''}`} />
+                        {category.parent_id && (
+                          <span className="text-xs text-gray-400">└─</span>
+                        )}
+                        <span>{category.name}</span>
+                        {parentCategory && (
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            ({parentCategory.name})
+                          </span>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -225,7 +241,14 @@ export function CategoriesList({ categoryType }: CategoriesListProps) {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
-                        <Button size="sm" variant="ghost" className="text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20">
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          className="text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
+                          onClick={() => {
+                            router.push(`/admin/categories?type=${categoryType}&action=edit&id=${category.id}`)
+                          }}
+                        >
                           <Edit className="w-4 h-4" />
                         </Button>
                         <Button 
@@ -239,7 +262,8 @@ export function CategoriesList({ categoryType }: CategoriesListProps) {
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                  )
+                })}
               </TableBody>
             </Table>
             {filteredCategories.length === 0 && (

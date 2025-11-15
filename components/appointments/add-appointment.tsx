@@ -24,13 +24,20 @@ interface Client {
 
 interface Service {
   id: string
-  nom: string
-  prix_base: number
-  duree: number
+  nom: string  // Display name (can be from 'name' or 'nom' field)
+  prix_base: number  // Price (can be from 'price' or 'prix_base' field)
+  duree: number  // Duration (can be from 'duration_minutes' or 'duree' field)
   category?: {
     id: string
     name: string
+    parent_id?: string
   }
+}
+
+interface Category {
+  id: string
+  name: string
+  parent_id?: string
 }
 
 interface Employee {
@@ -49,7 +56,9 @@ export function AddAppointment({ onAppointmentCreated }: AddAppointmentProps) {
   const [loading, setLoading] = useState(false)
   const [clients, setClients] = useState<Client[]>([])
   const [services, setServices] = useState<Service[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("")
   
   const [formData, setFormData] = useState({
     client_id: "",
@@ -81,33 +90,42 @@ export function AddAppointment({ onAppointmentCreated }: AddAppointmentProps) {
       const { data: servicesData, error: servicesError } = await supabase
         .from('dd-services')
         .select('*')
-        .eq('actif', true)
-        .order('nom')
+        .eq('is_active', true)
+        .order('name')
 
       if (servicesError) throw servicesError
 
-      // Fetch categories separately
-      const categoryIds = servicesData
-        ?.map(service => service.category_id)
-        .filter((id): id is string => !!id) || []
+      // Fetch all service categories (both parent and subcategories)
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from('dd-categories')
+        .select('id, name, parent_id')
+        .eq('type', 'service')
+        .eq('is_active', true)
+        .order('parent_id', { ascending: true, nullsFirst: true })
+        .order('name', { ascending: true })
 
-      const categoriesMap = new Map<string, { id: string; name: string }>()
-      if (categoryIds.length > 0) {
-        const { data: categories } = await supabase
-          .from('dd-categories')
-          .select('id, name')
-          .in('id', categoryIds)
-        
-        categories?.forEach(cat => {
-          categoriesMap.set(cat.id, { id: cat.id, name: cat.name })
+      if (categoriesError) throw categoriesError
+
+      // Create categories map
+      const categoriesMap = new Map<string, { id: string; name: string; parent_id?: string }>()
+      categoriesData?.forEach(cat => {
+        categoriesMap.set(cat.id, { 
+          id: cat.id, 
+          name: cat.name,
+          parent_id: cat.parent_id || undefined
         })
-      }
+      })
 
-      // Map categories to services
+      // Map categories to services and normalize field names
       const servicesWithCategories = servicesData?.map(service => ({
-        ...service,
+        id: service.id,
+        nom: service.name || service.nom || '',
+        prix_base: service.price || service.prix_base || 0,
+        duree: service.duration_minutes || service.duree || 60,
         category: service.category_id ? categoriesMap.get(service.category_id) : undefined
       })) || []
+
+      setCategories(categoriesData || [])
 
       // Fetch employees (users with employee roles)
       const { data: employeesData, error: employeesError } = await supabase
@@ -134,11 +152,13 @@ export function AddAppointment({ onAppointmentCreated }: AddAppointmentProps) {
   }
 
   const handleSelectChange = (name: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [name]: value }))
+    // Convert special values to empty string for database
+    const normalizedValue = value === "none" ? "" : value
+    setFormData((prev) => ({ ...prev, [name]: normalizedValue }))
     
     // Auto-update duration when service changes
     if (name === 'service_id') {
-      const selectedService = services.find(s => s.id === value)
+      const selectedService = services.find(s => s.id === normalizedValue)
       if (selectedService) {
         setFormData(prev => ({ ...prev, duree: selectedService.duree }))
       }
@@ -244,14 +264,14 @@ export function AddAppointment({ onAppointmentCreated }: AddAppointmentProps) {
               <div className="space-y-2">
                 <Label htmlFor="client_id" className="text-gray-700 dark:text-gray-300">Client (optionnel)</Label>
                 <Select
-                  value={formData.client_id}
+                  value={formData.client_id || "none"}
                   onValueChange={(value) => handleSelectChange('client_id', value)}
                 >
                   <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
                     <SelectValue placeholder="Sélectionnez un client (optionnel)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Aucun client</SelectItem>
+                    <SelectItem value="none">Aucun client</SelectItem>
                     {clients.map((client) => (
                       <SelectItem key={client.id} value={client.id}>
                         {client.first_name} {client.last_name} - {client.email}
@@ -272,23 +292,146 @@ export function AddAppointment({ onAppointmentCreated }: AddAppointmentProps) {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="service_id" className="text-gray-700 dark:text-gray-300">Service *</Label>
-                <Select
-                  value={formData.service_id}
-                  onValueChange={(value) => handleSelectChange('service_id', value)}
-                >
-                  <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
-                    <SelectValue placeholder="Sélectionnez un service" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {services.map((service) => (
-                      <SelectItem key={service.id} value={service.id}>
-                        {service.nom} - {service.prix_base.toFixed(0)}f ({service.duree} min)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="category_filter" className="text-gray-700 dark:text-gray-300">
+                    Filtrer par Catégorie (optionnel)
+                  </Label>
+                  <Select
+                    value={selectedCategoryId || "all"}
+                    onValueChange={(value) => setSelectedCategoryId(value === "all" ? "" : value)}
+                  >
+                    <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
+                      <SelectValue placeholder="Toutes les catégories" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Toutes les catégories</SelectItem>
+                      {categories
+                        .filter(cat => !cat.parent_id) // Only show parent categories
+                        .map((category) => (
+                          <SelectItem key={category.id} value={category.id}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="service_id" className="text-gray-700 dark:text-gray-300">Service *</Label>
+                  <Select
+                    value={formData.service_id}
+                    onValueChange={(value) => handleSelectChange('service_id', value)}
+                  >
+                    <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
+                      <SelectValue placeholder="Sélectionnez un service" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {(() => {
+                        // Filter services by selected category
+                        let filteredServices = services
+                        
+                        if (selectedCategoryId) {
+                          // Get all subcategories of the selected category
+                          const subcategoryIds = categories
+                            .filter(cat => cat.parent_id === selectedCategoryId)
+                            .map(cat => cat.id)
+                          
+                          // Include services in the parent category or any of its subcategories
+                          filteredServices = services.filter(service => 
+                            service.category && (
+                              service.category.id === selectedCategoryId ||
+                              subcategoryIds.includes(service.category.id)
+                            )
+                          )
+                        }
+                        
+                        // Group services by category
+                        const groupedServices = new Map<string, Service[]>()
+                        filteredServices.forEach(service => {
+                          const categoryKey = service.category?.id || 'uncategorized'
+                          if (!groupedServices.has(categoryKey)) {
+                            groupedServices.set(categoryKey, [])
+                          }
+                          groupedServices.get(categoryKey)?.push(service)
+                        })
+                        
+                        // Render grouped services
+                        const items: JSX.Element[] = []
+                        
+                        // First, show services from parent categories
+                        categories
+                          .filter(cat => !cat.parent_id)
+                          .forEach(category => {
+                            const categoryServices = groupedServices.get(category.id) || []
+                            if (categoryServices.length > 0) {
+                              items.push(
+                                <div key={`group-${category.id}`} className="px-2 py-1">
+                                  <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                    {category.name}
+                                  </div>
+                                </div>
+                              )
+                              categoryServices.forEach(service => {
+                                items.push(
+                                  <SelectItem key={service.id} value={service.id} className="pl-4">
+                                    {service.nom} - {service.prix_base.toFixed(0)}f ({service.duree} min)
+                                  </SelectItem>
+                                )
+                              })
+                              
+                              // Show subcategories and their services
+                              categories
+                                .filter(subcat => subcat.parent_id === category.id)
+                                .forEach(subcategory => {
+                                  const subcategoryServices = groupedServices.get(subcategory.id) || []
+                                  if (subcategoryServices.length > 0) {
+                                    items.push(
+                                      <div key={`subgroup-${subcategory.id}`} className="px-2 py-1 pl-4">
+                                        <div className="text-xs font-medium text-gray-400 dark:text-gray-500">
+                                          └─ {subcategory.name}
+                                        </div>
+                                      </div>
+                                    )
+                                    subcategoryServices.forEach(service => {
+                                      items.push(
+                                        <SelectItem key={service.id} value={service.id} className="pl-8">
+                                          {service.nom} - {service.prix_base.toFixed(0)}f ({service.duree} min)
+                                        </SelectItem>
+                                      )
+                                    })
+                                  }
+                                })
+                            }
+                          })
+                        
+                        // Show uncategorized services
+                        const uncategorizedServices = groupedServices.get('uncategorized') || []
+                        if (uncategorizedServices.length > 0) {
+                          items.push(
+                            <div key="group-uncategorized" className="px-2 py-1">
+                              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                Non catégorisé
+                              </div>
+                            </div>
+                          )
+                          uncategorizedServices.forEach(service => {
+                            items.push(
+                              <SelectItem key={service.id} value={service.id} className="pl-4">
+                                {service.nom} - {service.prix_base.toFixed(0)}f ({service.duree} min)
+                              </SelectItem>
+                            )
+                          })
+                        }
+                        
+                        return items.length > 0 ? items : (
+                          <div className="px-2 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">
+                            Aucun service trouvé
+                          </div>
+                        )
+                      })()}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </CardContent>
           </AnimatedCard>

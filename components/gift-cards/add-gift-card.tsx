@@ -254,14 +254,14 @@ export function AddGiftCard({ onGiftCardCreated, onCancel }: AddGiftCardProps) {
                 Client (optionnel)
               </Label>
               <Select
-                value={formData.client_id}
-                onValueChange={(value) => handleInputChange('client_id', value)}
+                value={formData.client_id || "none"}
+                onValueChange={(value) => handleInputChange('client_id', value === "none" ? "" : value)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Sélectionnez un client (optionnel)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Aucun client</SelectItem>
+                  <SelectItem value="none">Aucun client</SelectItem>
                   {clients.map((client) => (
                     <SelectItem key={client.id} value={client.id}>
                       {client.first_name} {client.last_name} - {client.email}
