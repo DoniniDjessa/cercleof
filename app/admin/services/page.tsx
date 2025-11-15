@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { AnimatedButton } from "@/components/ui/animated-button"
 import { TableLoadingState } from "@/components/ui/table-loading-state"
-import { Search, Eye, Trash2, Package, Clock, DollarSign, Users, Scissors } from "lucide-react"
+import { Search, Eye, Trash2, Package, Clock, DollarSign, Users, Scissors, Edit } from "lucide-react"
 import { AddService } from "@/components/services/add-service"
 import { supabase } from "@/lib/supabase"
 import toast from "react-hot-toast"
@@ -46,11 +46,13 @@ interface Service {
 
 export default function ServicesPage() {
   const { user: authUser } = useAuth()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const [services, setServices] = useState<Service[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const [serviceId, setServiceId] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const itemsPerPage = 20
@@ -58,10 +60,16 @@ export default function ServicesPage() {
 
   useEffect(() => {
     const action = searchParams.get('action')
+    const id = searchParams.get('id')
     if (action === 'create') {
       setShowCreateForm(true)
+      setServiceId(null)
+    } else if (action === 'edit' && id) {
+      setShowCreateForm(true)
+      setServiceId(id)
     } else {
       setShowCreateForm(false)
+      setServiceId(null)
     }
   }, [searchParams])
 
@@ -184,7 +192,7 @@ export default function ServicesPage() {
   const averagePrice = totalServices > 0 ? totalRevenue / totalServices : 0
 
   if (showCreateForm) {
-    return <AddService onServiceCreated={fetchServices} />
+    return <AddService onServiceCreated={fetchServices} serviceId={serviceId} />
   }
 
   return (
@@ -198,10 +206,7 @@ export default function ServicesPage() {
         {canManageServices && (
           <AnimatedButton
             onClick={() => {
-              const url = new URL(window.location.href)
-              url.searchParams.set('action', 'create')
-              window.history.pushState({}, '', url.toString())
-              setShowCreateForm(true)
+              router.push('/admin/services?action=create')
             }}
             className="bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white"
           >
@@ -379,18 +384,33 @@ export default function ServicesPage() {
                               window.location.href = `/admin/services/${service.id}`
                             }}
                             className="text-blue-600 border-blue-200 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-900/20"
+                            title="Voir les détails"
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
                           {canManageServices && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => deleteService(service.id)}
-                              className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  router.push(`/admin/services?action=edit&id=${service.id}`)
+                                }}
+                                className="text-green-600 border-green-200 hover:bg-green-50 dark:text-green-400 dark:border-green-800 dark:hover:bg-green-900/20"
+                                title="Modifier le service"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => deleteService(service.id)}
+                                className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
+                                title="Supprimer le service"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </>
                           )}
                         </div>
                       </TableCell>

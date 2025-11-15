@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, Plus, Minus, Trash2, CreditCard, ShoppingCart, User, Package, Scissors, DollarSign, Percent, Truck, Check, UserPlus, Eye, EyeOff, TrendingUp, X } from "lucide-react"
+import { Search, Plus, Minus, Trash2, CreditCard, ShoppingCart, User, Package, Scissors, DollarSign, Percent, Truck, Check, UserPlus, Eye, EyeOff, TrendingUp, X, Download, Printer, MessageCircle } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { QuickCreateClient } from "@/components/clients/quick-create-client"
 import toast from "react-hot-toast"
@@ -112,6 +112,10 @@ export default function POSPage() {
   const [variantSelection, setVariantSelection] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null })
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null)
   const [variantQuantity, setVariantQuantity] = useState('1')
+  const [editingPriceItemId, setEditingPriceItemId] = useState<string | null>(null)
+  const [editingPriceValue, setEditingPriceValue] = useState<string>('')
+  const [whatsappPhone, setWhatsappPhone] = useState<string>('')
+  const [sendingWhatsapp, setSendingWhatsapp] = useState(false)
   
   // Promotion code states
   const [promotionCode, setPromotionCode] = useState("")
@@ -199,6 +203,9 @@ export default function POSPage() {
 
   // Check if user can manage discounts (admin, manager, superadmin)
   const canManageDiscounts = currentUserRole === 'admin' || currentUserRole === 'manager' || currentUserRole === 'superadmin'
+  
+  // Check if user can edit prices (caissiere and admins)
+  const canEditPrices = currentUserRole === 'admin' || currentUserRole === 'caissiere' || currentUserRole === 'superadmin'
 
   const fetchDailySales = async () => {
     try {
@@ -493,6 +500,211 @@ export default function POSPage() {
 
   const removeFromCart = (id: string, type: 'product' | 'service') => {
     setCart(cart.filter(item => !(item.id === id && item.type === type)))
+  }
+  
+  const updateCartItemPrice = (id: string, type: 'product' | 'service', newPrice: number) => {
+    setCart(cart.map(item => 
+      item.id === id && item.type === type
+        ? { ...item, price: newPrice, total: newPrice * item.quantity }
+        : item
+    ))
+  }
+  
+  const handlePriceEdit = (item: CartItem) => {
+    setEditingPriceItemId(`${item.id}-${item.type}`)
+    setEditingPriceValue(item.price.toString())
+  }
+  
+  const handlePriceSave = (item: CartItem) => {
+    const newPrice = parseFloat(editingPriceValue) || 0
+    if (newPrice >= 0) {
+      updateCartItemPrice(item.id, item.type, newPrice)
+      setEditingPriceItemId(null)
+      setEditingPriceValue('')
+    } else {
+      toast.error('Le prix doit être positif')
+    }
+  }
+  
+  const handlePriceCancel = () => {
+    setEditingPriceItemId(null)
+    setEditingPriceValue('')
+  }
+  
+  // Helper function to generate receipt HTML
+  const generateReceiptHTML = (
+    receiptData: typeof receiptData,
+    escapeHtml: (text: string) => string,
+    formatDate: string,
+    formatTime: string,
+    saleId: string,
+    paymentMethodText: string
+  ) => {
+    return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reçu de Vente</title>
+  <style>
+    * { 
+      margin: 0; 
+      padding: 0; 
+      box-sizing: border-box; 
+    }
+    @page {
+      size: 80mm auto;
+      margin: 0;
+    }
+    body {
+      font-family: 'Courier New', 'Courier', monospace;
+      font-size: 12px;
+      line-height: 1.4;
+      padding: 10px;
+      max-width: 80mm;
+      margin: 0 auto;
+      color: #000;
+      background: #fff;
+    }
+    .header { 
+      text-align: center; 
+      margin-bottom: 10px; 
+      padding-bottom: 8px; 
+      border-bottom: 1px dashed #000; 
+    }
+    .header h1 { 
+      font-size: 16px; 
+      font-weight: bold; 
+      margin-bottom: 4px; 
+      text-transform: uppercase;
+    }
+    .header p { 
+      font-size: 10px; 
+      color: #333; 
+    }
+    .section { 
+      margin-bottom: 8px; 
+      padding-bottom: 8px; 
+      border-bottom: 1px dashed #000; 
+    }
+    .section p {
+      margin-bottom: 2px;
+    }
+    .item { 
+      margin-bottom: 6px; 
+      display: flex;
+      flex-direction: column;
+    }
+    .item-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 2px;
+    }
+    .item-name { 
+      font-weight: bold; 
+      margin-bottom: 2px; 
+    }
+    .item-details { 
+      font-size: 10px; 
+      color: #333; 
+    }
+    .item-total {
+      text-align: right;
+      font-weight: bold;
+      margin-top: 2px;
+    }
+    .totals { 
+      margin-top: 8px; 
+    }
+    .total-row { 
+      display: flex; 
+      justify-content: space-between; 
+      font-size: 11px; 
+      margin-bottom: 3px; 
+    }
+    .total-final { 
+      font-weight: bold; 
+      font-size: 14px; 
+      margin-top: 5px; 
+      padding-top: 5px; 
+      border-top: 2px solid #000; 
+    }
+    .footer { 
+      text-align: center; 
+      margin-top: 10px; 
+      padding-top: 8px; 
+      border-top: 1px dashed #000; 
+      font-size: 10px; 
+      color: #333; 
+    }
+    @media print {
+      body { 
+        padding: 5px; 
+        margin: 0;
+      }
+      .no-print {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>CERCLÉ OF</h1>
+    <p>Institut de Beauté</p>
+    <p>${escapeHtml(formatDate)} ${escapeHtml(formatTime)}</p>
+  </div>
+  <div class="section">
+    <p>Vente: #${escapeHtml(saleId)}</p>
+  </div>
+  ${receiptData.client ? `
+    <div class="section">
+      <p>Client: ${escapeHtml(receiptData.client.first_name)} ${escapeHtml(receiptData.client.last_name)}</p>
+      ${receiptData.client.phone ? `<p>Tel: ${escapeHtml(receiptData.client.phone)}</p>` : ''}
+    </div>
+  ` : ''}
+  <div class="section">
+    ${receiptData.items.map(item => `
+      <div class="item">
+        <div class="item-name">${escapeHtml(item.name)}</div>
+        <div class="item-row">
+          <span class="item-details">${item.quantity} x ${item.price.toFixed(0)}f</span>
+          <span class="item-total">${item.total.toFixed(0)}f</span>
+        </div>
+      </div>
+    `).join('')}
+  </div>
+  <div class="totals">
+    <div class="total-row">
+      <span>Sous-total:</span>
+      <span>${receiptData.subtotal.toFixed(0)}f</span>
+    </div>
+    ${receiptData.discount > 0 ? `
+      <div class="total-row">
+        <span>Réduction:</span>
+        <span>-${receiptData.discount.toFixed(0)}f</span>
+      </div>
+    ` : ''}
+    ${receiptData.giftCardAmount > 0 ? `
+      <div class="total-row">
+        <span>Carte Cadeau:</span>
+        <span>-${receiptData.giftCardAmount.toFixed(0)}f</span>
+      </div>
+    ` : ''}
+    <div class="total-row total-final">
+      <span>TOTAL:</span>
+      <span>${receiptData.total.toFixed(0)}f</span>
+    </div>
+  </div>
+  <div class="section">
+    <p>Paiement: ${escapeHtml(paymentMethodText)}</p>
+  </div>
+  <div class="footer">
+    <p>Merci de votre visite!</p>
+    <p>Vendu par: ${escapeHtml(receiptData.user)}</p>
+  </div>
+</body>
+</html>`
   }
 
   const calculateSubtotal = () => {
@@ -1065,6 +1277,14 @@ export default function POSPage() {
         user: userDisplayName
       })
       
+      // Set WhatsApp phone from client if available
+      if (selectedClient?.phone) {
+        const phone = selectedClient.phone.startsWith('+') ? selectedClient.phone : `+225${selectedClient.phone.replace(/^\+?225/, '')}`
+        setWhatsappPhone(phone)
+      } else {
+        setWhatsappPhone('+225')
+      }
+      
       // Show receipt
       setShowReceipt(true)
       
@@ -1451,13 +1671,66 @@ export default function POSPage() {
                       : Infinity
                     const disableIncrement = item.type === 'product' && item.quantity >= maxQuantity
 
+                    const isEditingPrice = editingPriceItemId === `${item.id}-${item.type}`
+                    
                     return (
                       <div key={`${item.id}-${item.type}`} className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
                         <div className="flex-1">
                           <p className="font-medium text-gray-900 dark:text-white text-[10px]">{item.name}</p>
-                          <p className="text-[9px] text-gray-500 dark:text-gray-400">
-                            {item.price.toFixed(0)}f × {item.quantity}
-                          </p>
+                          {isEditingPrice ? (
+                            <div className="flex items-center gap-1 mt-1">
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={editingPriceValue}
+                                onChange={(e) => setEditingPriceValue(e.target.value)}
+                                className="h-6 w-20 text-[9px] bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    handlePriceSave(item)
+                                  } else if (e.key === 'Escape') {
+                                    handlePriceCancel()
+                                  }
+                                }}
+                              />
+                              <span className="text-[9px] text-gray-500">f</span>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handlePriceSave(item)}
+                                className="h-6 w-6 p-0 text-green-600 border-green-200 hover:bg-green-50 dark:text-green-400 dark:border-green-800 dark:hover:bg-green-900/20"
+                              >
+                                <Check className="w-2 h-2" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handlePriceCancel}
+                                className="h-6 w-6 p-0 text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
+                              >
+                                <X className="w-2 h-2" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 mt-1">
+                              <p className="text-[9px] text-gray-500 dark:text-gray-400">
+                                {item.price.toFixed(0)}f × {item.quantity} = {item.total.toFixed(0)}f
+                              </p>
+                              {canEditPrices && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handlePriceEdit(item)}
+                                  className="h-4 w-4 p-0 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                                  title="Modifier le prix"
+                                >
+                                  <DollarSign className="w-2 h-2" />
+                                </Button>
+                              )}
+                            </div>
+                          )}
                           {variant && (
                             <p className="text-[9px] text-gray-400 dark:text-gray-500">
                               Stock variante restant: {variantRemaining} / {variant.quantity}
@@ -1470,6 +1743,7 @@ export default function POSPage() {
                             size="sm"
                             onClick={() => updateCartQuantity(item.id, item.type, item.quantity - 1)}
                             className="h-6 w-6 p-0"
+                            disabled={isEditingPrice}
                           >
                             <Minus className="w-2 h-2" />
                           </Button>
@@ -1479,7 +1753,7 @@ export default function POSPage() {
                             size="sm"
                             onClick={() => updateCartQuantity(item.id, item.type, item.quantity + 1)}
                             className="h-6 w-6 p-0"
-                            disabled={disableIncrement}
+                            disabled={disableIncrement || isEditingPrice}
                           >
                             <Plus className="w-2 h-2" />
                           </Button>
@@ -1488,6 +1762,7 @@ export default function POSPage() {
                             size="sm"
                             onClick={() => removeFromCart(item.id, item.type)}
                             className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20 h-6 w-6 p-0"
+                            disabled={isEditingPrice}
                           >
                             <Trash2 className="w-2 h-2" />
                           </Button>
@@ -1847,8 +2122,8 @@ export default function POSPage() {
 
       {/* Receipt Modal */}
       {showReceipt && receiptData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowReceipt(false)}>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-sm mx-4" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-sm mx-4 max-h-[90vh] overflow-y-auto">
             <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
               <h2 className="text-lg font-bold text-gray-900 dark:text-white">Reçu de Vente</h2>
               <Button
@@ -1955,226 +2230,207 @@ export default function POSPage() {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-2 mt-4">
+              <div className="space-y-3 mt-4">
+                <div className="grid grid-cols-3 gap-2">
+                  {/* Download Button */}
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (!receiptData) return
+                      
+                      const escapeHtml = (text: string) => {
+                        const div = document.createElement('div')
+                        div.textContent = text
+                        return div.innerHTML
+                      }
+                      
+                      const formatDate = receiptData.date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                      const formatTime = receiptData.date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+                      const saleId = receiptData.sale.id.slice(-8).toUpperCase()
+                      const paymentMethodText = receiptData.paymentMethod === 'cash' ? 'Espèces' :
+                        receiptData.paymentMethod === 'carte' ? 'Carte' :
+                        receiptData.paymentMethod === 'mobile_money' ? 'Mobile Money' :
+                        receiptData.paymentMethod
+                      
+                      const receiptHTML = generateReceiptHTML(receiptData, escapeHtml, formatDate, formatTime, saleId, paymentMethodText)
+                      
+                      // Create blob and download
+                      const blob = new Blob([receiptHTML], { type: 'text/html' })
+                      const url = URL.createObjectURL(blob)
+                      const a = document.createElement('a')
+                      a.href = url
+                      a.download = `receipt-${saleId}-${formatDate.replace(/\//g, '-')}.html`
+                      document.body.appendChild(a)
+                      a.click()
+                      document.body.removeChild(a)
+                      URL.revokeObjectURL(url)
+                      
+                      toast.success('Reçu téléchargé avec succès')
+                    }}
+                    className="flex flex-col items-center gap-1 h-auto py-2 text-xs"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Télécharger</span>
+                  </Button>
+                  
+                  {/* Print Button */}
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (!receiptData) return
+                      
+                      const escapeHtml = (text: string) => {
+                        const div = document.createElement('div')
+                        div.textContent = text
+                        return div.innerHTML
+                      }
+                      
+                      const formatDate = receiptData.date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                      const formatTime = receiptData.date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+                      const saleId = receiptData.sale.id.slice(-8).toUpperCase()
+                      const paymentMethodText = receiptData.paymentMethod === 'cash' ? 'Espèces' :
+                        receiptData.paymentMethod === 'carte' ? 'Carte' :
+                        receiptData.paymentMethod === 'mobile_money' ? 'Mobile Money' :
+                        receiptData.paymentMethod
+                      
+                      const receiptHTML = generateReceiptHTML(receiptData, escapeHtml, formatDate, formatTime, saleId, paymentMethodText)
+                      
+                      const printWindow = window.open('', '_blank', 'width=300,height=600')
+                      if (printWindow) {
+                        printWindow.document.open()
+                        printWindow.document.write(receiptHTML)
+                        printWindow.document.close()
+                        
+                        printWindow.onload = () => {
+                          setTimeout(() => {
+                            printWindow.focus()
+                            printWindow.print()
+                          }, 100)
+                        }
+                        
+                        setTimeout(() => {
+                          if (printWindow.document.readyState === 'complete') {
+                            printWindow.focus()
+                            printWindow.print()
+                          }
+                        }, 500)
+                      }
+                    }}
+                    className="flex flex-col items-center gap-1 h-auto py-2 text-xs"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>Imprimer</span>
+                  </Button>
+                  
+                  {/* WhatsApp Button */}
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (!receiptData) return
+                      setSendingWhatsapp(true)
+                      
+                      // Convert receipt to image using html2canvas or similar
+                      // For now, we'll use WhatsApp Web API to send text
+                      const formatDate = receiptData.date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                      const formatTime = receiptData.date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+                      const saleId = receiptData.sale.id.slice(-8).toUpperCase()
+                      
+                      let receiptText = `*CERCLÉ OF - Reçu de Vente*\n`
+                      receiptText += `Vente: #${saleId}\n`
+                      receiptText += `Date: ${formatDate} ${formatTime}\n\n`
+                      
+                      if (receiptData.client) {
+                        receiptText += `Client: ${receiptData.client.first_name} ${receiptData.client.last_name}\n`
+                        if (receiptData.client.phone) {
+                          receiptText += `Tel: ${receiptData.client.phone}\n`
+                        }
+                        receiptText += `\n`
+                      }
+                      
+                      receiptText += `*Articles:*\n`
+                      receiptData.items.forEach(item => {
+                        receiptText += `${item.name} - ${item.quantity}x ${item.price.toFixed(0)}f = ${item.total.toFixed(0)}f\n`
+                      })
+                      
+                      receiptText += `\nSous-total: ${receiptData.subtotal.toFixed(0)}f\n`
+                      if (receiptData.discount > 0) {
+                        receiptText += `Réduction: -${receiptData.discount.toFixed(0)}f\n`
+                      }
+                      if (receiptData.giftCardAmount > 0) {
+                        receiptText += `Carte Cadeau: -${receiptData.giftCardAmount.toFixed(0)}f\n`
+                      }
+                      receiptText += `*TOTAL: ${receiptData.total.toFixed(0)}f*\n\n`
+                      
+                      const paymentMethodText = receiptData.paymentMethod === 'cash' ? 'Espèces' :
+                        receiptData.paymentMethod === 'carte' ? 'Carte' :
+                        receiptData.paymentMethod === 'mobile_money' ? 'Mobile Money' :
+                        receiptData.paymentMethod
+                      receiptText += `Paiement: ${paymentMethodText}\n`
+                      receiptText += `Vendu par: ${receiptData.user}\n\n`
+                      receiptText += `Merci de votre visite!`
+                      
+                      // Format phone number
+                      let phoneNumber = whatsappPhone.trim()
+                      if (!phoneNumber.startsWith('+')) {
+                        phoneNumber = phoneNumber.startsWith('225') ? `+${phoneNumber}` : `+225${phoneNumber.replace(/^225/, '')}`
+                      }
+                      
+                      // Remove any non-digit characters except +
+                      phoneNumber = phoneNumber.replace(/[^\d+]/g, '')
+                      
+                      if (!phoneNumber || phoneNumber.length < 10) {
+                        toast.error('Veuillez entrer un numéro de téléphone valide')
+                        setSendingWhatsapp(false)
+                        return
+                      }
+                      
+                      // Open WhatsApp Web with pre-filled message
+                      const whatsappUrl = `https://wa.me/${phoneNumber.replace(/^\+/, '')}?text=${encodeURIComponent(receiptText)}`
+                      window.open(whatsappUrl, '_blank')
+                      
+                      toast.success('WhatsApp ouvert avec le reçu')
+                      setSendingWhatsapp(false)
+                    }}
+                    disabled={sendingWhatsapp}
+                    className="flex flex-col items-center gap-1 h-auto py-2 text-xs"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>WhatsApp</span>
+                  </Button>
+                </div>
+                
+                {/* WhatsApp Phone Input */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-gray-700 dark:text-gray-300">Numéro WhatsApp</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="tel"
+                      placeholder="+225XXXXXXXXX"
+                      value={whatsappPhone}
+                      onChange={(e) => {
+                        let value = e.target.value
+                        // Auto-add +225 if no indicatif
+                        if (!value.startsWith('+') && value.length > 0) {
+                          if (!value.startsWith('225')) {
+                            value = `+225${value}`
+                          } else {
+                            value = `+${value}`
+                          }
+                        }
+                        setWhatsappPhone(value)
+                      }}
+                      className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 h-8 text-xs"
+                    />
+                  </div>
+                </div>
+                
+                {/* Close Button */}
                 <Button
                   variant="outline"
                   onClick={() => setShowReceipt(false)}
-                  className="flex-1 text-xs"
+                  className="w-full text-xs"
                 >
                   Fermer
-                </Button>
-                <Button
-                  onClick={() => {
-                    // Print receipt
-                    if (!receiptData) return
-                    
-                    // Escape HTML to prevent XSS and ensure clean text
-                    const escapeHtml = (text: string) => {
-                      const div = document.createElement('div')
-                      div.textContent = text
-                      return div.innerHTML
-                    }
-                    
-                    const formatDate = receiptData.date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                    const formatTime = receiptData.date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-                    const saleId = receiptData.sale.id.slice(-8).toUpperCase()
-                    const paymentMethodText = receiptData.paymentMethod === 'cash' ? 'Espèces' :
-                      receiptData.paymentMethod === 'carte' ? 'Carte' :
-                      receiptData.paymentMethod === 'mobile_money' ? 'Mobile Money' :
-                      receiptData.paymentMethod
-                    
-                    const receiptHTML = `<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reçu de Vente</title>
-  <style>
-    * { 
-      margin: 0; 
-      padding: 0; 
-      box-sizing: border-box; 
-    }
-    @page {
-      size: 80mm auto;
-      margin: 0;
-    }
-    body {
-      font-family: 'Courier New', 'Courier', monospace;
-      font-size: 12px;
-      line-height: 1.4;
-      padding: 10px;
-      max-width: 80mm;
-      margin: 0 auto;
-      color: #000;
-      background: #fff;
-    }
-    .header { 
-      text-align: center; 
-      margin-bottom: 10px; 
-      padding-bottom: 8px; 
-      border-bottom: 1px dashed #000; 
-    }
-    .header h1 { 
-      font-size: 16px; 
-      font-weight: bold; 
-      margin-bottom: 4px; 
-      text-transform: uppercase;
-    }
-    .header p { 
-      font-size: 10px; 
-      color: #333; 
-    }
-    .section { 
-      margin-bottom: 8px; 
-      padding-bottom: 8px; 
-      border-bottom: 1px dashed #000; 
-    }
-    .section p {
-      margin-bottom: 2px;
-    }
-    .item { 
-      margin-bottom: 6px; 
-      display: flex;
-      flex-direction: column;
-    }
-    .item-row {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 2px;
-    }
-    .item-name { 
-      font-weight: bold; 
-      margin-bottom: 2px; 
-    }
-    .item-details { 
-      font-size: 10px; 
-      color: #333; 
-    }
-    .item-total {
-      text-align: right;
-      font-weight: bold;
-      margin-top: 2px;
-    }
-    .totals { 
-      margin-top: 8px; 
-    }
-    .total-row { 
-      display: flex; 
-      justify-content: space-between; 
-      font-size: 11px; 
-      margin-bottom: 3px; 
-    }
-    .total-final { 
-      font-weight: bold; 
-      font-size: 14px; 
-      margin-top: 5px; 
-      padding-top: 5px; 
-      border-top: 2px solid #000; 
-    }
-    .footer { 
-      text-align: center; 
-      margin-top: 10px; 
-      padding-top: 8px; 
-      border-top: 1px dashed #000; 
-      font-size: 10px; 
-      color: #333; 
-    }
-    @media print {
-      body { 
-        padding: 5px; 
-        margin: 0;
-      }
-      .no-print {
-        display: none;
-      }
-    }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>CERCLÉ OF</h1>
-    <p>Institut de Beauté</p>
-    <p>${escapeHtml(formatDate)} ${escapeHtml(formatTime)}</p>
-  </div>
-  <div class="section">
-    <p>Vente: #${escapeHtml(saleId)}</p>
-  </div>
-  ${receiptData.client ? `
-    <div class="section">
-      <p>Client: ${escapeHtml(receiptData.client.first_name)} ${escapeHtml(receiptData.client.last_name)}</p>
-      ${receiptData.client.phone ? `<p>Tel: ${escapeHtml(receiptData.client.phone)}</p>` : ''}
-    </div>
-  ` : ''}
-  <div class="section">
-    ${receiptData.items.map(item => `
-      <div class="item">
-        <div class="item-name">${escapeHtml(item.name)}</div>
-        <div class="item-row">
-          <span class="item-details">${item.quantity} x ${item.price.toFixed(0)}f</span>
-          <span class="item-total">${item.total.toFixed(0)}f</span>
-        </div>
-      </div>
-    `).join('')}
-  </div>
-  <div class="totals">
-    <div class="total-row">
-      <span>Sous-total:</span>
-      <span>${receiptData.subtotal.toFixed(0)}f</span>
-    </div>
-    ${receiptData.discount > 0 ? `
-      <div class="total-row">
-        <span>Réduction:</span>
-        <span>-${receiptData.discount.toFixed(0)}f</span>
-      </div>
-    ` : ''}
-    ${receiptData.giftCardAmount > 0 ? `
-      <div class="total-row">
-        <span>Carte Cadeau:</span>
-        <span>-${receiptData.giftCardAmount.toFixed(0)}f</span>
-      </div>
-    ` : ''}
-    <div class="total-row total-final">
-      <span>TOTAL:</span>
-      <span>${receiptData.total.toFixed(0)}f</span>
-    </div>
-  </div>
-  <div class="section">
-    <p>Paiement: ${escapeHtml(paymentMethodText)}</p>
-  </div>
-  <div class="footer">
-    <p>Merci de votre visite!</p>
-    <p>Vendu par: ${escapeHtml(receiptData.user)}</p>
-  </div>
-</body>
-</html>`
-                    
-                    const printWindow = window.open('', '_blank', 'width=300,height=600')
-                    if (printWindow) {
-                      printWindow.document.open()
-                      printWindow.document.write(receiptHTML)
-                      printWindow.document.close()
-                      
-                      // Wait for content to fully load before printing
-                      printWindow.onload = () => {
-                        setTimeout(() => {
-                          printWindow.focus()
-                          printWindow.print()
-                        }, 100)
-                      }
-                      
-                      // Fallback if onload doesn't fire
-                      setTimeout(() => {
-                        if (printWindow.document.readyState === 'complete') {
-                          printWindow.focus()
-                          printWindow.print()
-                        }
-                      }, 500)
-                    }
-                  }}
-                  className="flex-1 text-xs bg-purple-600 hover:bg-purple-700 text-white"
-                >
-                  Imprimer
                 </Button>
               </div>
             </div>

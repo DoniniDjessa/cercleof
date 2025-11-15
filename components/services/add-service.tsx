@@ -41,12 +41,14 @@ interface ServiceProduct {
 
 interface AddServiceProps {
   onServiceCreated?: () => void
+  serviceId?: string | null
 }
 
-export function AddService({ onServiceCreated }: AddServiceProps) {
+export function AddService({ onServiceCreated, serviceId }: AddServiceProps) {
   const { user: authUser } = useAuth()
   const [loading, setLoading] = useState(false)
   const [uploadingImage, setUploadingImage] = useState(false)
+  const [fetching, setFetching] = useState(false)
   const [serviceImage, setServiceImage] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [categories, setCategories] = useState<Array<{id: string, name: string, parent_id?: string | null}>>([])
@@ -56,6 +58,7 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
   const [checkingRole, setCheckingRole] = useState(true)
   const [selectedParentCategoryId, setSelectedParentCategoryId] = useState<string>("")
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string>("")
+  const isEditMode = !!serviceId
   
   const [formData, setFormData] = useState({
     nom: "",
@@ -74,7 +77,94 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
     fetchCategories()
     fetchProducts()
     fetchCurrentUserRole()
-  }, [])
+    if (serviceId) {
+      fetchServiceData()
+    }
+  }, [serviceId])
+  
+  const fetchServiceData = async () => {
+    if (!serviceId) return
+    
+    try {
+      setFetching(true)
+      const { data: service, error } = await supabase
+        .from('dd-services')
+        .select('*')
+        .eq('id', serviceId)
+        .single()
+
+      if (error) throw error
+
+      if (service) {
+        const serviceData = service as any
+        
+        // Fetch category separately
+        let categoryData = null
+        if (serviceData.category_id) {
+          const { data: category } = await supabase
+            .from('dd-categories')
+            .select('id, name, parent_id')
+            .eq('id', serviceData.category_id)
+            .single()
+          categoryData = category
+        }
+        
+        // Set form data
+        setFormData({
+          nom: serviceData.name || "",
+          description: serviceData.description || "",
+          category_id: serviceData.category_id || "",
+          prix_base: serviceData.price || 0,
+          duree: serviceData.duration_minutes || 60,
+          employe_type: serviceData.employee_type || serviceData.employe_type || "",
+          commission_employe: serviceData.commission_rate || serviceData.commission_employe || 0,
+          actif: serviceData.is_active ?? true,
+          tags: serviceData.tags || [],
+          tagInput: "",
+        })
+        
+        // Set category selections
+        if (categoryData) {
+          if (categoryData.parent_id) {
+            // It's a subcategory
+            setSelectedParentCategoryId(categoryData.parent_id)
+            setSelectedSubcategoryId(categoryData.id)
+          } else {
+            // It's a parent category
+            setSelectedParentCategoryId(categoryData.id)
+            setSelectedSubcategoryId("")
+          }
+        }
+        
+        // Set image preview if exists
+        const serviceImages = serviceData.images
+        const servicePhoto = serviceData.photo
+        if (serviceImages && Array.isArray(serviceImages) && serviceImages.length > 0) {
+          setImagePreview(serviceImages[0])
+        } else if (servicePhoto) {
+          setImagePreview(servicePhoto)
+        }
+        
+        // Fetch service products
+        const { data: serviceProducts, error: productsError } = await supabase
+          .from('dd-services-produits')
+          .select('product_id, quantite')
+          .eq('service_id', serviceId)
+        
+        if (!productsError && serviceProducts) {
+          setSelectedProducts(serviceProducts.map((sp: any) => ({
+            product_id: sp.product_id,
+            quantity: sp.quantite
+          })))
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching service data:', error)
+      toast.error('Erreur lors du chargement du service')
+    } finally {
+      setFetching(false)
+    }
+  }
 
   const fetchCurrentUserRole = async () => {
     try {
@@ -318,8 +408,12 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
         serviceImageUrl = await uploadImage()
         if (!serviceImageUrl) {
           toast.error('Erreur lors du téléchargement de l\'image')
+          setLoading(false)
           return
         }
+      } else if (isEditMode && imagePreview) {
+        // Keep existing image if no new image uploaded
+        serviceImageUrl = imagePreview
       }
 
       // Use English column names as per actual database schema (dd-categories-unified.sql)
@@ -336,7 +430,11 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
         tags: formData.tags || [],
         // photo column doesn't exist, use images JSONB instead if needed
         images: serviceImageUrl ? [serviceImageUrl] : [],
-        created_by: currentUser.id
+      }
+      
+      // Only set created_by for new services
+      if (!isEditMode) {
+        serviceData.created_by = currentUser.id
       }
       
       // Remove null values for optional fields to avoid insertion issues
@@ -346,19 +444,54 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
         }
       })
 
-      const { data: service, error: serviceError } = await supabase
-        .from('dd-services')
-        .insert([serviceData])
-        .select()
-        .single()
+      let service
+      if (isEditMode && serviceId) {
+        // Update existing service
+        const { data: updatedService, error: updateError } = await supabase
+          .from('dd-services')
+          .update(serviceData)
+          .eq('id', serviceId)
+          .select()
+          .single()
 
-      if (serviceError) {
-        console.error('Error creating service:', serviceError)
-        toast.error('Erreur lors de la création du service: ' + serviceError.message)
-        return
+        if (updateError) {
+          console.error('Error updating service:', updateError)
+          toast.error('Erreur lors de la mise à jour du service: ' + updateError.message)
+          setLoading(false)
+          return
+        }
+        service = updatedService
+      } else {
+        // Create new service
+        const { data: newService, error: serviceError } = await supabase
+          .from('dd-services')
+          .insert([serviceData])
+          .select()
+          .single()
+
+        if (serviceError) {
+          console.error('Error creating service:', serviceError)
+          toast.error('Erreur lors de la création du service: ' + serviceError.message)
+          setLoading(false)
+          return
+        }
+        service = newService
       }
 
-      // Add service products if any
+      // Handle service products
+      if (isEditMode && serviceId) {
+        // Delete existing service products
+        const { error: deleteError } = await supabase
+          .from('dd-services-produits')
+          .delete()
+          .eq('service_id', serviceId)
+
+        if (deleteError) {
+          console.error('Error deleting existing service products:', deleteError)
+        }
+      }
+
+      // Add/update service products if any
       if (selectedProducts.length > 0) {
         const serviceProducts = selectedProducts
           .filter(sp => sp.product_id && sp.quantity > 0)
@@ -376,38 +509,45 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
           if (productsError) {
             console.error('Error adding service products:', productsError)
             if (productsError.code === '42501') {
-              toast.error('Service créé mais erreur RLS lors de l\'ajout des produits. Vérifiez les politiques RLS pour dd-services-produits.', { duration: 5000 })
+              toast.error(`Service ${isEditMode ? 'modifié' : 'créé'} mais erreur RLS lors de l'ajout des produits. Vérifiez les politiques RLS pour dd-services-produits.`, { duration: 5000 })
             } else {
-              toast.error('Service créé mais erreur lors de l\'ajout des produits: ' + productsError.message)
+              toast.error(`Service ${isEditMode ? 'modifié' : 'créé'} mais erreur lors de l'ajout des produits: ` + productsError.message)
             }
           }
         }
       }
 
-      toast.success("Service créé avec succès!")
+      toast.success(`Service ${isEditMode ? 'modifié' : 'créé'} avec succès!`)
       
-      // Reset form
-      setFormData({
-        nom: "",
-        description: "",
-        category_id: "",
-        prix_base: 0,
-        duree: 60,
-        employe_type: "",
-        commission_employe: 0,
-        actif: true,
-        tags: [],
-        tagInput: "",
-      })
-      
-      setSelectedProducts([])
-      setServiceImage(null)
-      setImagePreview(null)
-      setSelectedParentCategoryId("")
-      setSelectedSubcategoryId("")
+      // Reset form only if creating new service
+      if (!isEditMode) {
+        setFormData({
+          nom: "",
+          description: "",
+          category_id: "",
+          prix_base: 0,
+          duree: 60,
+          employe_type: "",
+          commission_employe: 0,
+          actif: true,
+          tags: [],
+          tagInput: "",
+        })
+        
+        setSelectedProducts([])
+        setServiceImage(null)
+        setImagePreview(null)
+        setSelectedParentCategoryId("")
+        setSelectedSubcategoryId("")
+      }
 
       if (onServiceCreated) {
         onServiceCreated()
+      }
+      
+      // Navigate back to services list after edit
+      if (isEditMode) {
+        window.location.href = '/admin/services'
       }
       
     } catch (error) {
@@ -419,8 +559,7 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
   }
 
   const handleCancel = () => {
-    window.history.replaceState({}, '', '/admin/services')
-    window.location.reload()
+    window.location.href = '/admin/services'
   }
 
   // Check if user has permission
@@ -448,8 +587,8 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
             <div className="space-y-2">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Accès Interdit</h2>
               <p className="text-gray-600 dark:text-gray-400 max-w-md">
-                Vous n&apos;avez pas les permissions nécessaires pour ajouter des services.
-                Seuls les administrateurs et les managers peuvent créer des services.
+                Vous n&apos;avez pas les permissions nécessaires pour {isEditMode ? 'modifier' : 'ajouter'} des services.
+                Seuls les administrateurs et les managers peuvent {isEditMode ? 'modifier' : 'créer'} des services.
               </p>
             </div>
           </div>
@@ -458,15 +597,33 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
     )
   }
 
+  if (fetching) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Chargement du service...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-foreground dark:text-white">Ajouter un Service</h1>
-        <p className="text-muted-foreground dark:text-gray-400">Créer un nouveau service avec tous les détails nécessaires.</p>
+        <h1 className="text-3xl font-bold text-foreground dark:text-white">
+          {isEditMode ? 'Modifier' : 'Ajouter'} un Service
+        </h1>
+        <p className="text-muted-foreground dark:text-gray-400">
+          {isEditMode 
+            ? 'Modifier les détails du service.' 
+            : 'Créer un nouveau service avec tous les détails nécessaires.'}
+        </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {!fetching && (
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Form */}
         <div className="lg:col-span-2 space-y-6">
           {/* Service Image */}
@@ -877,7 +1034,7 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
                   className="flex-1" 
                   disabled={loading || uploadingImage}
                 >
-                  {loading || uploadingImage ? <ButtonLoadingSpinner /> : "Créer le Service"}
+                  {loading || uploadingImage ? <ButtonLoadingSpinner /> : isEditMode ? "Modifier le Service" : "Créer le Service"}
                 </Button>
                 <Button 
                   type="button" 
@@ -891,7 +1048,8 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
             </CardContent>
           </AnimatedCard>
         </div>
-      </form>
+        </form>
+      )}
     </div>
   )
 }
