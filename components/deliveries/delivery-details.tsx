@@ -91,53 +91,57 @@ export function DeliveryDetails({ deliveryId }: DeliveryDetailsProps) {
       }
 
       // Fetch related data
-      const promises: Promise<any>[] = []
+      const promises: Array<Promise<{ type: string; data: any; error: any }>> = []
 
       // Fetch sale if exists
       if (deliveryData.vente_id) {
         promises.push(
-          supabase
-            .from('dd-ventes')
-            .select('id, total_net, date, type')
-            .eq('id', deliveryData.vente_id)
-            .single()
-            .then(({ data, error }) => ({ type: 'vente', data, error }))
+          Promise.resolve(
+            supabase
+              .from('dd-ventes')
+              .select('id, total_net, date, type')
+              .eq('id', deliveryData.vente_id)
+              .single()
+          ).then(({ data, error }) => ({ type: 'vente', data, error }))
         )
       }
 
       // Fetch client if exists
       if (deliveryData.client_id) {
         promises.push(
-          supabase
-            .from('dd-clients')
-            .select('id, first_name, last_name, email, phone')
-            .eq('id', deliveryData.client_id)
-            .single()
-            .then(({ data, error }) => ({ type: 'client', data, error }))
+          Promise.resolve(
+            supabase
+              .from('dd-clients')
+              .select('id, first_name, last_name, email, phone')
+              .eq('id', deliveryData.client_id)
+              .single()
+          ).then(({ data, error }) => ({ type: 'client', data, error }))
         )
       }
 
       // Fetch livreur if exists
       if (deliveryData.livreur_id) {
         promises.push(
-          supabase
-            .from('dd-users')
-            .select('id, first_name, last_name, role')
-            .eq('id', deliveryData.livreur_id)
-            .single()
-            .then(({ data, error }) => ({ type: 'livreur', data, error }))
+          Promise.resolve(
+            supabase
+              .from('dd-users')
+              .select('id, first_name, last_name, role')
+              .eq('id', deliveryData.livreur_id)
+              .single()
+          ).then(({ data, error }) => ({ type: 'livreur', data, error }))
         )
       }
 
       // Fetch created_by user
       if (deliveryData.created_by) {
         promises.push(
-          supabase
-            .from('dd-users')
-            .select('id, first_name, last_name')
-            .eq('id', deliveryData.created_by)
-            .single()
-            .then(({ data, error }) => ({ type: 'created_by', data, error }))
+          Promise.resolve(
+            supabase
+              .from('dd-users')
+              .select('id, first_name, last_name')
+              .eq('id', deliveryData.created_by)
+              .single()
+          ).then(({ data, error }) => ({ type: 'created_by', data, error }))
         )
       }
 
