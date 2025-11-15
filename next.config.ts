@@ -26,9 +26,6 @@ const pwaConfig = withPWA({
   register: process.env.NODE_ENV === "production",
   skipWaiting: true,
   disable: process.env.NODE_ENV === "development",
-  buildExcludes: [/app-build-manifest\.json$/, /manifest$/],
-  publicExcludes: ['!noprecache/**/*'],
-  sw: "sw.js",
   runtimeCaching: [
     {
       // PWA icons and manifest - NetworkFirst with short cache (must be first!)
