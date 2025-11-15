@@ -44,7 +44,7 @@ export function ClientsAdd({ onClientCreated }: ClientsAddProps) {
     state: "",
     zipCode: "",
     country: "Mali",
-    preferredContactMethod: "whatsapp",
+    preferredContactMethod: "phone", // Must be 'email', 'phone', or 'sms' per database constraint
     
     // Acquisition & Marketing
     acquisitionChannel: "",
@@ -174,16 +174,30 @@ export function ClientsAdd({ onClientCreated }: ClientsAddProps) {
     setLoading(true)
 
     try {
+      // Check if authUser exists
+      if (!authUser || !authUser.id) {
+        toast.error('Utilisateur non authentifié. Veuillez vous reconnecter.')
+        setLoading(false)
+        return
+      }
+
       // Get current user ID for created_by field
       const { data: currentUser, error: userError } = await supabase
         .from('dd-users')
         .select('id')
-        .eq('auth_user_id', authUser?.id)
+        .eq('auth_user_id', authUser.id)
         .single()
 
       if (userError) {
         console.error('Error fetching current user:', userError)
         toast.error('Erreur lors de la récupération des informations utilisateur')
+        setLoading(false)
+        return
+      }
+
+      if (!currentUser || !currentUser.id) {
+        toast.error('Utilisateur introuvable dans la base de données')
+        setLoading(false)
         return
       }
 
@@ -213,7 +227,10 @@ export function ClientsAdd({ onClientCreated }: ClientsAddProps) {
         city: formData.city || null,
         postal_code: formData.zipCode || null,
         country: formData.country || 'Mali',
-        preferred_contact_method: formData.preferredContactMethod || 'phone', // Must be 'email', 'phone', or 'sms'
+        // Ensure preferred_contact_method is one of the allowed values
+        preferred_contact_method: (formData.preferredContactMethod === 'email' || formData.preferredContactMethod === 'phone' || formData.preferredContactMethod === 'sms') 
+          ? formData.preferredContactMethod 
+          : 'phone', // Default to 'phone' if invalid value
         marketing_consent: formData.marketingConsent || false,
         
         // Notes (exists in base schema)
@@ -262,7 +279,7 @@ export function ClientsAdd({ onClientCreated }: ClientsAddProps) {
         state: "",
         zipCode: "",
         country: "Mali",
-        preferredContactMethod: "whatsapp",
+        preferredContactMethod: "phone", // Must be 'email', 'phone', or 'sms' per database constraint
         acquisitionChannel: "",
         marketingConsent: false,
         skinType: "",
@@ -454,7 +471,6 @@ export function ClientsAdd({ onClientCreated }: ClientsAddProps) {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="whatsapp">WhatsApp</SelectItem>
                       <SelectItem value="phone">Téléphone</SelectItem>
                       <SelectItem value="email">Email</SelectItem>
                       <SelectItem value="sms">SMS</SelectItem>
@@ -878,8 +894,7 @@ export function ClientsAdd({ onClientCreated }: ClientsAddProps) {
                 <div>
                   <p className="text-muted-foreground dark:text-gray-400">Contact Préféré</p>
                   <p className="font-medium text-gray-900 dark:text-white capitalize">
-                    {formData.preferredContactMethod === 'whatsapp' ? 'WhatsApp' :
-                     formData.preferredContactMethod === 'phone' ? 'Téléphone' :
+                    {formData.preferredContactMethod === 'phone' ? 'Téléphone' :
                      formData.preferredContactMethod === 'email' ? 'Email' :
                      formData.preferredContactMethod === 'sms' ? 'SMS' : '—'}
                   </p>

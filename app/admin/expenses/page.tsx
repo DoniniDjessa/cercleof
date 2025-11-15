@@ -190,9 +190,11 @@ export default function ExpensesPage() {
       const normalCount = ((data || []) as unknown as Expense[]).filter((exp: Expense) => !financeCategories.includes(exp.categorie)).length
       const totalFiltered = activeTab === 'main' ? normalCount : financeCount
       setTotalPages(Math.max(1, Math.ceil(totalFiltered / itemsPerPage)))
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching expenses:', error)
-      toast.error('Erreur lors du chargement des dépenses')
+      const errorMessage = error?.message || 'Erreur inconnue lors du chargement des dépenses'
+      toast.error(`Erreur: ${errorMessage}`)
+      setExpenses([]) // Set empty array on error to prevent display issues
     } finally {
       setLoading(false)
     }
