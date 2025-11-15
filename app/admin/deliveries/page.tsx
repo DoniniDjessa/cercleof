@@ -597,8 +597,7 @@ export default function DeliveriesPage() {
                             variant="outline"
                             size="sm"
                             onClick={() => {
-                              // Navigate to delivery details
-                              window.location.href = `/admin/deliveries/${delivery.id}`
+                              router.push(`/admin/deliveries/${delivery.id}`)
                             }}
                             className="text-green-600 border-green-200 hover:bg-green-50 dark:text-green-400 dark:border-green-800 dark:hover:bg-green-900/20"
                             title="Voir les détails"
