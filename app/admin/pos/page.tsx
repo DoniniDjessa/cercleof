@@ -533,7 +533,18 @@ export default function POSPage() {
   
   // Helper function to generate receipt HTML
   const generateReceiptHTML = (
-    receiptData: typeof receiptData,
+    receiptData: {
+      sale: any
+      items: CartItem[]
+      client: Client | null
+      subtotal: number
+      discount: number
+      giftCardAmount: number
+      total: number
+      paymentMethod: 'cash' | 'carte' | 'mobile_money'
+      date: Date
+      user: string
+    },
     escapeHtml: (text: string) => string,
     formatDate: string,
     formatTime: string,
