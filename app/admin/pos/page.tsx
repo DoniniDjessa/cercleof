@@ -1095,30 +1095,33 @@ export default function POSPage() {
           ? `${deliveryDetails.address}, ${deliveryDetails.city}`
           : deliveryDetails.address
         
-        // Build note with phone and any additional notes
-        let deliveryNote = ''
-        if (deliveryDetails.phone) {
-          deliveryNote += `Téléphone: ${deliveryDetails.phone}`
-        }
-        if (deliveryDetails.notes) {
-          deliveryNote += deliveryNote ? `\n${deliveryDetails.notes}` : deliveryDetails.notes
+        // Build note with any additional notes (phone is stored separately in contact_phone)
+        const deliveryNote = deliveryDetails.notes || null
+        
+        const deliveryData: any = {
+          vente_id: sale.id,
+          client_id: selectedClient?.id || null,
+          adresse: fullAddress,
+          statut: 'en_preparation',
+          mode: 'interne', // Default to internal delivery
+          frais: 0, // Default to 0, can be updated later
+          contact_phone: deliveryDetails.phone || null,
+          note: deliveryNote,
+          created_by: currentUser.id
         }
         
-        const { error: deliveryError } = await supabase
+        const { data: createdDelivery, error: deliveryError } = await supabase
           .from('dd-livraisons')
-          .insert([{
-            vente_id: sale.id,
-            client_id: selectedClient?.id || null,
-            adresse: fullAddress,
-            statut: 'en_preparation',
-            note: deliveryNote || null,
-            created_by: currentUser.id
-          }])
+          .insert([deliveryData])
+          .select()
+          .single()
 
         if (deliveryError) {
           console.error('Error creating delivery:', deliveryError)
-          toast.error('Erreur lors de la création de la livraison')
+          console.error('Delivery data attempted:', deliveryData)
+          toast.error(`Erreur lors de la création de la livraison: ${deliveryError.message}`)
         } else {
+          console.log('Delivery created successfully:', createdDelivery)
           toast.success('Livraison créée avec succès!')
         }
       }

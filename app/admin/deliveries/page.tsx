@@ -84,7 +84,7 @@ export default function DeliveriesPage() {
 
       let query = supabase
         .from('dd-livraisons')
-        .select('id, vente_id, client_id, adresse, livreur_id, statut, date_livraison, frais, mode, preuve_photo, note, contact_phone, created_at', { count: 'exact' })
+        .select('*', { count: 'exact' })
 
       // Apply date filters
       if (dateFilter === 'today') {
