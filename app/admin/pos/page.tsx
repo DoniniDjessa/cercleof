@@ -1755,6 +1755,7 @@ export default function POSPage() {
                             onClick={() => updateCartQuantity(item.id, item.type, item.quantity - 1)}
                             className="h-6 w-6 p-0"
                             disabled={isEditingPrice}
+                            title="Diminuer la quantité"
                           >
                             <Minus className="w-2 h-2" />
                           </Button>
@@ -1765,6 +1766,7 @@ export default function POSPage() {
                             onClick={() => updateCartQuantity(item.id, item.type, item.quantity + 1)}
                             className="h-6 w-6 p-0"
                             disabled={disableIncrement || isEditingPrice}
+                            title="Augmenter la quantité"
                           >
                             <Plus className="w-2 h-2" />
                           </Button>
@@ -1774,6 +1776,7 @@ export default function POSPage() {
                             onClick={() => removeFromCart(item.id, item.type)}
                             className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20 h-6 w-6 p-0"
                             disabled={isEditingPrice}
+                            title="Retirer du panier"
                           >
                             <Trash2 className="w-2 h-2" />
                           </Button>
@@ -2340,8 +2343,7 @@ export default function POSPage() {
                       if (!receiptData) return
                       setSendingWhatsapp(true)
                       
-                      // Convert receipt to image using html2canvas or similar
-                      // For now, we'll use WhatsApp Web API to send text
+                      // Send receipt as text message via WhatsApp Web API
                       const formatDate = receiptData.date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
                       const formatTime = receiptData.date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
                       const saleId = receiptData.sale.id.slice(-8).toUpperCase()
