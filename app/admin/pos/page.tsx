@@ -2290,45 +2290,60 @@ export default function POSPage() {
                         
                         const receiptHTML = generateReceiptHTML(receiptData, escapeHtml, formatDate, formatTime, saleId, paymentMethodText)
                         
+                        // Extract body content from HTML string
+                        const parser = new DOMParser()
+                        const doc = parser.parseFromString(receiptHTML, 'text/html')
+                        const bodyContent = doc.body.innerHTML
+                        
                         // Create a temporary container for the receipt
                         const tempDiv = document.createElement('div')
-                        tempDiv.innerHTML = receiptHTML
-                        tempDiv.style.position = 'absolute'
+                        tempDiv.innerHTML = bodyContent
+                        tempDiv.style.position = 'fixed'
+                        tempDiv.style.top = '-9999px'
                         tempDiv.style.left = '-9999px'
                         tempDiv.style.width = '300px'
                         tempDiv.style.backgroundColor = '#ffffff'
+                        tempDiv.style.padding = '10px'
+                        tempDiv.style.fontFamily = "'Courier New', 'Courier', monospace"
+                        tempDiv.style.fontSize = '12px'
+                        tempDiv.style.color = '#000000'
                         document.body.appendChild(tempDiv)
+                        
+                        // Wait a bit for rendering
+                        await new Promise(resolve => setTimeout(resolve, 100))
                         
                         // Convert to canvas and then to PNG
                         const canvas = await html2canvas(tempDiv, {
                           backgroundColor: '#ffffff',
                           scale: 2,
                           width: 300,
+                          height: tempDiv.scrollHeight,
                           logging: false,
-                          useCORS: true
+                          useCORS: true,
+                          allowTaint: false,
+                          removeContainer: false
                         })
                         
                         // Remove temporary element
                         document.body.removeChild(tempDiv)
                         
-                        // Convert canvas to blob and download
-                        canvas.toBlob((blob) => {
-                          if (!blob) {
-                            toast.error('Erreur lors de la génération de l\'image', { id: 'download-receipt' })
-                            return
-                          }
+                        // Convert canvas to data URL and download
+                        try {
+                          const dataURL = canvas.toDataURL('image/png', 1.0)
                           
-                          const url = URL.createObjectURL(blob)
+                          // Create download link
                           const a = document.createElement('a')
-                          a.href = url
+                          a.href = dataURL
                           a.download = `receipt-${saleId}-${formatDate.replace(/\//g, '-')}.png`
                           document.body.appendChild(a)
                           a.click()
                           document.body.removeChild(a)
-                          URL.revokeObjectURL(url)
                           
                           toast.success('Reçu téléchargé avec succès', { id: 'download-receipt' })
-                        }, 'image/png')
+                        } catch (error) {
+                          console.error('Error converting canvas to data URL:', error)
+                          toast.error('Erreur lors de la conversion de l\'image', { id: 'download-receipt' })
+                        }
                       } catch (error) {
                         console.error('Error generating receipt image:', error)
                         toast.error('Erreur lors de la génération de l\'image', { id: 'download-receipt' })

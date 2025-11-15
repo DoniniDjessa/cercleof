@@ -21,7 +21,6 @@ interface Delivery {
   client_id?: string
   adresse: string
   livreur_id?: string
-  livreur_name?: string // For external livreur
   statut: string
   date_livraison?: string
   frais: number
@@ -38,8 +37,8 @@ interface Delivery {
     id: string
     first_name: string
     last_name: string
-    email: string
-    phones: string[]
+    email?: string | null
+    phone?: string | null
   }
   livreur?: {
     id: string
@@ -158,7 +157,7 @@ export default function DeliveriesPage() {
       }
 
       // Fetch clients
-      const clientsMap = new Map<string, { id: string; first_name: string; last_name: string; email: string; phones: string[] }>()
+      const clientsMap = new Map<string, { id: string; first_name: string; last_name: string; email?: string | null; phone?: string | null }>()
       if (clientIds.length > 0) {
         const { data: clients } = await supabase
           .from('dd-clients')
@@ -170,8 +169,8 @@ export default function DeliveriesPage() {
             id: client.id,
             first_name: client.first_name,
             last_name: client.last_name,
-            email: client.email || '',
-            phones: client.phone ? [client.phone] : []
+            email: client.email || null,
+            phone: client.phone || null
           })
         })
       }
@@ -500,13 +499,15 @@ export default function DeliveriesPage() {
                               {delivery.livreur.role}
                             </p>
                           </div>
-                        ) : delivery.mode === 'externe' && delivery.livreur_name ? (
+                        ) : delivery.mode === 'externe' ? (
                           <div>
                             <p className="font-medium text-gray-900 dark:text-white">
-                              {delivery.livreur_name}
+                              Livreur Externe
                             </p>
                             <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Externe
+                              {delivery.note?.includes('Livreur externe:') 
+                                ? delivery.note.split('Livreur externe:')[1]?.split('\n')[0]?.trim() || 'Externe'
+                                : 'Externe'}
                             </p>
                           </div>
                         ) : (

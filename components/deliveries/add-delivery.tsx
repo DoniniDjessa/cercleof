@@ -217,15 +217,29 @@ export function AddDelivery({ onDeliveryCreated }: AddDeliveryProps) {
     setLoading(true)
 
     try {
+      // Check if authUser exists
+      if (!authUser || !authUser.id) {
+        toast.error('Utilisateur non authentifié. Veuillez vous reconnecter.')
+        setLoading(false)
+        return
+      }
+
       const { data: currentUser, error: userError } = await supabase
         .from('dd-users')
         .select('id')
-        .eq('auth_user_id', authUser?.id)
+        .eq('auth_user_id', authUser.id)
         .single()
 
       if (userError) {
         console.error('Error fetching current user:', userError)
         toast.error('Erreur lors de la récupération des informations utilisateur')
+        setLoading(false)
+        return
+      }
+
+      if (!currentUser || !currentUser.id) {
+        toast.error('Utilisateur introuvable dans la base de données')
+        setLoading(false)
         return
       }
 
@@ -243,13 +257,16 @@ export function AddDelivery({ onDeliveryCreated }: AddDeliveryProps) {
         client_id: formData.client_id || null,
         adresse: formData.adresse,
         livreur_id: formData.mode === 'interne' ? (formData.livreur_id || null) : null,
-        livreur_name: formData.mode === 'externe' ? (formData.livreur_name || null) : null,
+        // Note: livreur_name doesn't exist in base schema - only livreur_id (UUID reference)
+        // For external deliveries, we can store the name in the note field if needed
         statut: 'en_preparation',
         date_livraison: formData.date_livraison ? new Date(formData.date_livraison).toISOString() : null,
         frais: parseFloat(formData.frais.toString()),
         mode: formData.mode,
         preuve_photo: deliveryImageUrl,
-        note: formData.note || null,
+        note: formData.mode === 'externe' && formData.livreur_name 
+          ? `${formData.note ? formData.note + '\n' : ''}Livreur externe: ${formData.livreur_name}`
+          : (formData.note || null),
         created_by: currentUser.id
       }
 
