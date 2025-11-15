@@ -203,7 +203,8 @@ export default function POSPage() {
   // Check if user can manage discounts (admin, manager, superadmin)
   const canManageDiscounts = currentUserRole === 'admin' || currentUserRole === 'manager' || currentUserRole === 'superadmin'
   
-  // Check if user can edit prices (caissiere and admins)
+  // Check if user can edit prices in cart (caissiere and admins only)
+  // Price edits only affect the current cart/sale, NOT the database product price
   const canEditPrices = currentUserRole === 'admin' || currentUserRole === 'caissiere' || currentUserRole === 'superadmin'
 
   const fetchDailySales = async () => {
@@ -501,6 +502,8 @@ export default function POSPage() {
     setCart(cart.filter(item => !(item.id === id && item.type === type)))
   }
   
+  // Update cart item price - only affects the cart, NOT the database product price
+  // This allows caissieres and admins to adjust prices for specific sales without changing the base product price
   const updateCartItemPrice = (id: string, type: 'product' | 'service', newPrice: number) => {
     setCart(cart.map(item => 
       item.id === id && item.type === type
