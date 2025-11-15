@@ -56,11 +56,9 @@ interface Client {
   id: string
   first_name: string
   last_name: string
-  email: string
-  phone?: string  // Single phone number
-  phones?: string[]  // Multiple phone numbers (if exists)
-  loyalty_level?: string  // Optional - may not exist in database
-  points_fidelite?: number  // Optional - may not exist in database
+  email?: string | null  // Optional, can be null in base schema
+  phone?: string | null  // Optional, can be null in base schema
+  // Note: phones array doesn't exist in base schema, only single phone field
 }
 
 interface CartItem {
@@ -1239,11 +1237,20 @@ export default function POSPage() {
         const pointsEarned = Math.floor(total / 1000) // 1 point per 1000f
         
         // Update loyalty card
+        // Fetch existing loyalty points from dd-cartes-fidelite table
+        const { data: existingLoyalty } = await supabase
+          .from('dd-cartes-fidelite')
+          .select('points')
+          .eq('client_id', selectedClient.id)
+          .single()
+        
+        const currentPoints = existingLoyalty?.points || 0
+        
         const { error: loyaltyError } = await supabase
           .from('dd-cartes-fidelite')
           .upsert([{
             client_id: selectedClient.id,
-            points: (selectedClient.points_fidelite || 0) + pointsEarned,
+            points: currentPoints + pointsEarned,
             statut: 'active'
           }], {
             onConflict: 'client_id'
@@ -1339,13 +1346,30 @@ export default function POSPage() {
   }
 
   // Filter clients based on search term
-  const filteredClients = clients.filter(client =>
-    client.first_name.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
-    client.last_name.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
-    client.email.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
-    client.phone?.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
-    client.phones?.some(phone => phone.toLowerCase().includes(clientSearchTerm.toLowerCase()))
-  )
+  // Handle null values safely and only search fields that exist in base schema
+  const filteredClients = clients.filter(client => {
+    if (!clientSearchTerm) return true
+    
+    const searchLower = clientSearchTerm.toLowerCase()
+    
+    // Check first_name (required field, should always exist)
+    const matchesFirstName = client.first_name?.toLowerCase().includes(searchLower) || false
+    
+    // Check last_name (required field, should always exist)
+    const matchesLastName = client.last_name?.toLowerCase().includes(searchLower) || false
+    
+    // Check email (optional, can be null)
+    const matchesEmail = client.email?.toLowerCase().includes(searchLower) || false
+    
+    // Check phone (optional, can be null)
+    const matchesPhone = client.phone?.toLowerCase().includes(searchLower) || false
+    
+    // Check full name combination
+    const fullName = `${client.first_name || ''} ${client.last_name || ''}`.toLowerCase().trim()
+    const matchesFullName = fullName.includes(searchLower)
+    
+    return matchesFirstName || matchesLastName || matchesEmail || matchesPhone || matchesFullName
+  })
 
   // Filter products with category filter
   const filteredProducts = products.filter(product => {
@@ -1455,7 +1479,7 @@ export default function POSPage() {
                           {client.first_name} {client.last_name}
                         </p>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {client.email} {client.points_fidelite ? `• ${client.points_fidelite} pts` : ''}
+                          {client.email || client.phone || ''}
                         </p>
                       </div>
                     ))}
@@ -1470,13 +1494,7 @@ export default function POSPage() {
                       <p className="text-sm font-medium text-blue-800 dark:text-blue-400">
                         {selectedClient.first_name} {selectedClient.last_name}
                       </p>
-                      {selectedClient.loyalty_level || selectedClient.points_fidelite ? (
-                        <p className="text-xs text-blue-600 dark:text-blue-300">
-                          {selectedClient.loyalty_level ? `Niveau: ${selectedClient.loyalty_level}` : ''}
-                          {selectedClient.loyalty_level && selectedClient.points_fidelite ? ' • ' : ''}
-                          {selectedClient.points_fidelite ? `Points: ${selectedClient.points_fidelite}` : ''}
-                        </p>
-                      ) : null}
+                      {/* Loyalty information removed - not in base schema */}
                     </div>
                     <Button
                       variant="ghost"

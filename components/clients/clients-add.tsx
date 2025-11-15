@@ -198,58 +198,42 @@ export function ClientsAdd({ onClientCreated }: ClientsAddProps) {
       }
 
       // Prepare comprehensive client data for insertion
-      const clientData = {
-        // Basic Information
+      // Only include fields that exist in the base dd-clients table schema
+      const clientData: Record<string, any> = {
+        // Basic Information (required fields in base schema)
         first_name: formData.firstName,
         last_name: formData.lastName,
-        email: formData.email,
-        phones: formData.phones.filter(phone => phone.trim()), // Filter out empty phones
+        email: formData.email.trim() || null, // Allow null if empty
+        phone: formData.phones[0]?.trim() || null, // Use first phone (base schema has single phone field, not array)
         gender: formData.gender || null,
-        birth_date: formData.birthDate || null,
+        date_of_birth: formData.birthDate || null, // Note: base schema uses date_of_birth, not birth_date
         
-        // Address & Contact
+        // Address & Contact (fields that exist in base schema)
         address: formData.address || null,
         city: formData.city || null,
-        state: formData.state || null,
         postal_code: formData.zipCode || null,
         country: formData.country || 'Mali',
-        preferred_contact_method: formData.preferredContactMethod,
+        preferred_contact_method: formData.preferredContactMethod || 'phone', // Must be 'email', 'phone', or 'sms'
+        marketing_consent: formData.marketingConsent || false,
         
-        // Acquisition & Marketing
-        acquisition_channel: formData.acquisitionChannel || null,
-        marketing_consent: formData.marketingConsent,
-        
-        // Beauty Profile
-        skin_type: formData.skinType || null,
-        hair_type: formData.hairType || null,
-        nail_type: formData.nailType || null,
-        allergies: formData.allergies || null,
-        product_preferences: formData.productPreferences || null,
-        brand_preferences: formData.brandPreferences || null,
-        
-        // Service Preferences
-        visit_frequency: formData.visitFrequency || null,
-        preferred_employee_id: formData.preferredEmployee || null,
-        staff_notes: formData.staffNotes || null,
-        
-        // Loyalty & Status
-        loyalty_level: formData.loyaltyLevel,
-        internal_status: formData.internalStatus,
-        internal_notes: formData.internalNotes || null,
-        
-        // Profile Image
-        profile_image: profileImageUrl,
+        // Notes (exists in base schema)
+        notes: formData.notes || null,
         
         // System fields
         is_active: true,
-        created_by_user_id: currentUser.id,
-        updated_by_user_id: currentUser.id,
-        
-        // Legacy fields for compatibility
-        phone: formData.phones[0] || null, // Primary phone for backward compatibility
-        notes: formData.notes || null,
-        company: formData.company || null,
+        created_by: currentUser.id,
+        updated_by: currentUser.id,
       }
+      
+      // Remove null values for optional fields to avoid insertion issues
+      Object.keys(clientData).forEach(key => {
+        if (clientData[key] === null || clientData[key] === undefined || clientData[key] === '') {
+          // Keep null for fields that explicitly allow null, remove empty strings
+          if (clientData[key] === '') {
+            delete clientData[key]
+          }
+        }
+      })
 
       // Insert client into dd-clients table
       const { data, error } = await supabase
@@ -419,15 +403,14 @@ export function ClientsAdd({ onClientCreated }: ClientsAddProps) {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-gray-700 dark:text-gray-300">Email *</Label>
+                  <Label htmlFor="email" className="text-gray-700 dark:text-gray-300">Email</Label>
                   <Input
                     id="email"
                     name="email"
                     type="email"
                     value={formData.email}
                     onChange={handleChange}
-                    placeholder="Entrez l'email"
-                    required
+                    placeholder="Entrez l'email (optionnel)"
                     className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
                   />
                 </div>

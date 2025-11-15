@@ -79,19 +79,18 @@ export function QuickCreateClient({ isOpen, onClose, onClientCreated }: QuickCre
       }
 
       // Prepare client data - only essential fields for quick creation
-      const clientData = {
+      // Only include fields that exist in the base dd-clients table schema
+      const clientData: Record<string, any> = {
         first_name: formData.firstName.trim(),
         last_name: formData.lastName.trim(),
         email: formData.email.trim() || null,
         phone: formData.phone.trim() || null,
-        phones: formData.phone.trim() ? [formData.phone.trim()] : [],
         is_active: true,
-        created_by_user_id: currentUser.id,
-        updated_by_user_id: currentUser.id,
-        // Set defaults for required fields
-        preferred_contact_method: 'whatsapp',
-        loyalty_level: 'bronze',
-        internal_status: 'active',
+        // Use created_by (standard column name in dd-clients table)
+        created_by: currentUser.id,
+        updated_by: currentUser.id,
+        // preferred_contact_method exists in base schema
+        preferred_contact_method: 'phone', // Use 'phone' as it's in the CHECK constraint
       }
 
       // Insert client into dd-clients table
