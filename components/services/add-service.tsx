@@ -331,7 +331,7 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
         duration_minutes: parseInt(formData.duree.toString()),  // duree -> duration_minutes
         // employe_type column doesn't exist in actual database - removed
         // commission_employe column doesn't exist in actual database - removed
-        active: formData.actif,
+        is_active: formData.actif,  // Changed from 'active' to 'is_active'
         // popularite column doesn't exist - removed
         tags: formData.tags || [],
         // photo column doesn't exist, use images JSONB instead if needed

@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Search, Edit, Trash2, Tag, Package, Scissors } from "lucide-react"
 import { supabase } from "@/lib/supabase"
+import { useAuth } from "@/contexts/AuthContext"
 import toast from "react-hot-toast"
 
 interface Category {
@@ -28,16 +29,48 @@ interface CategoriesListProps {
 
 export function CategoriesList({ categoryType }: CategoriesListProps) {
   const router = useRouter()
+  const { user: authUser } = useAuth()
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [currentUserRole, setCurrentUserRole] = useState<string>('')
   const itemsPerPage = 20
+  
+  // Check if user is admin
+  const isAdmin = currentUserRole === 'admin' || currentUserRole === 'superadmin'
 
+  useEffect(() => {
+    if (authUser) {
+      fetchCurrentUserRole()
+    }
+  }, [authUser])
+  
   useEffect(() => {
     fetchCategories()
   }, [categoryType, currentPage])
+  
+  const fetchCurrentUserRole = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('dd-users')
+        .select('role')
+        .eq('auth_user_id', authUser?.id)
+        .single()
+
+      if (error && error.code === 'PGRST116') {
+        setCurrentUserRole('')
+        return
+      }
+
+      if (error) throw error
+      setCurrentUserRole(data?.role || '')
+    } catch (error) {
+      console.error('Error fetching user role:', error)
+      setCurrentUserRole('')
+    }
+  }
 
   const fetchCategories = async () => {
     try {
@@ -66,6 +99,11 @@ export function CategoriesList({ categoryType }: CategoriesListProps) {
   }
 
   const deleteCategory = async (categoryId: string, categoryName: string) => {
+    if (!isAdmin) {
+      toast.error('Vous n\'avez pas la permission de supprimer des catégories')
+      return
+    }
+    
     if (!confirm(`Êtes-vous sûr de vouloir supprimer la catégorie "${categoryName}"? Cette action ne peut pas être annulée.`)) {
       return
     }
@@ -133,9 +171,11 @@ export function CategoriesList({ categoryType }: CategoriesListProps) {
             Gérez les catégories de vos {categoryType === 'product' ? 'produits' : 'services'}
           </p>
         </div>
-        <Button onClick={() => router.push(`/admin/categories?type=${categoryType}&action=create`)}>
-          Ajouter une Catégorie
-        </Button>
+        {isAdmin && (
+          <Button onClick={() => router.push(`/admin/categories?type=${categoryType}&action=create`)}>
+            Ajouter une Catégorie
+          </Button>
+        )}
       </div>
 
       {/* Stats */}
@@ -240,26 +280,31 @@ export function CategoriesList({ categoryType }: CategoriesListProps) {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="flex gap-2">
-                        <Button 
-                          size="sm" 
-                          variant="ghost" 
-                          className="text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
-                          onClick={() => {
-                            router.push(`/admin/categories?type=${categoryType}&action=edit&id=${category.id}`)
-                          }}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="ghost" 
-                          className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
-                          onClick={() => deleteCategory(category.id, category.name)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
+                      {isAdmin && (
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
+                            onClick={() => {
+                              router.push(`/admin/categories?type=${categoryType}&action=edit&id=${category.id}`)
+                            }}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                            onClick={() => deleteCategory(category.id, category.name)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
+                      {!isAdmin && (
+                        <span className="text-xs text-gray-400 dark:text-gray-500">Lecture seule</span>
+                      )}
                     </TableCell>
                   </TableRow>
                   )

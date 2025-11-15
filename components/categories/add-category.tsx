@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/contexts/AuthContext"
 import { supabase } from "@/lib/supabase"
 import { ButtonLoadingSpinner } from "@/components/ui/context-loaders"
+import { X } from "lucide-react"
 import toast from "react-hot-toast"
 
 interface AddCategoryProps {
@@ -24,6 +25,8 @@ export function AddCategory({ onCategoryCreated, categoryType, categoryId }: Add
   const { user: authUser } = useAuth()
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(false)
+  const [checkingRole, setCheckingRole] = useState(true)
+  const [currentUserRole, setCurrentUserRole] = useState<string>('')
   const [categories, setCategories] = useState<Array<{id: string, name: string, parent_id?: string}>>([])
   const [formData, setFormData] = useState({
     name: "",
@@ -32,6 +35,9 @@ export function AddCategory({ onCategoryCreated, categoryType, categoryId }: Add
     parent_id: ""
   })
   const isEditMode = !!categoryId
+  
+  // Check if user is admin
+  const isAdmin = currentUserRole === 'admin' || currentUserRole === 'superadmin'
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -45,11 +51,44 @@ export function AddCategory({ onCategoryCreated, categoryType, categoryId }: Add
   }
 
   useEffect(() => {
-    fetchParentCategories()
-    if (categoryId) {
-      fetchCategoryData()
+    if (authUser) {
+      fetchCurrentUserRole()
     }
-  }, [categoryType, categoryId])
+  }, [authUser])
+  
+  useEffect(() => {
+    if (isAdmin) {
+      fetchParentCategories()
+      if (categoryId) {
+        fetchCategoryData()
+      }
+    }
+  }, [categoryType, categoryId, isAdmin])
+  
+  const fetchCurrentUserRole = async () => {
+    try {
+      setCheckingRole(true)
+      const { data, error } = await supabase
+        .from('dd-users')
+        .select('role')
+        .eq('auth_user_id', authUser?.id)
+        .single()
+
+      if (error && error.code === 'PGRST116') {
+        setCurrentUserRole('')
+        setCheckingRole(false)
+        return
+      }
+
+      if (error) throw error
+      setCurrentUserRole(data?.role || '')
+    } catch (error) {
+      console.error('Error fetching user role:', error)
+      setCurrentUserRole('')
+    } finally {
+      setCheckingRole(false)
+    }
+  }
   
   const fetchCategoryData = async () => {
     if (!categoryId) return
@@ -201,6 +240,47 @@ export function AddCategory({ onCategoryCreated, categoryType, categoryId }: Add
     } finally {
       setLoading(false)
     }
+  }
+
+  // Check if user has permission
+  if (checkingRole) {
+    return (
+      <Card className="bg-white dark:bg-gray-800">
+        <CardContent className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600 dark:text-gray-400">Vérification des permissions...</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (!isAdmin) {
+    return (
+      <Card className="bg-white dark:bg-gray-800">
+        <CardContent className="py-12">
+          <div className="flex flex-col items-center justify-center text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
+              <X className="w-8 h-8 text-red-600 dark:text-red-400" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Accès Interdit</h2>
+              <p className="text-gray-600 dark:text-gray-400 max-w-md">
+                Vous n&apos;avez pas les permissions nécessaires pour {isEditMode ? 'modifier' : 'créer'} des catégories.
+                Seuls les administrateurs peuvent gérer les catégories.
+              </p>
+            </div>
+            <Button 
+              onClick={() => router.push(`/admin/categories?type=${categoryType}`)}
+              variant="outline"
+            >
+              Retour à la liste
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
