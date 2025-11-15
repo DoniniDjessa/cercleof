@@ -356,7 +356,7 @@ export function AddAppointment({ onAppointmentCreated }: AddAppointmentProps) {
                         })
                         
                         // Render grouped services
-                        const items: JSX.Element[] = []
+                        const items: React.ReactNode[] = []
                         
                         // First, show services from parent categories
                         categories
