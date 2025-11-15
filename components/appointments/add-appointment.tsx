@@ -234,6 +234,9 @@ export function AddAppointment({ onAppointmentCreated }: AddAppointmentProps) {
         note: "",
       })
 
+      // Navigate back to appointments list
+      window.history.replaceState({}, '', '/admin/appointments')
+      
       if (onAppointmentCreated) {
         onAppointmentCreated()
       }

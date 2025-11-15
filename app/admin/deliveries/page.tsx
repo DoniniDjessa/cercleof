@@ -203,9 +203,11 @@ export default function DeliveriesPage() {
 
       setDeliveries(deliveriesWithRelations)
       setTotalPages(Math.ceil((count || 0) / itemsPerPage))
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching deliveries:', error)
-      toast.error('Erreur lors du chargement des livraisons')
+      const errorMessage = error?.message || 'Erreur inconnue lors du chargement des livraisons'
+      toast.error(`Erreur: ${errorMessage}`)
+      setDeliveries([]) // Set empty array on error to prevent display issues
     } finally {
       setLoading(false)
     }
@@ -285,14 +287,30 @@ export default function DeliveriesPage() {
     }
   }
 
-  const filteredDeliveries = deliveries.filter(delivery =>
-    delivery.client?.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    delivery.client?.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    delivery.adresse.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    delivery.livreur?.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    delivery.livreur?.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    delivery.vente?.id.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredDeliveries = deliveries.filter(delivery => {
+    if (!searchTerm) return true
+    
+    const searchLower = searchTerm.toLowerCase()
+    
+    // Check client name
+    const matchesClient = delivery.client?.first_name?.toLowerCase().includes(searchLower) || 
+                         delivery.client?.last_name?.toLowerCase().includes(searchLower) || false
+    
+    // Check address
+    const matchesAddress = delivery.adresse?.toLowerCase().includes(searchLower) || false
+    
+    // Check livreur name
+    const matchesLivreur = delivery.livreur?.first_name?.toLowerCase().includes(searchLower) || 
+                           delivery.livreur?.last_name?.toLowerCase().includes(searchLower) || false
+    
+    // Check sale ID
+    const matchesSale = delivery.vente?.id?.toLowerCase().includes(searchLower) || false
+    
+    // Check status
+    const matchesStatus = delivery.statut?.toLowerCase().includes(searchLower) || false
+    
+    return matchesClient || matchesAddress || matchesLivreur || matchesSale || matchesStatus
+  })
 
   const totalDeliveries = deliveries.length
   const pendingDeliveries = deliveries.filter(d => d.statut === 'en_preparation').length
@@ -306,7 +324,11 @@ export default function DeliveriesPage() {
 
   if (editingDeliveryId) {
     const deliveryToEdit = deliveries.find(d => d.id === editingDeliveryId)
-    return <EditDelivery delivery={deliveryToEdit!} onDeliveryUpdated={() => { setEditingDeliveryId(null); fetchDeliveries() }} onCancel={() => setEditingDeliveryId(null)} />
+    if (!deliveryToEdit) {
+      setEditingDeliveryId(null)
+      return null
+    }
+    return <EditDelivery delivery={deliveryToEdit} onDeliveryUpdated={() => { setEditingDeliveryId(null); fetchDeliveries() }} onCancel={() => setEditingDeliveryId(null)} />
   }
 
   return (
@@ -603,6 +625,19 @@ export default function DeliveriesPage() {
                   ))}
                 </TableBody>
               </Table>
+            </div>
+          )}
+          
+          {/* Empty State */}
+          {!loading && filteredDeliveries.length === 0 && (
+            <div className="text-center py-12">
+              <Truck className="w-16 h-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
+              <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">
+                {searchTerm ? 'Aucune livraison trouvée' : 'Aucune livraison pour le moment'}
+              </p>
+              <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">
+                {searchTerm ? 'Essayez avec d\'autres termes de recherche' : 'Créez votre première livraison pour commencer'}
+              </p>
             </div>
           )}
 

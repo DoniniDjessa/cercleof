@@ -178,12 +178,14 @@ export function EditDelivery({ delivery, onDeliveryUpdated, onCancel }: EditDeli
 
       const updateData: any = {
         livreur_id: formData.mode === 'interne' ? (formData.livreur_id || null) : null,
-        livreur_name: formData.mode === 'externe' ? (formData.livreur_name || null) : null,
+        // Note: livreur_name doesn't exist in base schema - store in note if external
         date_livraison: formData.date_livraison ? new Date(formData.date_livraison).toISOString() : null,
         frais: parseFloat(formData.frais.toString()),
         mode: formData.mode,
         preuve_photo: deliveryImageUrl,
-        note: formData.note || null,
+        note: formData.mode === 'externe' && formData.livreur_name 
+          ? `${formData.note ? formData.note + '\n' : ''}Livreur externe: ${formData.livreur_name}`
+          : (formData.note || null),
         updated_at: new Date().toISOString()
       }
 
@@ -195,6 +197,7 @@ export function EditDelivery({ delivery, onDeliveryUpdated, onCancel }: EditDeli
       if (error) {
         console.error('Error updating delivery:', error)
         toast.error('Erreur lors de la mise à jour de la livraison: ' + error.message)
+        setLoading(false)
         return
       }
 

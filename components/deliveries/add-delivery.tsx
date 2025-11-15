@@ -299,6 +299,9 @@ export function AddDelivery({ onDeliveryCreated }: AddDeliveryProps) {
       setDeliveryImage(null)
       setImagePreview(null)
 
+      // Navigate back to deliveries list
+      window.history.replaceState({}, '', '/admin/deliveries')
+      
       if (onDeliveryCreated) {
         onDeliveryCreated()
       }

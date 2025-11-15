@@ -567,89 +567,128 @@ export default function POSPage() {
       margin: 0;
     }
     body {
-      font-family: 'Courier New', 'Courier', monospace;
-      font-size: 12px;
-      line-height: 1.4;
-      padding: 10px;
+      font-family: 'Arial', 'Helvetica', sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+      padding: 15px 12px;
       max-width: 80mm;
       margin: 0 auto;
-      color: #000;
-      background: #fff;
+      color: #1a1a1a;
+      background: #ffffff;
     }
     .header { 
       text-align: center; 
-      margin-bottom: 10px; 
-      padding-bottom: 8px; 
-      border-bottom: 1px dashed #000; 
+      margin-bottom: 15px; 
+      padding-bottom: 12px; 
+      border-bottom: 2px solid #e91e63; 
     }
     .header h1 { 
-      font-size: 16px; 
-      font-weight: bold; 
-      margin-bottom: 4px; 
+      font-size: 20px; 
+      font-weight: 700; 
+      margin-bottom: 6px; 
       text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #e91e63;
+      font-family: 'Arial Black', 'Arial', sans-serif;
     }
-    .header p { 
-      font-size: 10px; 
-      color: #333; 
+    .header .subtitle {
+      font-size: 11px;
+      color: #666;
+      margin-bottom: 4px;
+      font-weight: 500;
+    }
+    .header .date-time {
+      font-size: 10px;
+      color: #888;
+      margin-top: 4px;
     }
     .section { 
-      margin-bottom: 8px; 
-      padding-bottom: 8px; 
-      border-bottom: 1px dashed #000; 
+      margin-bottom: 12px; 
+      padding-bottom: 10px; 
+      border-bottom: 1px dashed #ddd; 
+    }
+    .section-title {
+      font-weight: 600;
+      font-size: 11px;
+      color: #666;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
     .section p {
-      margin-bottom: 2px;
+      margin-bottom: 3px;
+      font-size: 12px;
     }
     .item { 
-      margin-bottom: 6px; 
-      display: flex;
-      flex-direction: column;
+      margin-bottom: 8px; 
+      padding: 6px 0;
+      border-bottom: 1px dotted #eee;
+    }
+    .item:last-child {
+      border-bottom: none;
     }
     .item-row {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 2px;
+      align-items: flex-start;
+      margin-bottom: 3px;
     }
     .item-name { 
-      font-weight: bold; 
-      margin-bottom: 2px; 
+      font-weight: 600; 
+      font-size: 13px;
+      margin-bottom: 3px; 
+      color: #1a1a1a;
+      flex: 1;
     }
     .item-details { 
-      font-size: 10px; 
-      color: #333; 
+      font-size: 11px; 
+      color: #666;
+      margin-left: 8px;
     }
     .item-total {
       text-align: right;
-      font-weight: bold;
-      margin-top: 2px;
+      font-weight: 600;
+      font-size: 13px;
+      color: #1a1a1a;
+      min-width: 60px;
     }
     .totals { 
-      margin-top: 8px; 
+      margin-top: 12px; 
+      background: #f8f9fa;
+      padding: 10px;
+      border-radius: 4px;
     }
     .total-row { 
       display: flex; 
       justify-content: space-between; 
-      font-size: 11px; 
-      margin-bottom: 3px; 
+      font-size: 12px; 
+      margin-bottom: 4px; 
+      color: #555;
     }
     .total-final { 
-      font-weight: bold; 
-      font-size: 14px; 
-      margin-top: 5px; 
-      padding-top: 5px; 
-      border-top: 2px solid #000; 
+      font-weight: 700; 
+      font-size: 16px; 
+      margin-top: 8px; 
+      padding-top: 8px; 
+      border-top: 2px solid #e91e63; 
+      color: #1a1a1a;
     }
     .footer { 
       text-align: center; 
-      margin-top: 10px; 
-      padding-top: 8px; 
-      border-top: 1px dashed #000; 
+      margin-top: 15px; 
+      padding-top: 12px; 
+      border-top: 1px dashed #ddd; 
       font-size: 10px; 
-      color: #333; 
+      color: #888; 
+    }
+    .footer .thank-you {
+      font-weight: 600;
+      color: #e91e63;
+      margin-bottom: 4px;
     }
     @media print {
       body { 
-        padding: 5px; 
+        padding: 10px; 
         margin: 0;
       }
       .no-print {
@@ -660,58 +699,65 @@ export default function POSPage() {
 </head>
 <body>
   <div class="header">
-    <h1>CERCLÉ OF</h1>
-    <p>Institut de Beauté</p>
-    <p>${escapeHtml(formatDate)} ${escapeHtml(formatTime)}</p>
+    <h1>CERCLE OF</h1>
+    <p class="subtitle">Institut de Beauté</p>
+    <p class="date-time">${escapeHtml(formatDate)} • ${escapeHtml(formatTime)}</p>
   </div>
   <div class="section">
-    <p>Vente: #${escapeHtml(saleId)}</p>
+    <p class="section-title">Référence</p>
+    <p style="font-weight: 600;">#${escapeHtml(saleId)}</p>
   </div>
   ${receiptData.client ? `
     <div class="section">
-      <p>Client: ${escapeHtml(receiptData.client.first_name)} ${escapeHtml(receiptData.client.last_name)}</p>
-      ${receiptData.client.phone ? `<p>Tel: ${escapeHtml(receiptData.client.phone)}</p>` : ''}
+      <p class="section-title">Client</p>
+      <p style="font-weight: 600;">${escapeHtml(receiptData.client.first_name)} ${escapeHtml(receiptData.client.last_name)}</p>
+      ${receiptData.client.phone ? `<p style="font-size: 11px; color: #666;">📞 ${escapeHtml(receiptData.client.phone)}</p>` : ''}
     </div>
   ` : ''}
   <div class="section">
+    <p class="section-title">Articles</p>
     ${receiptData.items.map(item => `
       <div class="item">
-        <div class="item-name">${escapeHtml(item.name)}</div>
         <div class="item-row">
-          <span class="item-details">${item.quantity} x ${item.price.toFixed(0)}f</span>
-          <span class="item-total">${item.total.toFixed(0)}f</span>
+          <div style="flex: 1;">
+            <div class="item-name">${escapeHtml(item.name)}</div>
+            <div class="item-details">${item.quantity} × ${item.price.toFixed(0)}f</div>
+          </div>
+          <div class="item-total">${item.total.toFixed(0)}f</div>
         </div>
       </div>
     `).join('')}
   </div>
   <div class="totals">
     <div class="total-row">
-      <span>Sous-total:</span>
+      <span>Sous-total</span>
       <span>${receiptData.subtotal.toFixed(0)}f</span>
     </div>
     ${receiptData.discount > 0 ? `
-      <div class="total-row">
-        <span>Réduction:</span>
+      <div class="total-row" style="color: #e91e63;">
+        <span>Réduction</span>
         <span>-${receiptData.discount.toFixed(0)}f</span>
       </div>
     ` : ''}
     ${receiptData.giftCardAmount > 0 ? `
-      <div class="total-row">
-        <span>Carte Cadeau:</span>
+      <div class="total-row" style="color: #2196F3;">
+        <span>Carte Cadeau</span>
         <span>-${receiptData.giftCardAmount.toFixed(0)}f</span>
       </div>
     ` : ''}
     <div class="total-row total-final">
-      <span>TOTAL:</span>
+      <span>TOTAL</span>
       <span>${receiptData.total.toFixed(0)}f</span>
     </div>
   </div>
   <div class="section">
-    <p>Paiement: ${escapeHtml(paymentMethodText)}</p>
+    <p class="section-title">Paiement</p>
+    <p style="font-weight: 600; margin-bottom: 4px;">${escapeHtml(paymentMethodText)}</p>
+    <p style="font-size: 11px; color: #666;">Vendu par: ${escapeHtml(receiptData.user)}</p>
   </div>
   <div class="footer">
-    <p>Merci de votre visite!</p>
-    <p>Vendu par: ${escapeHtml(receiptData.user)}</p>
+    <p class="thank-you">Merci de votre visite!</p>
+    <p style="margin-top: 6px;">CERCLE OF - Institut de Beauté</p>
   </div>
 </body>
 </html>`
@@ -2173,7 +2219,7 @@ export default function POSPage() {
               <div className="bg-white dark:bg-gray-900 border-2 border-gray-300 dark:border-gray-600 rounded p-4 font-mono text-xs">
                 {/* Header */}
                 <div className="text-center mb-4 border-b border-dashed border-gray-400 dark:border-gray-500 pb-3">
-                  <p className="font-bold text-sm mb-1">CERCLÉ OF</p>
+                  <p className="font-bold text-sm mb-1">CERCLE OF</p>
                   <p className="text-[10px] text-gray-600 dark:text-gray-400">Institut de Beauté</p>
                   <p className="text-[10px] text-gray-600 dark:text-gray-400 mt-1">
                     {receiptData.date.toLocaleDateString('fr-FR', { 
@@ -2522,7 +2568,7 @@ export default function POSPage() {
                         }
                         
                         // Create message with image link
-                        const message = `*CERCLÉ OF - Reçu de Vente*\n\nVente: #${saleId}\nDate: ${formatDate} ${formatTime}\n\nVoir le reçu: ${imageUrl}\n\nMerci de votre visite!`
+                        const message = `*CERCLE OF - Reçu de Vente*\n\nVente: #${saleId}\nDate: ${formatDate} ${formatTime}\n\nVoir le reçu: ${imageUrl}\n\nMerci de votre visite!`
                         
                         // Open WhatsApp Web with pre-filled message containing image link
                         const whatsappUrl = `https://wa.me/${phoneNumber.replace(/^\+/, '')}?text=${encodeURIComponent(message)}`

@@ -125,15 +125,29 @@ export function AddExpense({ onExpenseCreated, expenseType = 'main', isAdmin = f
     setLoading(true)
 
     try {
+      // Check if authUser exists
+      if (!authUser || !authUser.id) {
+        toast.error('Utilisateur non authentifié. Veuillez vous reconnecter.')
+        setLoading(false)
+        return
+      }
+
       const { data: currentUser, error: userError } = await supabase
         .from('dd-users')
         .select('id')
-        .eq('auth_user_id', authUser?.id)
+        .eq('auth_user_id', authUser.id)
         .single()
 
       if (userError) {
         console.error('Error fetching current user:', userError)
         toast.error('Erreur lors de la récupération des informations utilisateur')
+        setLoading(false)
+        return
+      }
+
+      if (!currentUser || !currentUser.id) {
+        toast.error('Utilisateur introuvable dans la base de données')
+        setLoading(false)
         return
       }
 
@@ -156,6 +170,7 @@ export function AddExpense({ onExpenseCreated, expenseType = 'main', isAdmin = f
       if (error) {
         console.error('Error creating expense:', error)
         toast.error('Erreur lors de la création de la dépense: ' + error.message)
+        setLoading(false)
         return
       }
 
@@ -176,7 +191,10 @@ export function AddExpense({ onExpenseCreated, expenseType = 'main', isAdmin = f
       
       if (onExpenseCreated) {
         onExpenseCreated()
-      } else {
+      }
+      
+      // Reload to show new expense
+      if (!onExpenseCreated) {
         // Reload page if no callback provided
         window.location.reload()
       }

@@ -16,7 +16,7 @@ import toast from "react-hot-toast"
 
 interface Appointment {
   id: string
-  client_id: string
+  client_id: string | null
   service_id: string
   employe_id: string
   date_rdv: string
@@ -28,8 +28,8 @@ interface Appointment {
     id: string
     first_name: string
     last_name: string
-    email: string
-    phones: string[]
+    email?: string | null
+    phone?: string | null
   }
   service?: {
     id: string
@@ -102,7 +102,7 @@ export default function AppointmentsPage() {
         .filter((id): id is string => !!id)
 
       // Fetch clients
-      const clientsMap = new Map<string, { id: string; first_name: string; last_name: string; email: string; phones: string[] }>()
+      const clientsMap = new Map<string, { id: string; first_name: string; last_name: string; email?: string | null; phone?: string | null }>()
       if (clientIds.length > 0) {
         const { data: clients } = await supabase
           .from('dd-clients')
@@ -114,8 +114,8 @@ export default function AppointmentsPage() {
             id: client.id,
             first_name: client.first_name,
             last_name: client.last_name,
-            email: client.email || '',
-            phones: client.phone ? [client.phone] : []
+            email: client.email || null,
+            phone: client.phone || null
           })
         })
       }
@@ -165,9 +165,11 @@ export default function AppointmentsPage() {
 
       setAppointments(appointmentsWithRelations)
       setTotalPages(Math.ceil((count || 0) / itemsPerPage))
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching appointments:', error)
-      toast.error('Erreur lors du chargement des rendez-vous')
+      const errorMessage = error?.message || 'Erreur inconnue lors du chargement des rendez-vous'
+      toast.error(`Erreur: ${errorMessage}`)
+      setAppointments([]) // Set empty array on error to prevent display issues
     } finally {
       setLoading(false)
     }
