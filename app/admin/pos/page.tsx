@@ -147,7 +147,7 @@ export default function POSPage() {
     discount: number
     giftCardAmount: number
     total: number
-    paymentMethod: string
+    paymentMethod: 'cash' | 'carte' | 'mobile_money'
     date: Date
     user: string
   } | null>(null)
