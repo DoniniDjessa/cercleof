@@ -699,7 +699,7 @@ export default function POSPage() {
 </head>
 <body>
   <div class="header">
-    <h1>CERCLE OF</h1>
+    <h1>THE CERCLE OF BEAUTY</h1>
     <p class="subtitle">Institut de Beauté</p>
     <p class="date-time">${escapeHtml(formatDate)} • ${escapeHtml(formatTime)}</p>
   </div>
@@ -757,7 +757,7 @@ export default function POSPage() {
   </div>
   <div class="footer">
     <p class="thank-you">Merci de votre visite!</p>
-    <p style="margin-top: 6px;">CERCLE OF - Institut de Beauté</p>
+    <p style="margin-top: 6px;">THE CERCLE OF BEAUTY - Institut de Beauté</p>
   </div>
 </body>
 </html>`
@@ -1087,19 +1087,36 @@ export default function POSPage() {
 
       // Create delivery entry if delivery is required
       if (requiresDelivery && deliveryDetails.address) {
+        // Build full address with city
+        const fullAddress = deliveryDetails.city 
+          ? `${deliveryDetails.address}, ${deliveryDetails.city}`
+          : deliveryDetails.address
+        
+        // Build note with phone and any additional notes
+        let deliveryNote = ''
+        if (deliveryDetails.phone) {
+          deliveryNote += `Téléphone: ${deliveryDetails.phone}`
+        }
+        if (deliveryDetails.notes) {
+          deliveryNote += deliveryNote ? `\n${deliveryDetails.notes}` : deliveryDetails.notes
+        }
+        
         const { error: deliveryError } = await supabase
           .from('dd-livraisons')
           .insert([{
             vente_id: sale.id,
             client_id: selectedClient?.id || null,
-            adresse: deliveryDetails.address,
+            adresse: fullAddress,
             statut: 'en_preparation',
-            note: deliveryDetails.notes || null,
+            note: deliveryNote || null,
             created_by: currentUser.id
           }])
 
         if (deliveryError) {
           console.error('Error creating delivery:', deliveryError)
+          toast.error('Erreur lors de la création de la livraison')
+        } else {
+          toast.success('Livraison créée avec succès!')
         }
       }
 
@@ -2219,7 +2236,7 @@ export default function POSPage() {
               <div className="bg-white dark:bg-gray-900 border-2 border-gray-300 dark:border-gray-600 rounded p-4 font-mono text-xs">
                 {/* Header */}
                 <div className="text-center mb-4 border-b border-dashed border-gray-400 dark:border-gray-500 pb-3">
-                  <p className="font-bold text-sm mb-1">CERCLE OF</p>
+                  <p className="font-bold text-sm mb-1">THE CERCLE OF BEAUTY</p>
                   <p className="text-[10px] text-gray-600 dark:text-gray-400">Institut de Beauté</p>
                   <p className="text-[10px] text-gray-600 dark:text-gray-400 mt-1">
                     {receiptData.date.toLocaleDateString('fr-FR', { 
@@ -2568,7 +2585,7 @@ export default function POSPage() {
                         }
                         
                         // Create message with image link
-                        const message = `*CERCLE OF - Reçu de Vente*\n\nVente: #${saleId}\nDate: ${formatDate} ${formatTime}\n\nVoir le reçu: ${imageUrl}\n\nMerci de votre visite!`
+                        const message = `*THE CERCLE OF BEAUTY - Reçu de Vente*\n\nVente: #${saleId}\nDate: ${formatDate} ${formatTime}\n\nVoir le reçu: ${imageUrl}\n\nMerci de votre visite!`
                         
                         // Open WhatsApp Web with pre-filled message containing image link
                         const whatsappUrl = `https://wa.me/${phoneNumber.replace(/^\+/, '')}?text=${encodeURIComponent(message)}`

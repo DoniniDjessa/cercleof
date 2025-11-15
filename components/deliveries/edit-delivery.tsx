@@ -27,6 +27,7 @@ interface Delivery {
   mode: string
   preuve_photo?: string
   note?: string
+  contact_phone?: string
   created_at: string
 }
 
@@ -51,13 +52,27 @@ export function EditDelivery({ delivery, onDeliveryUpdated, onCancel }: EditDeli
   const [imagePreview, setImagePreview] = useState<string | null>(delivery.preuve_photo || null)
   const [employees, setEmployees] = useState<Employee[]>([])
   
+  // Extract contact_phone from note if it exists (for backward compatibility)
+  const extractContactPhone = (note?: string): string => {
+    if (!note) return ""
+    const phoneMatch = note.match(/Téléphone:\s*([^\n]+)/i)
+    return phoneMatch ? phoneMatch[1].trim() : ""
+  }
+
+  // Extract clean note without phone
+  const extractCleanNote = (note?: string): string => {
+    if (!note) return ""
+    return note.replace(/Téléphone:\s*[^\n]+\n?/i, "").trim()
+  }
+
   const [formData, setFormData] = useState({
     livreur_id: delivery.livreur_id || "",
     livreur_name: delivery.livreur_name || "",
     date_livraison: delivery.date_livraison ? new Date(delivery.date_livraison).toISOString().slice(0, 16) : "",
     frais: delivery.frais || 0,
     mode: delivery.mode || "interne",
-    note: delivery.note || "",
+    note: extractCleanNote(delivery.note),
+    contact_phone: delivery.contact_phone || extractContactPhone(delivery.note) || "",
   })
 
   useEffect(() => {
@@ -176,16 +191,20 @@ export function EditDelivery({ delivery, onDeliveryUpdated, onCancel }: EditDeli
         }
       }
 
+      // Build note with livreur info if external
+      let finalNote = formData.note || ""
+      if (formData.mode === 'externe' && formData.livreur_name) {
+        finalNote = finalNote ? `${finalNote}\nLivreur externe: ${formData.livreur_name}` : `Livreur externe: ${formData.livreur_name}`
+      }
+
       const updateData: any = {
         livreur_id: formData.mode === 'interne' ? (formData.livreur_id || null) : null,
-        // Note: livreur_name doesn't exist in base schema - store in note if external
         date_livraison: formData.date_livraison ? new Date(formData.date_livraison).toISOString() : null,
         frais: parseFloat(formData.frais.toString()),
         mode: formData.mode,
         preuve_photo: deliveryImageUrl,
-        note: formData.mode === 'externe' && formData.livreur_name 
-          ? `${formData.note ? formData.note + '\n' : ''}Livreur externe: ${formData.livreur_name}`
-          : (formData.note || null),
+        contact_phone: formData.contact_phone || null,
+        note: finalNote || null,
         updated_at: new Date().toISOString()
       }
 
@@ -294,7 +313,7 @@ export function EditDelivery({ delivery, onDeliveryUpdated, onCancel }: EditDeli
                   </div>
                 )}
                 <div className="space-y-2">
-                  <Label htmlFor="date_livraison" className="text-gray-700 dark:text-gray-300">Date de Livraison</Label>
+                  <Label htmlFor="date_livraison" className="text-gray-700 dark:text-gray-300">Date et Heure de Livraison</Label>
                   <Input
                     id="date_livraison"
                     name="date_livraison"
@@ -303,6 +322,19 @@ export function EditDelivery({ delivery, onDeliveryUpdated, onCancel }: EditDeli
                     onChange={handleChange}
                     className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="contact_phone" className="text-gray-700 dark:text-gray-300">Téléphone de Contact</Label>
+                  <Input
+                    id="contact_phone"
+                    name="contact_phone"
+                    type="tel"
+                    value={formData.contact_phone}
+                    onChange={handleChange}
+                    placeholder="Ex: +225 07 12 34 56 78"
+                    className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Numéro pour contacter le client lors de la livraison</p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="frais" className="text-gray-700 dark:text-gray-300">Frais de Livraison (f)</Label>
@@ -431,6 +463,12 @@ export function EditDelivery({ delivery, onDeliveryUpdated, onCancel }: EditDeli
                   <p className="text-muted-foreground dark:text-gray-400">Date de Livraison</p>
                   <p className="font-medium text-gray-900 dark:text-white">
                     {formData.date_livraison ? new Date(formData.date_livraison).toLocaleString('fr-FR') : "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground dark:text-gray-400">Téléphone de Contact</p>
+                  <p className="font-medium text-gray-900 dark:text-white">
+                    {formData.contact_phone || "—"}
                   </p>
                 </div>
                 <div>

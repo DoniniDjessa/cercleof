@@ -27,6 +27,7 @@ interface Delivery {
   mode: string
   preuve_photo?: string
   note?: string
+  contact_phone?: string
   created_at: string
   vente?: {
     id: string
@@ -83,7 +84,7 @@ export default function DeliveriesPage() {
 
       let query = supabase
         .from('dd-livraisons')
-        .select('*', { count: 'exact' })
+        .select('id, vente_id, client_id, adresse, livreur_id, statut, date_livraison, frais, mode, preuve_photo, note, contact_phone, created_at', { count: 'exact' })
 
       // Apply date filters
       if (dateFilter === 'today') {
@@ -500,9 +501,21 @@ export default function DeliveriesPage() {
                             <p className="text-sm text-gray-500 dark:text-gray-400">
                               {delivery.client.email}
                             </p>
+                            {(delivery.contact_phone || delivery.client.phone) && (
+                              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                                📞 {delivery.contact_phone || delivery.client.phone}
+                              </p>
+                            )}
                           </div>
                         ) : (
-                          <span className="text-gray-500 dark:text-gray-400">Client anonyme</span>
+                          <div>
+                            <span className="text-gray-500 dark:text-gray-400">Client anonyme</span>
+                            {delivery.contact_phone && (
+                              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                                📞 {delivery.contact_phone}
+                              </p>
+                            )}
+                          </div>
                         )}
                       </TableCell>
                       <TableCell>
