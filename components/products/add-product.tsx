@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, type ReactNode } from "react"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -99,8 +99,9 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
     status: "active",
     show_on_website: false
   })
-  const [categories, setCategories] = useState<Array<{id: string, name: string}>>([])
-  const [selectedCategory, setSelectedCategory] = useState<{id: string, name: string} | null>(null)
+  const [categories, setCategories] = useState<Array<{id: string, name: string, parent_id?: string | null}>>([])
+  const [selectedCategory, setSelectedCategory] = useState<{id: string, name: string, parent_id?: string | null} | null>(null)
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("")
   const [skuManuallyEdited, setSkuManuallyEdited] = useState(false)
   const [barcodeManuallyEdited, setBarcodeManuallyEdited] = useState(false)
   const [images, setImages] = useState<File[]>([])
@@ -269,12 +270,14 @@ const SKIN_TYPES = [
   }, [categories, cascadeCategoryName])
 
   const skuCategoryName = useMemo(() => {
+    // Prioritize manually selected category
+    if (selectedCategory?.name) return selectedCategory.name
     if (matchingCategory?.name) return matchingCategory.name
     if (cascadeCategoryName) return cascadeCategoryName
     if (selectedTranches.length > 0) return selectedTranches[0]
     if (selectedDomain) return selectedDomain
     return "Produit"
-  }, [matchingCategory, cascadeCategoryName, selectedTranches, selectedDomain])
+  }, [selectedCategory, matchingCategory, cascadeCategoryName, selectedTranches, selectedDomain])
 
   const cascadeDescription = useMemo(() => {
     if (selectedTranches.length === 0) return ""
@@ -321,17 +324,21 @@ const SKIN_TYPES = [
 
   useEffect(() => {
     if (matchingCategory) {
-      setFormData(prev => {
-        if (prev.category === matchingCategory.id) {
-          return prev
-        }
-        return { ...prev, category: matchingCategory.id }
-      })
-      setSelectedCategory({ id: matchingCategory.id, name: matchingCategory.name })
-      setSkuManuallyEdited(false)
-      setBarcodeManuallyEdited(false)
+      // Only update if no manual selection has been made
+      if (!selectedCategoryId) {
+        setFormData(prev => {
+          if (prev.category === matchingCategory.id) {
+            return prev
+          }
+          return { ...prev, category: matchingCategory.id }
+        })
+        setSelectedCategory({ id: matchingCategory.id, name: matchingCategory.name, parent_id: matchingCategory.parent_id })
+        setSelectedCategoryId(matchingCategory.id)
+        setSkuManuallyEdited(false)
+        setBarcodeManuallyEdited(false)
+      }
     }
-  }, [matchingCategory])
+  }, [matchingCategory, selectedCategoryId])
 
   useEffect(() => {
     if (!isCropModalOpen && cropQueue.length > 0) {
@@ -391,12 +398,14 @@ const SKIN_TYPES = [
 
   const fetchCategories = async () => {
     try {
+      // Fetch all product categories (both parent and subcategories)
       const { data, error } = await supabase
         .from('dd-categories')
-        .select('id, name')
+        .select('id, name, parent_id')
         .eq('type', 'product')
         .eq('is_active', true)
-        .order('name')
+        .order('parent_id', { ascending: true, nullsFirst: true })
+        .order('name', { ascending: true })
 
       if (error) throw error
       setCategories(data || [])
@@ -404,6 +413,23 @@ const SKIN_TYPES = [
       console.error('Error fetching categories:', error)
     }
   }
+  
+  // Update selectedCategory when selectedCategoryId changes (manual selection)
+  useEffect(() => {
+    if (selectedCategoryId) {
+      const category = categories.find(c => c.id === selectedCategoryId)
+      if (category) {
+        setSelectedCategory(category)
+        setFormData(prev => ({ ...prev, category: category.id }))
+        setSkuManuallyEdited(false)
+        setBarcodeManuallyEdited(false)
+      }
+    } else if (!selectedCategoryId && !matchingCategory) {
+      // Only clear if no cascade category is matching
+      setSelectedCategory(null)
+      setFormData(prev => ({ ...prev, category: "" }))
+    }
+  }, [selectedCategoryId, categories, matchingCategory])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -652,7 +678,7 @@ const SKIN_TYPES = [
             is_active: true,
             created_by: currentUser.id
           })
-          .select('id, name')
+          .select('id, name, parent_id')
           .single()
 
         if (createCategoryError) {
@@ -664,8 +690,13 @@ const SKIN_TYPES = [
 
         if (createdCategory) {
           categoryToUse = createdCategory
-          setCategories(prev => [...prev, createdCategory])
-          setSelectedCategory({ id: createdCategory.id, name: createdCategory.name })
+          setCategories(prev => [...prev, createdCategory as {id: string, name: string, parent_id?: string | null}])
+          setSelectedCategory({ 
+            id: createdCategory.id, 
+            name: createdCategory.name, 
+            parent_id: createdCategory.parent_id || null 
+          })
+          setSelectedCategoryId(createdCategory.id)
           setFormData(prev => ({ ...prev, category: createdCategory.id }))
           setSkuManuallyEdited(false)
           setBarcodeManuallyEdited(false)
@@ -760,6 +791,7 @@ const SKIN_TYPES = [
       setVariants([])
       setSelectedDomain(cascadeDomains[0] ?? "")
       setSelectedCategory(null)
+      setSelectedCategoryId("")
       setSelectedTranches([])
       setSelectedFormes([])
       setSelectedBenefices([])
@@ -1115,13 +1147,87 @@ const SKIN_TYPES = [
                   </div>
 
                   <div className="space-y-2">
-                    <Label className="text-gray-700 dark:text-gray-300">Catégorie</Label>
+                    <Label className="text-gray-700 dark:text-gray-300">Catégorie (sélection manuelle)</Label>
+                    <Select
+                      value={selectedCategoryId || formData.category || "none"}
+                      onValueChange={(value) => {
+                        if (value === "none") {
+                          setSelectedCategoryId("")
+                          setFormData(prev => ({ ...prev, category: "" }))
+                        } else {
+                          setSelectedCategoryId(value)
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
+                        <SelectValue placeholder="Sélectionnez une catégorie" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[300px]">
+                        <SelectItem value="none">Aucune catégorie</SelectItem>
+                        {(() => {
+                          // Group categories by parent
+                          const groupedCategories = new Map<string, Array<{id: string, name: string, parent_id?: string | null}>>()
+                          
+                          categories.forEach(category => {
+                            const key = category.parent_id || 'parent'
+                            if (!groupedCategories.has(key)) {
+                              groupedCategories.set(key, [])
+                            }
+                            groupedCategories.get(key)?.push(category)
+                          })
+                          
+                          const items: ReactNode[] = []
+                          
+                          // First, show parent categories
+                          categories
+                            .filter(cat => !cat.parent_id)
+                            .forEach(category => {
+                              const categoryServices = groupedCategories.get(category.id) || []
+                              
+                              items.push(
+                                <SelectItem key={category.id} value={category.id} className="font-semibold">
+                                  {category.name}
+                                </SelectItem>
+                              )
+                              
+                              // Show subcategories if they exist
+                              if (categoryServices.length > 0) {
+                                categoryServices.forEach(subcategory => {
+                                  items.push(
+                                    <SelectItem key={subcategory.id} value={subcategory.id} className="pl-8">
+                                      └─ {subcategory.name}
+                                    </SelectItem>
+                                  )
+                                })
+                              }
+                            })
+                          
+                          return items.length > 0 ? items : (
+                            <div className="px-2 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">
+                              Aucune catégorie trouvée
+                            </div>
+                          )
+                        })()}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Ou utilisez la classification ci-dessus pour sélectionner automatiquement une catégorie
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label className="text-gray-700 dark:text-gray-300">Catégorie (classification automatique)</Label>
                     <Input
                       value={matchingCategory?.name || cascadeCategoryName || ""}
                       readOnly
                       placeholder="Sélectionnez la classification pour voir la catégorie correspondante"
                       className="bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
                     />
+                    {matchingCategory && (
+                      <p className="text-xs text-green-600 dark:text-green-400">
+                        Catégorie trouvée : {matchingCategory.name}
+                      </p>
+                    )}
                   </div>
 
                   {cascadeDescription && (

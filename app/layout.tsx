@@ -11,18 +11,27 @@ const bebasNeue = Bebas_Neue({
   variable: "--font-bebas-neue",
   subsets: ["latin"],
   weight: "400",
+  display: "swap",
+  adjustFontFallback: false,
+  preload: true,
 });
 
 const robotoCondensed = Roboto_Condensed({
   variable: "--font-roboto-condensed",
   subsets: ["latin"],
   weight: ["300", "400", "700"],
+  display: "swap",
+  adjustFontFallback: false,
+  preload: true,
 });
 
 const poppins = Poppins({
   variable: "--font-poppins",
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
+  display: "swap",
+  adjustFontFallback: false,
+  preload: true,
 });
 
 export const metadata: Metadata = {

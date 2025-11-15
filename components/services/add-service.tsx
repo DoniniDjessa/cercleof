@@ -54,6 +54,8 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
   const [selectedProducts, setSelectedProducts] = useState<ServiceProduct[]>([])
   const [currentUserRole, setCurrentUserRole] = useState<string>('')
   const [checkingRole, setCheckingRole] = useState(true)
+  const [selectedParentCategoryId, setSelectedParentCategoryId] = useState<string>("")
+  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string>("")
   
   const [formData, setFormData] = useState({
     nom: "",
@@ -120,19 +122,32 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
     }
   }
   
-  // Helper function to format category name for display
-  const getCategoryDisplayName = (categoryId: string): string => {
-    const category = categories.find(c => c.id === categoryId)
-    if (!category) return ''
-    
-    if (category.parent_id) {
-      const parent = categories.find(c => c.id === category.parent_id)
-      return parent ? `${parent.name} > ${category.name}` : category.name
-    }
-    return category.name
-  }
+  // Get parent categories only
+  const parentCategories = categories.filter(cat => !cat.parent_id)
   
-  // Note: getCategoryDisplayName is defined but not currently used in the component
+  // Get subcategories for selected parent category
+  const subcategories = selectedParentCategoryId
+    ? categories.filter(cat => cat.parent_id === selectedParentCategoryId)
+    : []
+  
+  // Update category_id when parent or subcategory changes
+  useEffect(() => {
+    if (selectedSubcategoryId) {
+      // Use subcategory if selected
+      setFormData(prev => ({ ...prev, category_id: selectedSubcategoryId }))
+    } else if (selectedParentCategoryId) {
+      // Use parent category if no subcategory selected
+      setFormData(prev => ({ ...prev, category_id: selectedParentCategoryId }))
+    } else {
+      // Clear category if nothing selected
+      setFormData(prev => ({ ...prev, category_id: "" }))
+    }
+  }, [selectedParentCategoryId, selectedSubcategoryId])
+  
+  // Clear subcategory when parent category changes
+  useEffect(() => {
+    setSelectedSubcategoryId("")
+  }, [selectedParentCategoryId])
 
   const fetchProducts = async () => {
     try {
@@ -388,6 +403,8 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
       setSelectedProducts([])
       setServiceImage(null)
       setImagePreview(null)
+      setSelectedParentCategoryId("")
+      setSelectedSubcategoryId("")
 
       if (onServiceCreated) {
         onServiceCreated()
@@ -550,28 +567,77 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="category_id" className="text-gray-700 dark:text-gray-300">Catégorie</Label>
+                  <Label htmlFor="parent_category" className="text-gray-700 dark:text-gray-300">Catégorie</Label>
                   <Select
-                    value={formData.category_id}
-                    onValueChange={(value) => handleSelectChange('category_id', value)}
+                    value={selectedParentCategoryId || "none"}
+                    onValueChange={(value) => {
+                      if (value === "none") {
+                        setSelectedParentCategoryId("")
+                      } else {
+                        setSelectedParentCategoryId(value)
+                      }
+                    }}
                   >
                     <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
                       <SelectValue placeholder="Sélectionnez une catégorie" />
                     </SelectTrigger>
                     <SelectContent>
-                      {categories.map((category) => {
-                        const displayName = category.parent_id
-                          ? `${categories.find(c => c.id === category.parent_id)?.name || ''} > ${category.name}`
-                          : category.name
-                        return (
-                          <SelectItem key={category.id} value={category.id}>
-                            {displayName}
-                          </SelectItem>
-                        )
-                      })}
+                      <SelectItem value="none">Aucune catégorie</SelectItem>
+                      {parentCategories.map((category) => (
+                        <SelectItem key={category.id} value={category.id}>
+                          {category.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="subcategory" className="text-gray-700 dark:text-gray-300">
+                    Sous-catégorie {subcategories.length > 0 ? `(${subcategories.length} disponible${subcategories.length > 1 ? 's' : ''})` : ''}
+                  </Label>
+                  <Select
+                    value={selectedSubcategoryId || "none"}
+                    onValueChange={(value) => {
+                      if (value === "none") {
+                        setSelectedSubcategoryId("")
+                      } else {
+                        setSelectedSubcategoryId(value)
+                      }
+                    }}
+                    disabled={!selectedParentCategoryId || subcategories.length === 0}
+                  >
+                    <SelectTrigger 
+                      className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                      disabled={!selectedParentCategoryId || subcategories.length === 0}
+                    >
+                      <SelectValue 
+                        placeholder={
+                          !selectedParentCategoryId 
+                            ? "Sélectionnez d'abord une catégorie" 
+                            : subcategories.length === 0 
+                            ? "Aucune sous-catégorie disponible"
+                            : "Sélectionnez une sous-catégorie (optionnel)"
+                        } 
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Aucune sous-catégorie</SelectItem>
+                      {subcategories.map((subcategory) => (
+                        <SelectItem key={subcategory.id} value={subcategory.id}>
+                          {subcategory.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedParentCategoryId && subcategories.length === 0 && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Cette catégorie n&apos;a pas de sous-catégories
+                    </p>
+                  )}
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="employe_type" className="text-gray-700 dark:text-gray-300">Type d&apos;Employé</Label>
                   <Select
