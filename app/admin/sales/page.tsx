@@ -503,13 +503,51 @@ export default function SalesPage() {
     }
   }
 
-  const filteredSales = sales.filter(sale =>
-    sale.client?.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    sale.client?.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    sale.reference?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    sale.user?.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    sale.user?.last_name.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredSales = sales.filter(sale => {
+    if (!searchTerm.trim()) return true
+    
+    const searchLower = searchTerm.toLowerCase()
+    const saleIdShort = sale.id.slice(-8).toLowerCase()
+    const reference = sale.reference?.toLowerCase() || ''
+    const clientFirstName = sale.client?.first_name?.toLowerCase() || ''
+    const clientLastName = sale.client?.last_name?.toLowerCase() || ''
+    const clientFullName = `${clientFirstName} ${clientLastName}`.trim()
+    const clientPhone = sale.client?.phone?.toLowerCase() || ''
+    const userFirstName = sale.user?.first_name?.toLowerCase() || ''
+    const userLastName = sale.user?.last_name?.toLowerCase() || ''
+    const userPseudo = sale.user?.pseudo?.toLowerCase() || ''
+    const userEmail = sale.user?.email?.toLowerCase() || ''
+    const userFullName = `${userFirstName} ${userLastName}`.trim()
+    const paymentMethod = getPaymentMethodText(sale.methode_paiement).toLowerCase()
+    const saleType = sale.type?.toLowerCase() || ''
+    const totalNet = sale.total_net?.toFixed(0) || ''
+    const status = sale.status?.toLowerCase() || ''
+    
+    // Search in all relevant fields
+    return (
+      saleIdShort.includes(searchLower) ||
+      reference.includes(searchLower) ||
+      clientFirstName.includes(searchLower) ||
+      clientLastName.includes(searchLower) ||
+      clientFullName.includes(searchLower) ||
+      clientPhone.includes(searchLower) ||
+      userFirstName.includes(searchLower) ||
+      userLastName.includes(searchLower) ||
+      userFullName.includes(searchLower) ||
+      userPseudo.includes(searchLower) ||
+      userEmail.includes(searchLower) ||
+      paymentMethod.includes(searchLower) ||
+      saleType.includes(searchLower) ||
+      totalNet.includes(searchLower) ||
+      status.includes(searchLower) ||
+      // Search in sale items (products/services)
+      sale.items?.some(item => {
+        const itemName = (item.product?.name || item.service?.name || '').toLowerCase()
+        const itemSku = item.product?.sku?.toLowerCase() || ''
+        return itemName.includes(searchLower) || itemSku.includes(searchLower)
+      })
+    )
+  })
 
   const totalSales = sales.length
   const totalRevenue = sales.reduce((sum, sale) => sum + sale.total_net, 0)
@@ -601,7 +639,7 @@ export default function SalesPage() {
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <Input
-                placeholder="Rechercher des ventes..."
+                placeholder="Rechercher par référence, client, vendeur, montant, produit..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"

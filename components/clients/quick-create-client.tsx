@@ -53,15 +53,28 @@ export function QuickCreateClient({ isOpen, onClose, onClientCreated }: QuickCre
 
     try {
       // Get current user ID for created_by field
+      if (!authUser?.id) {
+        toast.error('Utilisateur non authentifié')
+        setLoading(false)
+        return
+      }
+
       const { data: currentUser, error: userError } = await supabase
         .from('dd-users')
         .select('id')
-        .eq('auth_user_id', authUser?.id)
+        .eq('auth_user_id', authUser.id)
         .single()
 
       if (userError) {
         console.error('Error fetching current user:', userError)
         toast.error('Erreur lors de la récupération des informations utilisateur')
+        setLoading(false)
+        return
+      }
+
+      if (!currentUser?.id) {
+        toast.error('Utilisateur introuvable dans la base de données')
+        setLoading(false)
         return
       }
 

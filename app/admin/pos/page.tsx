@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Search, Plus, Minus, Trash2, CreditCard, ShoppingCart, User, Package, Scissors, DollarSign, Percent, Truck, Check, UserPlus, Eye, EyeOff, TrendingUp, X, Download, Printer, MessageCircle } from "lucide-react"
+import html2canvas from "html2canvas"
 import { supabase } from "@/lib/supabase"
 import { QuickCreateClient } from "@/components/clients/quick-create-client"
 import toast from "react-hot-toast"
@@ -2249,37 +2250,71 @@ export default function POSPage() {
                   {/* Download Button */}
                   <Button
                     variant="outline"
-                    onClick={() => {
+                    onClick={async () => {
                       if (!receiptData) return
                       
-                      const escapeHtml = (text: string) => {
-                        const div = document.createElement('div')
-                        div.textContent = text
-                        return div.innerHTML
+                      try {
+                        toast.loading('Génération de l\'image...', { id: 'download-receipt' })
+                        
+                        const escapeHtml = (text: string) => {
+                          const div = document.createElement('div')
+                          div.textContent = text
+                          return div.innerHTML
+                        }
+                        
+                        const formatDate = receiptData.date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                        const formatTime = receiptData.date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+                        const saleId = receiptData.sale.id.slice(-8).toUpperCase()
+                        const paymentMethodText = receiptData.paymentMethod === 'cash' ? 'Espèces' :
+                          receiptData.paymentMethod === 'carte' ? 'Carte' :
+                          receiptData.paymentMethod === 'mobile_money' ? 'Mobile Money' :
+                          receiptData.paymentMethod
+                        
+                        const receiptHTML = generateReceiptHTML(receiptData, escapeHtml, formatDate, formatTime, saleId, paymentMethodText)
+                        
+                        // Create a temporary container for the receipt
+                        const tempDiv = document.createElement('div')
+                        tempDiv.innerHTML = receiptHTML
+                        tempDiv.style.position = 'absolute'
+                        tempDiv.style.left = '-9999px'
+                        tempDiv.style.width = '300px'
+                        tempDiv.style.backgroundColor = '#ffffff'
+                        document.body.appendChild(tempDiv)
+                        
+                        // Convert to canvas and then to PNG
+                        const canvas = await html2canvas(tempDiv, {
+                          backgroundColor: '#ffffff',
+                          scale: 2,
+                          width: 300,
+                          logging: false,
+                          useCORS: true
+                        })
+                        
+                        // Remove temporary element
+                        document.body.removeChild(tempDiv)
+                        
+                        // Convert canvas to blob and download
+                        canvas.toBlob((blob) => {
+                          if (!blob) {
+                            toast.error('Erreur lors de la génération de l\'image', { id: 'download-receipt' })
+                            return
+                          }
+                          
+                          const url = URL.createObjectURL(blob)
+                          const a = document.createElement('a')
+                          a.href = url
+                          a.download = `receipt-${saleId}-${formatDate.replace(/\//g, '-')}.png`
+                          document.body.appendChild(a)
+                          a.click()
+                          document.body.removeChild(a)
+                          URL.revokeObjectURL(url)
+                          
+                          toast.success('Reçu téléchargé avec succès', { id: 'download-receipt' })
+                        }, 'image/png')
+                      } catch (error) {
+                        console.error('Error generating receipt image:', error)
+                        toast.error('Erreur lors de la génération de l\'image', { id: 'download-receipt' })
                       }
-                      
-                      const formatDate = receiptData.date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                      const formatTime = receiptData.date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-                      const saleId = receiptData.sale.id.slice(-8).toUpperCase()
-                      const paymentMethodText = receiptData.paymentMethod === 'cash' ? 'Espèces' :
-                        receiptData.paymentMethod === 'carte' ? 'Carte' :
-                        receiptData.paymentMethod === 'mobile_money' ? 'Mobile Money' :
-                        receiptData.paymentMethod
-                      
-                      const receiptHTML = generateReceiptHTML(receiptData, escapeHtml, formatDate, formatTime, saleId, paymentMethodText)
-                      
-                      // Create blob and download
-                      const blob = new Blob([receiptHTML], { type: 'text/html' })
-                      const url = URL.createObjectURL(blob)
-                      const a = document.createElement('a')
-                      a.href = url
-                      a.download = `receipt-${saleId}-${formatDate.replace(/\//g, '-')}.html`
-                      document.body.appendChild(a)
-                      a.click()
-                      document.body.removeChild(a)
-                      URL.revokeObjectURL(url)
-                      
-                      toast.success('Reçu téléchargé avec succès')
                     }}
                     className="flex flex-col items-center gap-1 h-auto py-2 text-xs"
                   >
