@@ -49,7 +49,7 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
   const [uploadingImage, setUploadingImage] = useState(false)
   const [serviceImage, setServiceImage] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
-  const [categories, setCategories] = useState<Array<{id: string, name: string}>>([])
+  const [categories, setCategories] = useState<Array<{id: string, name: string, parent_id?: string | null}>>([])
   const [products, setProducts] = useState<Product[]>([])
   const [selectedProducts, setSelectedProducts] = useState<ServiceProduct[]>([])
   const [currentUserRole, setCurrentUserRole] = useState<string>('')
@@ -131,6 +131,8 @@ export function AddService({ onServiceCreated }: AddServiceProps) {
     }
     return category.name
   }
+  
+  // Note: getCategoryDisplayName is defined but not currently used in the component
 
   const fetchProducts = async () => {
     try {
