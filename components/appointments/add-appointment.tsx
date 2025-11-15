@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -52,6 +53,7 @@ interface AddAppointmentProps {
 }
 
 export function AddAppointment({ onAppointmentCreated }: AddAppointmentProps) {
+  const router = useRouter()
   const { user: authUser } = useAuth()
   const [loading, setLoading] = useState(false)
   const [clients, setClients] = useState<Client[]>([])
@@ -202,7 +204,7 @@ export function AddAppointment({ onAppointmentCreated }: AddAppointmentProps) {
       const appointmentData = {
         client_id: formData.client_id || null, // Client is optional
         service_id: formData.service_id,
-        employe_id: formData.employe_id,
+        employe_id: formData.employe_id && formData.employe_id !== 'none' ? formData.employe_id : null, // Employee is optional
         date_rdv: appointmentDateTime.toISOString(),
         duree: parseInt(formData.duree.toString()),
         statut: 'en_attente',
@@ -235,7 +237,7 @@ export function AddAppointment({ onAppointmentCreated }: AddAppointmentProps) {
       })
 
       // Navigate back to appointments list
-      window.history.replaceState({}, '', '/admin/appointments')
+      router.push('/admin/appointments')
       
       if (onAppointmentCreated) {
         onAppointmentCreated()
@@ -250,8 +252,7 @@ export function AddAppointment({ onAppointmentCreated }: AddAppointmentProps) {
   }
 
   const handleCancel = () => {
-    window.history.replaceState({}, '', '/admin/appointments')
-    window.location.reload()
+    router.push('/admin/appointments')
   }
 
   const selectedService = services.find(s => s.id === formData.service_id)
@@ -463,15 +464,16 @@ export function AddAppointment({ onAppointmentCreated }: AddAppointmentProps) {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="employe_id" className="text-gray-700 dark:text-gray-300">Employé *</Label>
+                <Label htmlFor="employe_id" className="text-gray-700 dark:text-gray-300">Employé (optionnel)</Label>
                 <Select
                   value={formData.employe_id}
                   onValueChange={(value) => handleSelectChange('employe_id', value)}
                 >
                   <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
-                    <SelectValue placeholder="Sélectionnez un employé" />
+                    <SelectValue placeholder="Sélectionnez un employé (optionnel)" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="none">Aucun employé</SelectItem>
                     {employees.map((employee) => (
                       <SelectItem key={employee.id} value={employee.id}>
                         {employee.first_name} {employee.last_name} - {employee.role}

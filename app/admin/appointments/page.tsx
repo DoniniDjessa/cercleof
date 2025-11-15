@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -45,6 +45,7 @@ interface Appointment {
 }
 
 export default function AppointmentsPage() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
@@ -256,7 +257,10 @@ export default function AppointmentsPage() {
   const completedAppointments = appointments.filter(a => a.statut === 'termine').length
 
   if (showCreateForm) {
-    return <AddAppointment onAppointmentCreated={fetchAppointments} />
+    return <AddAppointment onAppointmentCreated={() => {
+      setShowCreateForm(false)
+      fetchAppointments()
+    }} />
   }
 
   return (
@@ -269,10 +273,7 @@ export default function AppointmentsPage() {
         </div>
         <AnimatedButton
           onClick={() => {
-            const url = new URL(window.location.href)
-            url.searchParams.set('action', 'create')
-            window.history.pushState({}, '', url.toString())
-            setShowCreateForm(true)
+            router.push('/admin/appointments?action=create')
           }}
           className="bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white"
         >

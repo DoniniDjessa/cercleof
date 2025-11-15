@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -48,6 +48,7 @@ interface Promotion {
 }
 
 export default function PromotionsPage() {
+  const router = useRouter()
   const { user: authUser } = useAuth()
   const [promotions, setPromotions] = useState<Promotion[]>([])
   const [loading, setLoading] = useState(true)
@@ -261,15 +262,11 @@ export default function PromotionsPage() {
       {showCreateForm ? (
         <AddPromotion 
           onPromotionCreated={() => {
-            fetchPromotions()
             setShowCreateForm(false)
-            // Clear URL parameters
-            window.history.replaceState({}, '', '/admin/promotions')
+            fetchPromotions()
           }}
           onCancel={() => {
             setShowCreateForm(false)
-            // Clear URL parameters
-            window.history.replaceState({}, '', '/admin/promotions')
           }}
         />
       ) : (
@@ -284,7 +281,7 @@ export default function PromotionsPage() {
             </div>
             {canManagePromotions && (
               <AnimatedButton
-                onClick={() => setShowCreateForm(true)}
+                onClick={() => router.push('/admin/promotions?action=create')}
                 className="bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white px-6 py-3 rounded-md font-medium transition-all duration-200"
               >
                 <Plus className="h-4 w-4 mr-2" />

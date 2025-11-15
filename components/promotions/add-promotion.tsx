@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -48,6 +49,7 @@ interface AddPromotionProps {
 }
 
 export function AddPromotion({ onPromotionCreated, onCancel }: AddPromotionProps) {
+  const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState<Promotion>({
     name: '',
@@ -179,6 +181,9 @@ export function AddPromotion({ onPromotionCreated, onCancel }: AddPromotionProps
         conditions: ''
       })
 
+      // Navigate back to promotions list
+      router.push('/admin/promotions')
+      
       onPromotionCreated?.()
     } catch (error) {
       console.error('Error:', error)
@@ -199,7 +204,10 @@ export function AddPromotion({ onPromotionCreated, onCancel }: AddPromotionProps
           </p>
         </div>
         {onCancel && (
-          <Button variant="outline" onClick={onCancel}>
+          <Button variant="outline" onClick={() => {
+            router.push('/admin/promotions')
+            onCancel()
+          }}>
             <X className="h-4 w-4 mr-2" />
             Annuler
           </Button>

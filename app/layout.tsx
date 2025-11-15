@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ToastProvider } from "@/components/providers/toast-provider";
 import { AppLayout } from "@/components/layout/app-layout";
 import { InstallPrompt } from "@/components/pwa/install-prompt";
+import { UnregisterSW } from "@/components/pwa/unregister-sw";
 
 const bebasNeue = Bebas_Neue({
   variable: "--font-bebas-neue",
@@ -77,6 +78,33 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr">
+      <head>
+        <link rel="icon" href="/favicon.ico" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+                // Unregister all service workers immediately
+                navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                  for(let registration of registrations) {
+                    registration.unregister().then(function(success) {
+                      if (success) {
+                        console.log('Service Worker unregistered');
+                      }
+                    });
+                  }
+                });
+                // Also try to unregister by scope
+                navigator.serviceWorker.register && navigator.serviceWorker.getRegistration().then(function(registration) {
+                  if (registration) {
+                    registration.unregister();
+                  }
+                });
+              }
+            `,
+          }}
+        />
+      </head>
       <body
         className={`${bebasNeue.variable} ${robotoCondensed.variable} ${poppins.variable} antialiased`}
       >
@@ -86,6 +114,7 @@ export default function RootLayout({
             <AppLayout>
               {children}
             </AppLayout>
+            <UnregisterSW />
             <InstallPrompt />
           </AuthProvider>
         </ThemeProvider>

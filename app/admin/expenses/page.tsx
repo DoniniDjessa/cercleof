@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -39,6 +39,7 @@ interface Expense {
 
 export default function ExpensesPage() {
   const { user: authUser } = useAuth()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [loading, setLoading] = useState(true)
@@ -299,7 +300,10 @@ export default function ExpensesPage() {
   }).length
 
   if (showCreateForm) {
-    return <AddExpense onExpenseCreated={fetchExpenses} expenseType={activeTab} isAdmin={isAdmin} />
+    return <AddExpense onExpenseCreated={() => {
+      setShowCreateForm(false)
+      fetchExpenses()
+    }} expenseType={activeTab} isAdmin={isAdmin} />
   }
 
   return (
@@ -312,10 +316,7 @@ export default function ExpensesPage() {
         </div>
         <AnimatedButton
           onClick={() => {
-            const url = new URL(window.location.href)
-            url.searchParams.set('action', 'create')
-            window.history.pushState({}, '', url.toString())
-            setShowCreateForm(true)
+            router.push('/admin/expenses?action=create')
           }}
           className="bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700 text-white"
         >

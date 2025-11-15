@@ -1,17 +1,21 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { AnimatedCard } from "@/components/ui/animated-card"
 import { ButtonLoadingSpinner } from "@/components/ui/context-loaders"
 import { useAuth } from "@/contexts/AuthContext"
 import { supabase } from "@/lib/supabase"
-import { Truck, MapPin, User, Package, Upload, X, Image as ImageIcon } from "lucide-react"
+import { Truck, MapPin, User, Package, Upload, X, Image as ImageIcon, Check, ChevronsUpDown } from "lucide-react"
+import { cn } from "@/lib/utils"
 import toast from "react-hot-toast"
 
 interface Sale {
@@ -40,6 +44,7 @@ interface AddDeliveryProps {
 }
 
 export function AddDelivery({ onDeliveryCreated }: AddDeliveryProps) {
+  const router = useRouter()
   const { user: authUser } = useAuth()
   const [loading, setLoading] = useState(false)
   const [uploadingImage, setUploadingImage] = useState(false)
@@ -47,6 +52,8 @@ export function AddDelivery({ onDeliveryCreated }: AddDeliveryProps) {
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [sales, setSales] = useState<Sale[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
+  const [saleSearchOpen, setSaleSearchOpen] = useState(false)
+  const [saleSearchTerm, setSaleSearchTerm] = useState("")
   
   const [formData, setFormData] = useState({
     vente_id: "",
@@ -300,7 +307,7 @@ export function AddDelivery({ onDeliveryCreated }: AddDeliveryProps) {
       setImagePreview(null)
 
       // Navigate back to deliveries list
-      window.history.replaceState({}, '', '/admin/deliveries')
+      router.push('/admin/deliveries')
       
       if (onDeliveryCreated) {
         onDeliveryCreated()
@@ -315,8 +322,7 @@ export function AddDelivery({ onDeliveryCreated }: AddDeliveryProps) {
   }
 
   const handleCancel = () => {
-    window.history.replaceState({}, '', '/admin/deliveries')
-    window.location.reload()
+    router.push('/admin/deliveries')
   }
 
   const selectedSale = sales.find(s => s.id === formData.vente_id)
@@ -345,21 +351,87 @@ export function AddDelivery({ onDeliveryCreated }: AddDeliveryProps) {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="vente_id" className="text-gray-700 dark:text-gray-300">Vente (optionnel)</Label>
-                <Select
-                  value={formData.vente_id}
-                  onValueChange={(value) => handleSelectChange('vente_id', value)}
-                >
-                  <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
-                    <SelectValue placeholder="Sélectionnez une vente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sales.map((sale) => (
-                      <SelectItem key={sale.id} value={sale.id}>
-                        #{sale.id.slice(-8)} - {sale.client ? `${sale.client.first_name} ${sale.client.last_name}` : 'Client anonyme'} - {sale.total_net.toFixed(0)}f
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={saleSearchOpen} onOpenChange={setSaleSearchOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={saleSearchOpen}
+                      className="w-full justify-between bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                    >
+                      {(() => {
+                        const selectedSale = sales.find((sale) => sale.id === formData.vente_id)
+                        if (!selectedSale) return "Rechercher une vente..."
+                        const clientName = selectedSale.client 
+                          ? `${selectedSale.client.first_name} ${selectedSale.client.last_name}`
+                          : 'Client anonyme'
+                        return `#${selectedSale.id.slice(-8)} - ${clientName} - ${selectedSale.total_net.toFixed(0)}f`
+                      })()}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                    <Command>
+                      <CommandInput 
+                        placeholder="Rechercher une vente..." 
+                        value={saleSearchTerm}
+                        onValueChange={setSaleSearchTerm}
+                      />
+                      <CommandList>
+                        <CommandEmpty>Aucune vente trouvée.</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem
+                            value=""
+                            onSelect={() => {
+                              handleSelectChange('vente_id', '')
+                              setSaleSearchOpen(false)
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                !formData.vente_id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            Aucune vente
+                          </CommandItem>
+                          {sales
+                            .filter((sale) => {
+                              if (!saleSearchTerm) return true
+                              const searchLower = saleSearchTerm.toLowerCase()
+                              const saleId = sale.id.slice(-8).toLowerCase()
+                              const clientName = sale.client 
+                                ? `${sale.client.first_name} ${sale.client.last_name}`.toLowerCase()
+                                : 'client anonyme'
+                              const total = sale.total_net.toFixed(0)
+                              return saleId.includes(searchLower) || 
+                                     clientName.includes(searchLower) || 
+                                     total.includes(searchLower)
+                            })
+                            .map((sale) => (
+                              <CommandItem
+                                key={sale.id}
+                                value={sale.id}
+                                onSelect={() => {
+                                  handleSelectChange('vente_id', sale.id)
+                                  setSaleSearchOpen(false)
+                                  setSaleSearchTerm("")
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    formData.vente_id === sale.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                #{sale.id.slice(-8)} - {sale.client ? `${sale.client.first_name} ${sale.client.last_name}` : 'Client anonyme'} - {sale.total_net.toFixed(0)}f
+                              </CommandItem>
+                            ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
             </CardContent>
           </AnimatedCard>
@@ -384,7 +456,7 @@ export function AddDelivery({ onDeliveryCreated }: AddDeliveryProps) {
                   </SelectTrigger>
                   <SelectContent>
                     {sales.filter(s => s.client).map((sale) => (
-                      <SelectItem key={sale.client_id} value={sale.client_id!}>
+                      <SelectItem key={`client-${sale.id}-${sale.client_id}`} value={sale.client_id!}>
                         {sale.client?.first_name} {sale.client?.last_name} - {sale.client?.email}
                       </SelectItem>
                     ))}
