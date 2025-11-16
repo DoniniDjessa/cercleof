@@ -499,26 +499,44 @@ const SKIN_TYPES = [
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0)
     
     let productName = ""
+    let brand = ""
     let tranchePrincipale = ""
     let formes: string[] = []
     let benefices: string[] = []
     let skinTypes: string[] = []
     let descriptionDetaillee = ""
     let descriptionEnrichie = ""
+    let price = ""
+    let quantity = ""
 
     // Extract product name from first line (if it starts with "nom"/"name" or doesn't match any pattern)
     if (lines.length > 0) {
       const firstLine = lines[0]
+      let extractedName = ""
       if (firstLine.match(/^(nom|name)\s*:?\s*/i)) {
         // Extract name after "nom:" or "name:" (handle both with and without colon)
         const nameMatch = firstLine.replace(/^(nom|name)\s*:?\s*/i, '').trim()
         // Remove "Catégorie" and everything after if present
         const categoryIndex = nameMatch.indexOf('Catégorie')
-        productName = categoryIndex > 0 ? nameMatch.substring(0, categoryIndex).trim() : nameMatch
+        extractedName = categoryIndex > 0 ? nameMatch.substring(0, categoryIndex).trim() : nameMatch
       } else if (!firstLine.match(/^(Tranche|Sous-Tranche|Type|Description)/i)) {
         // First line doesn't match any known pattern, assume it's the product name
         const categoryIndex = firstLine.indexOf('Catégorie')
-        productName = categoryIndex > 0 ? firstLine.substring(0, categoryIndex).trim() : firstLine
+        extractedName = categoryIndex > 0 ? firstLine.substring(0, categoryIndex).trim() : firstLine
+      }
+      
+      // Extract brand from product name if it contains a quote
+      // Format: "L'oreal paris " triple action" -> Brand: "L'oreal paris", Name: "triple action"
+      if (extractedName && extractedName.includes('"')) {
+        const quoteIndex = extractedName.indexOf('"')
+        brand = extractedName.substring(0, quoteIndex).trim()
+        productName = extractedName.substring(quoteIndex + 1).trim()
+        // Remove any trailing quotes from product name
+        if (productName.endsWith('"')) {
+          productName = productName.slice(0, -1).trim()
+        }
+      } else {
+        productName = extractedName
       }
     }
 
@@ -654,11 +672,34 @@ const SKIN_TYPES = [
         }
         descriptionEnrichie = desc.trim()
       }
+      
+      // Extract price and quantity from format like "2000f, 4" or "2000f,4"
+      // Pattern: number followed by 'f' or 'F', comma, then number
+      const priceQtyMatch = line.match(/(\d+(?:\s*\d+)*)\s*[fF]\s*,\s*(\d+)/i)
+      if (priceQtyMatch && !price && !quantity) {
+        // Extract price (remove spaces from number, e.g., "2 000" -> "2000")
+        price = priceQtyMatch[1].replace(/\s+/g, '')
+        quantity = priceQtyMatch[2]
+      }
+    }
+    
+    // Also check the entire text for price/quantity pattern if not found in lines
+    if (!price && !quantity) {
+      const fullTextMatch = text.match(/(\d+(?:\s*\d+)*)\s*[fF]\s*,\s*(\d+)/i)
+      if (fullTextMatch) {
+        price = fullTextMatch[1].replace(/\s+/g, '')
+        quantity = fullTextMatch[2]
+      }
     }
 
     // Auto-fill product name
     if (productName) {
       setFormData(prev => ({ ...prev, name: productName }))
+    }
+
+    // Auto-fill brand
+    if (brand) {
+      setFormData(prev => ({ ...prev, brand: brand }))
     }
 
     // Auto-fill cascade fields - set tranche first
@@ -720,6 +761,16 @@ const SKIN_TYPES = [
       setFormData(prev => ({ ...prev, description: descriptionDetaillee }))
     } else if (descriptionEnrichie) {
       setFormData(prev => ({ ...prev, description: descriptionEnrichie }))
+    }
+
+    // Auto-fill price
+    if (price) {
+      setFormData(prev => ({ ...prev, price: price }))
+    }
+
+    // Auto-fill quantity/stock
+    if (quantity) {
+      setFormData(prev => ({ ...prev, stock: quantity }))
     }
 
     toast.success("Informations extraites et champs remplis automatiquement!")
@@ -1267,6 +1318,8 @@ const SKIN_TYPES = [
                       value={structuredDescription}
                       onChange={(e) => setStructuredDescription(e.target.value)}
                       placeholder={`Exemple:
+nom   L'Oréal Paris " Triple Active...
+2000f, 4
 Tranche Principale	Soin du visage
 Sous-Tranche (Formes)	Crème (Crème de jour)
 Sous-Tranche (Bénéfices)	Hydratant (24H), Protecteur (UV Filter), Nourrissant (Céramide), Éclat
@@ -1690,7 +1743,7 @@ Description Enrichie (longue)	Découvrez le secret...`}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="cost" className="text-gray-700 dark:text-gray-300">Coût *</Label>
+                    <Label htmlFor="cost" className="text-gray-700 dark:text-gray-300">Coût</Label>
                     <Input 
                       id="cost" 
                       name="cost"
@@ -1699,7 +1752,6 @@ Description Enrichie (longue)	Découvrez le secret...`}
                       value={formData.cost}
                       onChange={handleChange}
                       placeholder="0.00" 
-                      required
                       className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
                     />
                   </div>
