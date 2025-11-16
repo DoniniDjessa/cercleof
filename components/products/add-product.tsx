@@ -115,6 +115,10 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
   const [zoom, setZoom] = useState(1)
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null)
   const [processingCrop, setProcessingCrop] = useState(false)
+  const [similarProducts, setSimilarProducts] = useState<Array<{id: string, name: string, sku?: string, brand?: string}>>([])
+  const [searchingSimilar, setSearchingSimilar] = useState(false)
+  const [showSimilarProducts, setShowSimilarProducts] = useState(false)
+  const [structuredDescription, setStructuredDescription] = useState("")
   const cascadeDomains = useMemo(() => Object.keys(CATEGORY_CASCADE), [])
 const SKIN_TYPES = [
   "Peau normale",
@@ -255,10 +259,12 @@ const SKIN_TYPES = [
     return `${selectedFormes[0]}, ${selectedFormes[1]}`
   }, [selectedFormes])
 
+  // Category name used for POS filters: limit to two levels (e.g. "Soin des cheveux • Shampoing")
+  // This avoids creating too many very granular categories like "Cosmetics • Soin des cheveux • Shampoing • Nourrissant"
   const cascadeCategoryName = useMemo(() => {
-    if (!formattedDomain && !primaryTranche && !primaryForme && !primaryBenefice) return ""
-    return [formattedDomain, primaryTranche, primaryForme, primaryBenefice].filter(Boolean).join(" • ")
-  }, [formattedDomain, primaryTranche, primaryForme, primaryBenefice])
+    if (!primaryTranche && !primaryForme) return ""
+    return [primaryTranche, primaryForme].filter(Boolean).join(" • ")
+  }, [primaryTranche, primaryForme])
   const skinTypeSummary = useMemo(() => {
     if (selectedSkinTypes.length === 0) return "Sélectionner des types de peau (optionnel)"
     if (selectedSkinTypes.length <= 2) return selectedSkinTypes.join(", ")
@@ -431,6 +437,308 @@ const SKIN_TYPES = [
     }
   }, [selectedCategoryId, categories, matchingCategory])
 
+  // Search for similar products (after 2 words, i.e., from 3rd word)
+  const searchSimilarProducts = useCallback(async (productName: string) => {
+    if (!productName || productName.trim().length === 0) {
+      setSimilarProducts([])
+      setShowSimilarProducts(false)
+      return
+    }
+
+    // Split by spaces and filter empty strings
+    const words = productName.trim().split(/\s+/).filter(w => w.length > 0)
+    
+    // Only search if we have 3 or more words (after 2 words)
+    if (words.length < 3) {
+      setSimilarProducts([])
+      setShowSimilarProducts(false)
+      return
+    }
+
+    // Use words from the 3rd word onwards for similarity search
+    const searchTerms = words.slice(2).join(' ')
+    
+    if (searchTerms.length < 2) {
+      setSimilarProducts([])
+      setShowSimilarProducts(false)
+      return
+    }
+
+    try {
+      setSearchingSimilar(true)
+      // Search for products with similar names (case-insensitive, partial match)
+      const { data, error } = await supabase
+        .from('dd-products')
+        .select('id, name, sku, brand')
+        .ilike('name', `%${searchTerms}%`)
+        .limit(5) // Limit to 5 similar products
+        .order('name', { ascending: true })
+
+      if (error) throw error
+
+      // Filter out exact matches (to avoid showing the same product)
+      const filtered = (data || []).filter(p => 
+        p.name.toLowerCase() !== productName.toLowerCase()
+      )
+
+      setSimilarProducts(filtered)
+      setShowSimilarProducts(filtered.length > 0)
+    } catch (error) {
+      console.error('Error searching similar products:', error)
+      setSimilarProducts([])
+      setShowSimilarProducts(false)
+    } finally {
+      setSearchingSimilar(false)
+    }
+  }, [])
+
+  // Parse structured description and auto-fill fields
+  const parseStructuredDescription = useCallback((text: string) => {
+    if (!text || text.trim().length === 0) return
+
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0)
+    
+    let productName = ""
+    let tranchePrincipale = ""
+    let formes: string[] = []
+    let benefices: string[] = []
+    let skinTypes: string[] = []
+    let descriptionDetaillee = ""
+    let descriptionEnrichie = ""
+
+    // Extract product name from first line (if it starts with "nom"/"name" or doesn't match any pattern)
+    if (lines.length > 0) {
+      const firstLine = lines[0]
+      if (firstLine.match(/^(nom|name)\s*:?\s*/i)) {
+        // Extract name after "nom:" or "name:" (handle both with and without colon)
+        const nameMatch = firstLine.replace(/^(nom|name)\s*:?\s*/i, '').trim()
+        // Remove "Catégorie" and everything after if present
+        const categoryIndex = nameMatch.indexOf('Catégorie')
+        productName = categoryIndex > 0 ? nameMatch.substring(0, categoryIndex).trim() : nameMatch
+      } else if (!firstLine.match(/^(Tranche|Sous-Tranche|Type|Description)/i)) {
+        // First line doesn't match any known pattern, assume it's the product name
+        const categoryIndex = firstLine.indexOf('Catégorie')
+        productName = categoryIndex > 0 ? firstLine.substring(0, categoryIndex).trim() : firstLine
+      }
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      
+      // Tranche Principale - handle tab or space separation
+      if (line.match(/^Tranche\s+Principale/i)) {
+        const parts = line.split(/\t+| {2,}/) // Split by tabs or multiple spaces
+        if (parts.length >= 2) {
+          tranchePrincipale = parts.slice(1).join(' ').trim()
+        } else if (i + 1 < lines.length && !lines[i + 1].match(/^(Tranche|Sous-Tranche|Type|Description)/i)) {
+          tranchePrincipale = lines[i + 1].trim()
+        }
+      }
+      
+      // Sous-Tranche (Formes) - handle tab or space separation
+      if (line.match(/Sous-Tranche\s*\(Formes\)/i)) {
+        const parts = line.split(/\t+| {2,}/) // Split by tabs or multiple spaces
+        let formeValue = ""
+        if (parts.length >= 2) {
+          formeValue = parts.slice(1).join(' ').trim()
+        } else if (i + 1 < lines.length && !lines[i + 1].match(/^(Tranche|Sous-Tranche|Type|Description)/i)) {
+          formeValue = lines[i + 1].trim()
+        }
+        // Extract forme name (remove parenthetical info)
+        if (formeValue) {
+          const formeMatch = formeValue.match(/^([^(]+)/)
+          if (formeMatch) {
+            const formeName = formeMatch[1].trim()
+            formes = [formeName]
+          }
+        }
+      }
+      
+      // Sous-Tranche (Bénéfices) - handle tab or space separation
+      if (line.match(/Sous-Tranche\s*\(Bénéfices\)/i)) {
+        const parts = line.split(/\t+| {2,}/) // Split by tabs or multiple spaces
+        let beneficesValue = ""
+        if (parts.length >= 2) {
+          beneficesValue = parts.slice(1).join(' ').trim()
+        } else if (i + 1 < lines.length && !lines[i + 1].match(/^(Tranche|Sous-Tranche|Type|Description)/i)) {
+          beneficesValue = lines[i + 1].trim()
+        }
+        // Split by comma and extract benefit names (remove parenthetical info)
+        if (beneficesValue) {
+          benefices = beneficesValue.split(',').map(b => {
+            const match = b.trim().match(/^([^(]+)/)
+            let benefit = match ? match[1].trim() : b.trim()
+            // Map common variations
+            if (benefit.toLowerCase().includes('protecteur') || benefit.toLowerCase().includes('protection')) {
+              benefit = 'Protection solaire'
+            } else if (benefit.toLowerCase().includes('éclat') || benefit.toLowerCase().includes('eclat')) {
+              benefit = 'Éclaircissant'
+            } else if (benefit.toLowerCase().includes('hydratant')) {
+              benefit = 'Hydratant'
+            } else if (benefit.toLowerCase().includes('nourrissant')) {
+              benefit = 'Nourrissant'
+            }
+            return benefit
+          }).filter(b => b.length > 0)
+        }
+      }
+      
+      // Type de Peau Cible
+      if (line.match(/Type\s+de\s+Peau/i)) {
+        const parts = line.split(/\t+| {2,}/)
+        let skinTypeValue = ""
+        if (parts.length >= 2) {
+          skinTypeValue = parts.slice(1).join(' ').trim()
+        } else if (i + 1 < lines.length && !lines[i + 1].match(/^(Tranche|Sous-Tranche|Type|Description)/i)) {
+          skinTypeValue = lines[i + 1].trim()
+        }
+        // Extract skin type (remove parenthetical info)
+        if (skinTypeValue) {
+          const skinMatch = skinTypeValue.match(/^([^(]+)/)
+          if (skinMatch) {
+            const skinType = skinMatch[1].trim()
+            // Map to available skin types
+            const normalized = skinType.toLowerCase()
+            if (normalized.includes('normale') && normalized.includes('mixte')) {
+              skinTypes = ['Peau normale', 'Peau mixte']
+            } else if (normalized.includes('normale')) {
+              skinTypes = ['Peau normale']
+            } else if (normalized.includes('mixte')) {
+              skinTypes = ['Peau mixte']
+            } else if (normalized.includes('sèche') || normalized.includes('seche')) {
+              skinTypes = ['Peau sèche']
+            } else if (normalized.includes('grasse')) {
+              skinTypes = ['Peau grasse']
+            } else if (normalized.includes('sensible')) {
+              skinTypes = ['Peau sensible']
+            } else if (normalized.includes('mature')) {
+              skinTypes = ['Peau mature']
+            } else if (normalized.includes('déshydratée') || normalized.includes('deshydratee')) {
+              skinTypes = ['Peau déshydratée']
+            } else if (normalized.includes('acné') || normalized.includes('acne')) {
+              skinTypes = ['Peau sujette à l\'acné']
+            } else if (normalized.includes('hyperpigmentée') || normalized.includes('hyperpigmentee')) {
+              skinTypes = ['Peau hyperpigmentée']
+            }
+          }
+        }
+      }
+      
+      // Description détaillée
+      if (line.match(/Description\s+détaillée/i)) {
+        const parts = line.split(/\t+| {2,}/)
+        let desc = ""
+        if (parts.length >= 2) {
+          desc = parts.slice(1).join(' ').trim()
+        }
+        // Collect following lines until next section
+        for (let j = i + 1; j < lines.length; j++) {
+          if (lines[j].match(/Description\s+Enrichie/i)) {
+            break
+          }
+          desc += (desc ? " " : "") + lines[j]
+        }
+        descriptionDetaillee = desc.trim()
+      }
+      
+      // Description Enrichie
+      if (line.match(/Description\s+Enrichie/i)) {
+        const parts = line.split(/\t+| {2,}/)
+        let desc = ""
+        if (parts.length >= 2) {
+          desc = parts.slice(1).join(' ').trim()
+        }
+        // Collect all following lines
+        for (let j = i + 1; j < lines.length; j++) {
+          desc += (desc ? " " : "") + lines[j]
+        }
+        descriptionEnrichie = desc.trim()
+      }
+    }
+
+    // Auto-fill product name
+    if (productName) {
+      setFormData(prev => ({ ...prev, name: productName }))
+    }
+
+    // Auto-fill cascade fields - set tranche first
+    if (tranchePrincipale) {
+      // Find matching tranche in available tranches
+      const matchingTranche = availableTranches.find(t => 
+        t.tranche_principale.toLowerCase() === tranchePrincipale.toLowerCase()
+      )
+      if (matchingTranche) {
+        // Set tranche first
+        setSelectedTranches([matchingTranche.tranche_principale])
+        
+        // Get available formes and benefices from the matching tranche
+        const trancheFormes = matchingTranche.sous_tranches.formes
+        const trancheBenefices = matchingTranche.sous_tranches.benefices
+        
+        // Auto-fill formes after a short delay to ensure state is updated
+        setTimeout(() => {
+          if (formes.length > 0) {
+            const matchingFormes = formes.filter(f => 
+              trancheFormes.some(tf => tf.toLowerCase() === f.toLowerCase())
+            )
+            if (matchingFormes.length > 0) {
+              // Map to exact case from cascade
+              const exactFormes = matchingFormes.map(mf => 
+                trancheFormes.find(tf => tf.toLowerCase() === mf.toLowerCase()) || mf
+              )
+              setSelectedFormes(exactFormes.slice(0, 2)) // Max 2 formes
+            }
+          }
+          
+          // Auto-fill benefices
+          if (benefices.length > 0) {
+            const matchingBenefices = benefices.filter(b => 
+              trancheBenefices.some(tb => tb.toLowerCase() === b.toLowerCase())
+            )
+            if (matchingBenefices.length > 0) {
+              // Map to exact case from cascade
+              const exactBenefices = matchingBenefices.map(mb => 
+                trancheBenefices.find(tb => tb.toLowerCase() === mb.toLowerCase()) || mb
+              )
+              setSelectedBenefices(exactBenefices)
+            }
+          }
+        }, 100)
+      }
+    }
+
+    // Auto-fill skin types
+    if (skinTypes.length > 0) {
+      const matchingSkinTypes = skinTypes.filter(st => SKIN_TYPES.includes(st))
+      if (matchingSkinTypes.length > 0) {
+        setSelectedSkinTypes(matchingSkinTypes)
+      }
+    }
+
+    // Auto-fill descriptions
+    if (descriptionDetaillee) {
+      setFormData(prev => ({ ...prev, description: descriptionDetaillee }))
+    } else if (descriptionEnrichie) {
+      setFormData(prev => ({ ...prev, description: descriptionEnrichie }))
+    }
+
+    toast.success("Informations extraites et champs remplis automatiquement!")
+  }, [availableTranches, selectedTranches])
+
+  // Debounced search for similar products
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (formData.name) {
+        searchSimilarProducts(formData.name)
+      } else {
+        setSimilarProducts([])
+        setShowSimilarProducts(false)
+      }
+    }, 500) // 500ms debounce
+
+    return () => clearTimeout(timeoutId)
+  }, [formData.name, searchSimilarProducts])
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
 
@@ -441,6 +749,11 @@ const SKIN_TYPES = [
     }
 
     setFormData((prev) => ({ ...prev, [name]: value }))
+    
+    // Keep similar products visible when typing in name field
+    if (name === "name") {
+      // The useEffect will handle the search
+    }
   }
 
   const handleSelectChange = (name: string, value: string) => {
@@ -798,6 +1111,9 @@ const SKIN_TYPES = [
       setSelectedSkinTypes([])
       setSkuManuallyEdited(false)
       setBarcodeManuallyEdited(false)
+      setSimilarProducts([])
+      setShowSimilarProducts(false)
+      setStructuredDescription("")
 
       // Call the callback to refresh the products list
       if (onProductCreated) {
@@ -864,15 +1180,111 @@ const SKIN_TYPES = [
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="name" className="text-gray-700 dark:text-gray-300">Nom du Produit *</Label>
-                  <Input 
-                    id="name" 
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    placeholder="Entrez le nom du produit" 
-                    required
-                    className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
-                  />
+                  <div className="relative">
+                    <Input 
+                      id="name" 
+                      name="name"
+                      value={formData.name}
+                      onChange={handleChange}
+                      onFocus={() => {
+                        if (similarProducts.length > 0) {
+                          setShowSimilarProducts(true)
+                        }
+                      }}
+                      onBlur={() => {
+                        // Delay hiding to allow clicking on suggestions
+                        setTimeout(() => setShowSimilarProducts(false), 200)
+                      }}
+                      placeholder="Entrez le nom du produit" 
+                      required
+                      className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                    />
+                    {showSimilarProducts && similarProducts.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-auto">
+                        <div className="p-2 border-b border-gray-200 dark:border-gray-700">
+                          <p className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                            Produits similaires (éviter les doublons)
+                          </p>
+                        </div>
+                        <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                          {similarProducts.map((product) => (
+                            <div
+                              key={product.id}
+                              className="p-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
+                              onMouseDown={(e) => {
+                                e.preventDefault() // Prevent input blur
+                                setFormData(prev => ({ ...prev, name: product.name }))
+                                setShowSimilarProducts(false)
+                                toast.success(`Nom du produit mis à jour: ${product.name}`)
+                              }}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                    {product.name}
+                                  </p>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    {product.brand && (
+                                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                                        {product.brand}
+                                      </span>
+                                    )}
+                                    {product.sku && (
+                                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                                        SKU: {product.sku}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {searchingSimilar && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <RefreshCw className="w-4 h-4 text-gray-400 animate-spin" />
+                      </div>
+                    )}
+                  </div>
+                  {formData.name && formData.name.trim().split(/\s+/).filter(w => w.length > 0).length >= 3 && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Recherche de produits similaires activée (à partir du 3ème mot)
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="structured-description" className="text-gray-700 dark:text-gray-300">
+                    Description Structurée (Collez les informations du produit)
+                  </Label>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                    Collez ici les informations structurées du produit (Tranche Principale, Formes, Bénéfices, etc.) pour remplir automatiquement les champs ci-dessous.
+                  </p>
+                  <div className="flex gap-2">
+                    <Textarea 
+                      id="structured-description" 
+                      value={structuredDescription}
+                      onChange={(e) => setStructuredDescription(e.target.value)}
+                      placeholder={`Exemple:
+Tranche Principale	Soin du visage
+Sous-Tranche (Formes)	Crème (Crème de jour)
+Sous-Tranche (Bénéfices)	Hydratant (24H), Protecteur (UV Filter), Nourrissant (Céramide), Éclat
+Type de Peau Cible	Normale à mixte
+Description détaillée (pour le site internet)	La Crème de Jour Triple Active...
+Description Enrichie (longue)	Découvrez le secret...`}
+                      rows={8}
+                      className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 font-mono text-xs"
+                    />
+                    <Button
+                      type="button"
+                      onClick={() => parseStructuredDescription(structuredDescription)}
+                      disabled={!structuredDescription.trim()}
+                      className="self-start"
+                    >
+                      Extraire
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="description" className="text-gray-700 dark:text-gray-300">Description</Label>

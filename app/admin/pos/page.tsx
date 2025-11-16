@@ -115,6 +115,15 @@ export default function POSPage() {
   const [editingPriceValue, setEditingPriceValue] = useState<string>('')
   const [whatsappPhone, setWhatsappPhone] = useState<string>('')
   const [sendingWhatsapp, setSendingWhatsapp] = useState(false)
+
+  // Product transfer (inventory movement) states
+  const [showTransferModal, setShowTransferModal] = useState(false)
+  const [transferProduct, setTransferProduct] = useState<Product | null>(null)
+  const [transferQuantity, setTransferQuantity] = useState('1')
+  const [transferPerson, setTransferPerson] = useState('')
+  const [transferReason, setTransferReason] = useState('')
+  const [transferTarget, setTransferTarget] = useState<'salon' | 'owner' | 'other'>('salon')
+  const [transferLoading, setTransferLoading] = useState(false)
   
   // Promotion code states
   const [promotionCode, setPromotionCode] = useState("")
@@ -921,6 +930,90 @@ export default function POSPage() {
     return Math.max(0, afterDiscount - giftCardAmountToUse)
   }
 
+  const handleCreateTransfer = async () => {
+    if (!transferProduct) return
+
+    const quantity = parseInt(transferQuantity || '0', 10)
+    if (!quantity || quantity <= 0) {
+      toast.error('La quantité doit être supérieure à 0')
+      return
+    }
+
+    if (quantity > transferProduct.stock_quantity) {
+      toast.error(`Stock insuffisant. Stock disponible: ${transferProduct.stock_quantity}`)
+      return
+    }
+
+    try {
+      setTransferLoading(true)
+
+      // Get current user (taken_by)
+      const { data: { user: authUserData } } = await supabase.auth.getUser()
+      if (!authUserData) {
+        toast.error('Utilisateur non authentifié')
+        return
+      }
+
+      const { data: currentUser, error: userError } = await supabase
+        .from('dd-users')
+        .select('id, first_name, last_name')
+        .eq('auth_user_id', authUserData.id)
+        .single()
+
+      if (userError || !currentUser) {
+        toast.error('Impossible de récupérer l\'utilisateur courant')
+        return
+      }
+
+      const fullReason = `Pris par: ${transferPerson || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'N/A'}\nDestination: ${transferTarget}\nRaison: ${transferReason || 'N/A'}`
+
+      // Create inventory movement (transfer out)
+      const { error: movementError } = await supabase
+        .from('dd-inventory_movements')
+        .insert([{
+          product_id: transferProduct.id,
+          quantity,
+          movement_type: 'out',
+          reason: fullReason,
+          target_location: transferTarget,
+          taken_by: currentUser.id,
+          reference_type: 'transfer'
+        }])
+
+      if (movementError) {
+        console.error('Error creating inventory movement:', movementError)
+        toast.error('Erreur lors de la création du transfert')
+        return
+      }
+
+      // Update product stock
+      const newStock = Math.max(0, transferProduct.stock_quantity - quantity)
+      const { error: stockError } = await supabase
+        .from('dd-products')
+        .update({ stock_quantity: newStock })
+        .eq('id', transferProduct.id)
+
+      if (stockError) {
+        console.error('Error updating product stock after transfer:', stockError)
+        toast.error('Transfert créé mais erreur lors de la mise à jour du stock')
+      } else {
+        // Update local products state
+        setProducts(prev =>
+          prev.map(p => p.id === transferProduct.id ? { ...p, stock_quantity: newStock } : p)
+        )
+        toast.success('Transfert enregistré et stock mis à jour')
+      }
+
+      setShowTransferModal(false)
+      setTransferProduct(null)
+    } catch (error) {
+      console.error('Error during transfer:', error)
+      toast.error('Erreur lors de la création du transfert')
+    } finally {
+      setTransferLoading(false)
+    }
+  }
+
   const processSale = async () => {
     if (cart.length === 0) {
       toast.error('Le panier est vide')
@@ -1672,32 +1765,61 @@ export default function POSPage() {
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filteredProducts.map((product) => (
-                    <div
-                      key={product.id}
-                      className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
-                      onClick={() => addToCart(product, 'product')}
-                    >
-                      <div className="flex items-center gap-3">
-                        {product.images && product.images.length > 0 ? (
-                          <img
-                            src={product.images[0]}
-                            alt={product.name}
-                            className="w-12 h-12 rounded-lg object-cover"
-                          />
-                        ) : (
-                          <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-                            <Package className="w-6 h-6 text-gray-400" />
+                      <div
+                        key={product.id}
+                        className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
+                        onClick={() => addToCart(product, 'product')}
+                      >
+                        <div className="flex items-center gap-3">
+                          {product.images && product.images.length > 0 ? (
+                            <img
+                              src={product.images[0]}
+                              alt={product.name}
+                              className="w-12 h-12 rounded-lg object-cover"
+                            />
+                          ) : (
+                            <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                              <Package className="w-6 h-6 text-gray-400" />
+                            </div>
+                          )}
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-900 dark:text-white text-xs">{product.name}</p>
+                            <p className="text-[10px] text-gray-500 dark:text-gray-400">
+                              {product.price.toFixed(0)}f • Stock: {product.stock_quantity}
+                            </p>
                           </div>
-                        )}
-                        <div className="flex-1">
-                          <p className="font-medium text-gray-900 dark:text-white text-xs">{product.name}</p>
-                          <p className="text-[10px] text-gray-500 dark:text-gray-400">
-                            {product.price.toFixed(0)}f • Stock: {product.stock_quantity}
-                          </p>
+                        </div>
+                        <div className="mt-2 flex justify-between gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 px-2 text-[10px]"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              addToCart(product, 'product')
+                            }}
+                          >
+                            Ajouter au panier
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 px-2 text-[10px] text-purple-600 border-purple-200 dark:text-purple-400 dark:border-purple-800"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setTransferProduct(product)
+                              setTransferQuantity('1')
+                              setTransferPerson('')
+                              setTransferReason('')
+                              setTransferTarget('salon')
+                              setShowTransferModal(true)
+                            }}
+                          >
+                            Transfert
+                          </Button>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
                   </div>
                 )
               ) : (
@@ -2131,6 +2253,96 @@ export default function POSPage() {
           )}
         </div>
       </div>
+
+      {/* Product Transfer Modal */}
+      {showTransferModal && transferProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg w-full max-w-md p-6 border border-gray-200 dark:border-gray-700">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              Transfert de produit
+            </h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+              Enregistrer un produit pris pour le salon ou par le propriétaire. Le stock sera mis à jour automatiquement.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Produit</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">
+                  {transferProduct.name}
+                </p>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                  Stock actuel: {transferProduct.stock_quantity}
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs text-gray-700 dark:text-gray-300">Quantité</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={transferProduct.stock_quantity}
+                    value={transferQuantity}
+                    onChange={(e) => setTransferQuantity(e.target.value)}
+                    className="h-8 text-xs mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-700 dark:text-gray-300">Destination</Label>
+                  <select
+                    value={transferTarget}
+                    onChange={(e) => setTransferTarget(e.target.value as 'salon' | 'owner' | 'other')}
+                    className="mt-1 h-8 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white px-2"
+                  >
+                    <option value="salon">Salon</option>
+                    <option value="owner">Propriétaire</option>
+                    <option value="other">Autre</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs text-gray-700 dark:text-gray-300">Personne qui prend le produit</Label>
+                <Input
+                  placeholder="Nom de la personne (employé, propriétaire, etc.)"
+                  value={transferPerson}
+                  onChange={(e) => setTransferPerson(e.target.value)}
+                  className="h-8 text-xs mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-gray-700 dark:text-gray-300">Raison</Label>
+                <Input
+                  placeholder="Ex: Utilisation au salon, test, perte, etc."
+                  value={transferReason}
+                  onChange={(e) => setTransferReason(e.target.value)}
+                  className="h-8 text-xs mt-1"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (transferLoading) return
+                  setShowTransferModal(false)
+                  setTransferProduct(null)
+                }}
+                className="text-xs"
+              >
+                Annuler
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleCreateTransfer}
+                disabled={transferLoading}
+                className="text-xs"
+              >
+                {transferLoading ? 'Enregistrement...' : 'Enregistrer le transfert'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Quick Create Client Modal */}
       <QuickCreateClient
