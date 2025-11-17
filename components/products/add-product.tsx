@@ -714,7 +714,8 @@ const SKIN_TYPES = [
           }
           desc += (desc ? " " : "") + nextLine.trim()
         }
-        descriptionDetaillee = desc.trim()
+        // Remove price/quantity pattern at the end (e.g., "0f, 4" or "50f, 4")
+        descriptionDetaillee = desc.trim().replace(/\s+\d+\s*[fF]\s*,\s*\d+\s*$/i, '').trim()
       }
       
       // Description Enrichie - handle both "Description Enrichie" and "Description Enrichie (longue)"
@@ -739,7 +740,8 @@ const SKIN_TYPES = [
           }
           desc += (desc ? " " : "") + nextLine.trim()
         }
-        descriptionEnrichie = desc.trim()
+        // Remove price/quantity pattern at the end (e.g., "0f, 4" or "50f, 4")
+        descriptionEnrichie = desc.trim().replace(/\s+\d+\s*[fF]\s*,\s*\d+\s*$/i, '').trim()
       }
       
       // Extract price and quantity from format like "2000f, 4", "2000f,4", or "50f, 4"
