@@ -344,7 +344,7 @@ const SKIN_TYPES = [
         setBarcodeManuallyEdited(false)
       }
     }
-  }, [matchingCategory, selectedCategoryId])
+  }, [matchingCategory, selectedCategoryId, selectedFormes]) // Added selectedFormes dependency to trigger when formes are set
 
   useEffect(() => {
     if (!isCropModalOpen && cropQueue.length > 0) {
@@ -496,7 +496,8 @@ const SKIN_TYPES = [
   const parseStructuredDescription = useCallback((text: string) => {
     if (!text || text.trim().length === 0) return
 
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0)
+    // Split by newlines but keep empty lines for context (they might separate sections)
+    const lines = text.split('\n').map(l => l.trim())
     
     let productName = ""
     let brand = ""
@@ -561,71 +562,102 @@ const SKIN_TYPES = [
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]
       
-      // Tranche Principale - handle tab or space separation
+      // Tranche Principale - handle single space, tab, or multiple spaces
       if (line.match(/^Tranche\s+Principale/i)) {
-        const parts = line.split(/\t+| {2,}/) // Split by tabs or multiple spaces
-        if (parts.length >= 2) {
-          tranchePrincipale = parts.slice(1).join(' ').trim()
-        } else if (i + 1 < lines.length && !lines[i + 1].match(/^(Tranche|Sous-Tranche|Type|Description)/i)) {
+        // Remove "Tranche Principale" and get the rest
+        const match = line.match(/^Tranche\s+Principale\s+(.+)/i)
+        if (match && match[1]) {
+          tranchePrincipale = match[1].trim()
+        } else if (i + 1 < lines.length && lines[i + 1] && !lines[i + 1].match(/^(Tranche|Sous-Tranche|Type|Description|marque|nom)/i)) {
           tranchePrincipale = lines[i + 1].trim()
         }
       }
       
-      // Sous-Tranche (Formes) - handle tab or space separation
+      // Sous-Tranche (Formes) - handle single space, tab, or multiple spaces
       if (line.match(/Sous-Tranche\s*\(Formes\)/i)) {
-        const parts = line.split(/\t+| {2,}/) // Split by tabs or multiple spaces
+        // Remove "Sous-Tranche (Formes)" and get the rest
+        const match = line.match(/Sous-Tranche\s*\(Formes\)\s+(.+)/i)
         let formeValue = ""
-        if (parts.length >= 2) {
-          formeValue = parts.slice(1).join(' ').trim()
-        } else if (i + 1 < lines.length && !lines[i + 1].match(/^(Tranche|Sous-Tranche|Type|Description)/i)) {
+        if (match && match[1]) {
+          formeValue = match[1].trim()
+        } else if (i + 1 < lines.length && lines[i + 1] && !lines[i + 1].match(/^(Tranche|Sous-Tranche|Type|Description|marque|nom)/i)) {
           formeValue = lines[i + 1].trim()
         }
         // Extract forme name (remove parenthetical info)
         if (formeValue) {
+          // Remove everything after first opening parenthesis and trim
           const formeMatch = formeValue.match(/^([^(]+)/)
           if (formeMatch) {
-            const formeName = formeMatch[1].trim()
-            formes = [formeName]
+            let formeName = formeMatch[1].trim()
+            // Clean up any trailing spaces or special characters
+            formeName = formeName.replace(/\s+$/, '').trim()
+            if (formeName) {
+              formes = [formeName]
+            }
+          } else {
+            // If no parenthesis, use the whole value
+            const trimmed = formeValue.trim()
+            if (trimmed) {
+              formes = [trimmed]
+            }
           }
         }
       }
       
-      // Sous-Tranche (Bénéfices) - handle tab or space separation
+      // Sous-Tranche (Bénéfices) - handle single space, tab, or multiple spaces
       if (line.match(/Sous-Tranche\s*\(Bénéfices\)/i)) {
-        const parts = line.split(/\t+| {2,}/) // Split by tabs or multiple spaces
+        // Remove "Sous-Tranche (Bénéfices)" and get the rest
+        const match = line.match(/Sous-Tranche\s*\(Bénéfices\)\s+(.+)/i)
         let beneficesValue = ""
-        if (parts.length >= 2) {
-          beneficesValue = parts.slice(1).join(' ').trim()
-        } else if (i + 1 < lines.length && !lines[i + 1].match(/^(Tranche|Sous-Tranche|Type|Description)/i)) {
+        if (match && match[1]) {
+          beneficesValue = match[1].trim()
+        } else if (i + 1 < lines.length && lines[i + 1] && !lines[i + 1].match(/^(Tranche|Sous-Tranche|Type|Description|marque|nom)/i)) {
           beneficesValue = lines[i + 1].trim()
         }
         // Split by comma and extract benefit names (remove parenthetical info)
         if (beneficesValue) {
           benefices = beneficesValue.split(',').map(b => {
-            const match = b.trim().match(/^([^(]+)/)
-            let benefit = match ? match[1].trim() : b.trim()
-            // Map common variations
-            if (benefit.toLowerCase().includes('protecteur') || benefit.toLowerCase().includes('protection')) {
+            const trimmed = b.trim()
+            if (!trimmed) return ''
+            
+            // Remove parenthetical info
+            const match = trimmed.match(/^([^(]+)/)
+            let benefit = match ? match[1].trim() : trimmed
+            // Clean up any trailing spaces or special characters
+            benefit = benefit.replace(/\s+$/, '').trim()
+            
+            if (!benefit) return ''
+            
+            // Map common variations to standard names
+            const benefitLower = benefit.toLowerCase()
+            if (benefitLower.includes('protecteur') || benefitLower.includes('protection') || benefitLower.includes('uv') || benefitLower.includes('filtre')) {
               benefit = 'Protection solaire'
-            } else if (benefit.toLowerCase().includes('éclat') || benefit.toLowerCase().includes('eclat')) {
+            } else if (benefitLower.includes('éclat') || benefitLower.includes('eclat') || benefitLower.includes('éclaircissant') || benefitLower.includes('eclaircissant')) {
               benefit = 'Éclaircissant'
-            } else if (benefit.toLowerCase().includes('hydratant')) {
+            } else if (benefitLower.includes('hydratant') || benefitLower.includes('hydratation')) {
               benefit = 'Hydratant'
-            } else if (benefit.toLowerCase().includes('nourrissant')) {
+            } else if (benefitLower.includes('nourrissant') || benefitLower.includes('nourriture')) {
               benefit = 'Nourrissant'
+            } else if (benefitLower.includes('réparateur') || benefitLower.includes('reparateur') || benefitLower.includes('réparation') || benefitLower.includes('reparation')) {
+              benefit = 'Réparateur'
+            } else if (benefitLower.includes('apaisant') || benefitLower.includes('apaisement') || benefitLower.includes('soothing')) {
+              benefit = 'Apaisant'
+            } else if (benefitLower.includes('non gras') || benefitLower.includes('non-gras') || benefitLower.includes('non gras') || benefitLower.includes('non-greasy')) {
+              benefit = 'Non gras'
             }
             return benefit
           }).filter(b => b.length > 0)
         }
       }
       
-      // Type de Peau Cible
+      // Type de Peau Cible - handle single space, tab, or multiple spaces
       if (line.match(/Type\s+de\s+Peau/i)) {
-        const parts = line.split(/\t+| {2,}/)
+        // Remove "Type de Peau Cible" and get the rest
+        const match = line.match(/Type\s+de\s+Peau\s+Cible\s+(.+)/i)
         let skinTypeValue = ""
-        if (parts.length >= 2) {
-          skinTypeValue = parts.slice(1).join(' ').trim()
-        } else if (i + 1 < lines.length && !lines[i + 1].match(/^(Tranche|Sous-Tranche|Type|Description)/i)) {
+        if (match && match[1]) {
+          skinTypeValue = match[1].trim()
+        } else if (i + 1 < lines.length && lines[i + 1] && !lines[i + 1].match(/^(Tranche|Sous-Tranche|Type|Description|marque|nom)/i)) {
           skinTypeValue = lines[i + 1].trim()
         }
         // Extract skin type (remove parenthetical info)
@@ -660,38 +692,57 @@ const SKIN_TYPES = [
         }
       }
       
-      // Description détaillée
+      // Description détaillée - handle both "Description détaillée" and "Description détaillée (pour le site internet)"
       if (line.match(/Description\s+détaillée/i)) {
-        const parts = line.split(/\t+| {2,}/)
+        // Extract text after "Description détaillée (pour le site internet)" or "Description détaillée"
+        const match = line.match(/Description\s+détaillée\s*(?:\([^)]*\))?\s*(.+)/i)
         let desc = ""
-        if (parts.length >= 2) {
-          desc = parts.slice(1).join(' ').trim()
+        if (match && match[1]) {
+          desc = match[1].trim()
         }
-        // Collect following lines until next section
+        // Collect following lines until next section (Description Enrichie or end)
         for (let j = i + 1; j < lines.length; j++) {
-          if (lines[j].match(/Description\s+Enrichie/i)) {
+          const nextLine = lines[j]
+          // Stop if we hit Description Enrichie or another major section
+          if (nextLine && nextLine.match(/Description\s+Enrichie|^(Tranche|Sous-Tranche|Type|Description|marque|nom)/i)) {
             break
           }
-          desc += (desc ? " " : "") + lines[j]
+          // Skip empty lines only if we haven't started collecting text
+          if (!nextLine || !nextLine.trim()) {
+            if (!desc) continue // Skip empty lines at the start
+            break // Stop at first empty line after we've started collecting
+          }
+          desc += (desc ? " " : "") + nextLine.trim()
         }
         descriptionDetaillee = desc.trim()
       }
       
-      // Description Enrichie
+      // Description Enrichie - handle both "Description Enrichie" and "Description Enrichie (longue)"
       if (line.match(/Description\s+Enrichie/i)) {
-        const parts = line.split(/\t+| {2,}/)
+        // Extract text after "Description Enrichie (longue)" or "Description Enrichie"
+        const match = line.match(/Description\s+Enrichie\s*(?:\([^)]*\))?\s*(.+)/i)
         let desc = ""
-        if (parts.length >= 2) {
-          desc = parts.slice(1).join(' ').trim()
+        if (match && match[1]) {
+          desc = match[1].trim()
         }
-        // Collect all following lines
+        // Collect all following lines until end or another major section or price pattern
         for (let j = i + 1; j < lines.length; j++) {
-          desc += (desc ? " " : "") + lines[j]
+          const nextLine = lines[j]
+          // Stop if we hit another major section or price pattern
+          if (!nextLine || nextLine.match(/^(Tranche|Sous-Tranche|Type|Description|marque|nom)/i) || nextLine.match(/\d+\s*[fF]\s*,/i)) {
+            break
+          }
+          // Skip empty lines only if we haven't started collecting text
+          if (!nextLine.trim()) {
+            if (!desc) continue // Skip empty lines at the start
+            break // Stop at first empty line after we've started collecting
+          }
+          desc += (desc ? " " : "") + nextLine.trim()
         }
         descriptionEnrichie = desc.trim()
       }
       
-      // Extract price and quantity from format like "2000f, 4" or "2000f,4"
+      // Extract price and quantity from format like "2000f, 4", "2000f,4", or "50f, 4"
       // Pattern: number followed by 'f' or 'F', comma, then number
       const priceQtyMatch = line.match(/(\d+(?:\s*\d+)*)\s*[fF]\s*,\s*(\d+)/i)
       if (priceQtyMatch && !price && !quantity) {
@@ -702,6 +753,7 @@ const SKIN_TYPES = [
     }
     
     // Also check the entire text for price/quantity pattern if not found in lines
+    // This handles cases where price/quantity is at the end of the text
     if (!price && !quantity) {
       const fullTextMatch = text.match(/(\d+(?:\s*\d+)*)\s*[fF]\s*,\s*(\d+)/i)
       if (fullTextMatch) {
@@ -722,11 +774,36 @@ const SKIN_TYPES = [
 
     // Auto-fill cascade fields - set tranche first
     if (tranchePrincipale) {
-      // Find matching tranche in available tranches
-      const matchingTranche = availableTranches.find(t => 
-        t.tranche_principale.toLowerCase() === tranchePrincipale.toLowerCase()
-      )
+      // Search for matching tranche across ALL domains, not just selected domain
+      let matchingTranche = null
+      let matchingDomain = selectedDomain
+      
+      // Search in all domains
+      for (const domain of cascadeDomains) {
+        const domainTranches = CATEGORY_CASCADE[domain] ?? []
+        const found = domainTranches.find(t => 
+          t.tranche_principale.toLowerCase() === tranchePrincipale.toLowerCase()
+        )
+        if (found) {
+          matchingTranche = found
+          matchingDomain = domain
+          break
+        }
+      }
+      
+      // If not found in all domains, try availableTranches as fallback
+      if (!matchingTranche) {
+        matchingTranche = availableTranches.find(t => 
+          t.tranche_principale.toLowerCase() === tranchePrincipale.toLowerCase()
+        )
+      }
+      
       if (matchingTranche) {
+        // Set domain first if it changed
+        if (matchingDomain !== selectedDomain) {
+          setSelectedDomain(matchingDomain)
+        }
+        
         // Set tranche first
         setSelectedTranches([matchingTranche.tranche_principale])
         
@@ -737,32 +814,81 @@ const SKIN_TYPES = [
         // Auto-fill formes after a short delay to ensure state is updated
         setTimeout(() => {
           if (formes.length > 0) {
-            const matchingFormes = formes.filter(f => 
-              trancheFormes.some(tf => tf.toLowerCase() === f.toLowerCase())
-            )
+            // Try exact match first, then partial match
+            const matchingFormes = formes.filter(f => {
+              const fLower = f.toLowerCase().trim()
+              return trancheFormes.some(tf => {
+                const tfLower = tf.toLowerCase().trim()
+                // Exact match
+                if (tfLower === fLower) return true
+                // Partial match - check if one contains the other
+                if (tfLower.includes(fLower) || fLower.includes(tfLower)) return true
+                // Check for common variations (e.g., "Crème" vs "Crème de jour")
+                const fWords = fLower.split(/\s+/)
+                const tfWords = tfLower.split(/\s+/)
+                // If first word matches, consider it a match
+                if (fWords[0] && tfWords[0] && fWords[0] === tfWords[0]) return true
+                return false
+              })
+            })
             if (matchingFormes.length > 0) {
               // Map to exact case from cascade
-              const exactFormes = matchingFormes.map(mf => 
-                trancheFormes.find(tf => tf.toLowerCase() === mf.toLowerCase()) || mf
-              )
+              const exactFormes = matchingFormes.map(mf => {
+                const mfLower = mf.toLowerCase().trim()
+                // Try exact match first
+                let found = trancheFormes.find(tf => tf.toLowerCase().trim() === mfLower)
+                if (found) return found
+                // Try partial match
+                found = trancheFormes.find(tf => {
+                  const tfLower = tf.toLowerCase().trim()
+                  return tfLower.includes(mfLower) || mfLower.includes(tfLower)
+                })
+                if (found) return found
+                // Try first word match
+                const mfFirstWord = mfLower.split(/\s+/)[0]
+                found = trancheFormes.find(tf => {
+                  const tfLower = tf.toLowerCase().trim()
+                  return tfLower.startsWith(mfFirstWord) || mfLower.startsWith(tfLower.split(/\s+/)[0])
+                })
+                return found || mf
+              })
               setSelectedFormes(exactFormes.slice(0, 2)) // Max 2 formes
+              // Category will auto-update via useEffect when selectedFormes changes
             }
           }
           
           // Auto-fill benefices
           if (benefices.length > 0) {
-            const matchingBenefices = benefices.filter(b => 
-              trancheBenefices.some(tb => tb.toLowerCase() === b.toLowerCase())
-            )
+            // Try exact match first, then partial match
+            const matchingBenefices = benefices.filter(b => {
+              const bLower = b.toLowerCase().trim()
+              return trancheBenefices.some(tb => {
+                const tbLower = tb.toLowerCase().trim()
+                // Exact match
+                if (tbLower === bLower) return true
+                // Partial match
+                if (tbLower.includes(bLower) || bLower.includes(tbLower)) return true
+                return false
+              })
+            })
             if (matchingBenefices.length > 0) {
               // Map to exact case from cascade
-              const exactBenefices = matchingBenefices.map(mb => 
-                trancheBenefices.find(tb => tb.toLowerCase() === mb.toLowerCase()) || mb
-              )
+              const exactBenefices = matchingBenefices.map(mb => {
+                const mbLower = mb.toLowerCase().trim()
+                // Try exact match first
+                let found = trancheBenefices.find(tb => tb.toLowerCase().trim() === mbLower)
+                if (found) return found
+                // Try partial match
+                found = trancheBenefices.find(tb => {
+                  const tbLower = tb.toLowerCase().trim()
+                  return tbLower.includes(mbLower) || mbLower.includes(tbLower)
+                })
+                return found || mb
+              })
               setSelectedBenefices(exactBenefices)
             }
           }
-        }, 100)
+        }, 300) // Increased delay to ensure state is fully updated and category can be generated
       }
     }
 
