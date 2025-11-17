@@ -509,34 +509,52 @@ const SKIN_TYPES = [
     let price = ""
     let quantity = ""
 
-    // Extract product name from first line (if it starts with "nom"/"name" or doesn't match any pattern)
-    if (lines.length > 0) {
-      const firstLine = lines[0]
-      let extractedName = ""
-      if (firstLine.match(/^(nom|name)\s*:?\s*/i)) {
-        // Extract name after "nom:" or "name:" (handle both with and without colon)
-        const nameMatch = firstLine.replace(/^(nom|name)\s*:?\s*/i, '').trim()
-        // Remove "Catégorie" and everything after if present
-        const categoryIndex = nameMatch.indexOf('Catégorie')
-        extractedName = categoryIndex > 0 ? nameMatch.substring(0, categoryIndex).trim() : nameMatch
-      } else if (!firstLine.match(/^(Tranche|Sous-Tranche|Type|Description)/i)) {
-        // First line doesn't match any known pattern, assume it's the product name
-        const categoryIndex = firstLine.indexOf('Catégorie')
-        extractedName = categoryIndex > 0 ? firstLine.substring(0, categoryIndex).trim() : firstLine
-      }
+    // Extract brand and product name from structured lines
+    // Format: "marque L'Oreal   nom   L'Oréal Triple Active... Catégorie..."
+    // Brand is text between "marque" and "nom"
+    // Product name is text between "nom" and "Catégorie"
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
       
-      // Extract brand from product name if it contains a quote
-      // Format: "L'oreal paris " triple action" -> Brand: "L'oreal paris", Name: "triple action"
-      if (extractedName && extractedName.includes('"')) {
-        const quoteIndex = extractedName.indexOf('"')
-        brand = extractedName.substring(0, quoteIndex).trim()
-        productName = extractedName.substring(quoteIndex + 1).trim()
-        // Remove any trailing quotes from product name
-        if (productName.endsWith('"')) {
-          productName = productName.slice(0, -1).trim()
+      // Check if line contains both "marque" and "nom"
+      if (line.match(/marque\s+/i) && line.match(/nom\s+/i)) {
+        // Extract brand: text between "marque" and "nom"
+        const marqueMatch = line.match(/marque\s+(.*?)\s+nom\s+/i)
+        if (marqueMatch && marqueMatch[1]) {
+          brand = marqueMatch[1].trim()
+        }
+        
+        // Extract product name: text between "nom" and "Catégorie"
+        const nomMatch = line.match(/nom\s+(.*?)(?:\s+Catégorie|$)/i)
+        if (nomMatch && nomMatch[1]) {
+          let extractedName = nomMatch[1].trim()
+          // Also check for "Catégorie" in case it wasn't captured by regex
+          const categoryIndex = extractedName.indexOf('Catégorie')
+          productName = categoryIndex > 0 ? extractedName.substring(0, categoryIndex).trim() : extractedName
         }
       } else {
-        productName = extractedName
+        // Handle separate lines
+        // Extract brand from "marque" line
+        if (line.match(/^marque\s+/i)) {
+          const brandMatch = line.replace(/^marque\s+/i, '').trim()
+          // Check if "nom" follows on the same line
+          const nomRegex = /\s+nom\s+/i
+          const nomMatch = brandMatch.match(nomRegex)
+          if (nomMatch) {
+            const nomIndex = brandMatch.indexOf(nomMatch[0])
+            brand = brandMatch.substring(0, nomIndex).trim()
+          } else {
+            brand = brandMatch
+          }
+        }
+        
+        // Extract product name from "nom" line
+        if (line.match(/^nom\s+/i)) {
+          const nameMatch = line.replace(/^nom\s+/i, '').trim()
+          // Remove "Catégorie" and everything after if present
+          const categoryIndex = nameMatch.indexOf('Catégorie')
+          productName = categoryIndex > 0 ? nameMatch.substring(0, categoryIndex).trim() : nameMatch
+        }
       }
     }
 
@@ -756,11 +774,18 @@ const SKIN_TYPES = [
       }
     }
 
-    // Auto-fill descriptions
-    if (descriptionDetaillee) {
-      setFormData(prev => ({ ...prev, description: descriptionDetaillee }))
+    // Auto-fill descriptions - combine both with a blank line between them
+    let combinedDescription = ""
+    if (descriptionDetaillee && descriptionEnrichie) {
+      combinedDescription = `${descriptionDetaillee}\n\n${descriptionEnrichie}`
+    } else if (descriptionDetaillee) {
+      combinedDescription = descriptionDetaillee
     } else if (descriptionEnrichie) {
-      setFormData(prev => ({ ...prev, description: descriptionEnrichie }))
+      combinedDescription = descriptionEnrichie
+    }
+    
+    if (combinedDescription) {
+      setFormData(prev => ({ ...prev, description: combinedDescription }))
     }
 
     // Auto-fill price
@@ -1318,7 +1343,7 @@ const SKIN_TYPES = [
                       value={structuredDescription}
                       onChange={(e) => setStructuredDescription(e.target.value)}
                       placeholder={`Exemple:
-nom   L'Oréal Paris " Triple Active...
+marque L'Oreal   nom   L'Oréal Triple Active Hydraterende en Beschermende DAG Crème...
 2000f, 4
 Tranche Principale	Soin du visage
 Sous-Tranche (Formes)	Crème (Crème de jour)
