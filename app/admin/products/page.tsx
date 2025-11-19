@@ -55,6 +55,9 @@ export default function ProductsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [allProducts, setAllProducts] = useState<Product[]>([])
+  const [statsProducts, setStatsProducts] = useState<Array<{id: string, status: string, stock_quantity: number, show_to_website: boolean}>>([])
+  const [categories, setCategories] = useState<Array<{id: string, name: string, parent_id?: string | null}>>([])
   const itemsPerPage = 20
   const [currentUserRole, setCurrentUserRole] = useState<string>('')
   const [stockIncreaseDialog, setStockIncreaseDialog] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null })
@@ -75,7 +78,28 @@ export default function ProductsPage() {
     } else {
       setShowCreateForm(false)
     }
-  }, [searchParams, currentPage])
+  }, [searchParams])
+
+  // Fetch products when filters change (not when page changes, as pagination is handled client-side when filtering)
+  useEffect(() => {
+    const hasFilters = searchTerm || lowStockFilter || missingImagesFilter
+    if (hasFilters) {
+      fetchProducts()
+    }
+  }, [searchTerm, lowStockFilter, missingImagesFilter])
+
+  // Fetch products when page changes but only when there are no filters (server-side pagination)
+  useEffect(() => {
+    const hasFilters = searchTerm || lowStockFilter || missingImagesFilter
+    if (!hasFilters) {
+      fetchProducts()
+    }
+  }, [currentPage])
+
+  // Reset to page 1 when search term or filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, lowStockFilter, missingImagesFilter])
 
   const fetchCurrentUserRole = async () => {
     try {
@@ -104,28 +128,64 @@ export default function ProductsPage() {
   const fetchProducts = async () => {
     try {
       setLoading(true)
-      const from = (currentPage - 1) * itemsPerPage
-      const to = from + itemsPerPage - 1
-
-      const { data, error, count } = await supabase
-        .from('dd-products')
-        .select(`
-          *,
-          variants:"dd-product-variants"(
-            id,
-            product_id,
-            name,
-            sku,
-            quantity
-          )
-        `, { count: 'exact' })
-        .order('created_at', { ascending: false })
-        .range(from, to)
-
-      if (error) throw error
       
-      setProducts(data || [])
-      setTotalPages(Math.ceil((count || 0) / itemsPerPage))
+      // If there's a search term or filters, fetch all products and paginate client-side
+      const hasFilters = searchTerm || lowStockFilter || missingImagesFilter
+      
+      // Always fetch all products for stats cards (only basic fields needed for stats)
+      const { data: allProductsForStats, error: statsError } = await supabase
+        .from('dd-products')
+        .select('id, status, stock_quantity, show_to_website')
+      
+      if (!statsError && allProductsForStats) {
+        setStatsProducts(allProductsForStats)
+      }
+      
+      if (hasFilters) {
+        // Fetch all products for filtering
+        const { data, error } = await supabase
+          .from('dd-products')
+          .select(`
+            *,
+            variants:"dd-product-variants"(
+              id,
+              product_id,
+              name,
+              sku,
+              quantity
+            )
+          `)
+          .order('created_at', { ascending: false })
+
+        if (error) throw error
+        
+        setAllProducts(data || [])
+      } else {
+        // Use server-side pagination when no filters
+        const from = (currentPage - 1) * itemsPerPage
+        const to = from + itemsPerPage - 1
+
+        const { data, error, count } = await supabase
+          .from('dd-products')
+          .select(`
+            *,
+            variants:"dd-product-variants"(
+              id,
+              product_id,
+              name,
+              sku,
+              quantity
+            )
+          `, { count: 'exact' })
+          .order('created_at', { ascending: false })
+          .range(from, to)
+
+        if (error) throw error
+        
+        setProducts(data || [])
+        setAllProducts([]) // Clear allProducts when not filtering
+        setTotalPages(Math.ceil((count || 0) / itemsPerPage))
+      }
     } catch (error) {
       console.error('Error fetching products:', error)
       toast.error('Error fetching products')
@@ -299,15 +359,18 @@ export default function ProductsPage() {
     }
   }
 
-  // Filter products based on search term and low stock filter
-  const filteredProducts = products.filter(product => {
+  // Determine which products to filter (allProducts if filtering, products if not)
+  const productsToFilter = (searchTerm || lowStockFilter || missingImagesFilter) ? allProducts : products
+
+  // Filter products based on search term and filters
+  const filteredProducts = productsToFilter.filter(product => {
     const searchValue = searchTerm.toLowerCase()
     const matchesVariant = product.variants?.some(variant =>
       variant.name.toLowerCase().includes(searchValue) ||
       variant.sku?.toLowerCase().includes(searchValue)
     ) || false
 
-    const matchesSearch = product.name.toLowerCase().includes(searchValue) ||
+    const matchesSearch = !searchTerm || product.name.toLowerCase().includes(searchValue) ||
       product.sku?.toLowerCase().includes(searchValue) ||
       product.brand?.toLowerCase().includes(searchValue) ||
       matchesVariant ||
@@ -327,6 +390,72 @@ export default function ProductsPage() {
 
     return matchesSearch
   })
+
+  // Paginate filtered products if filters are active
+  const hasFilters = searchTerm || lowStockFilter || missingImagesFilter
+  const paginatedProducts = hasFilters
+    ? filteredProducts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+    : filteredProducts
+  
+  const displayProducts = paginatedProducts
+  const totalFilteredPages = hasFilters
+    ? Math.ceil(filteredProducts.length / itemsPerPage)
+    : totalPages
+
+  // Build category path: skip root "Cosmetics" and show next 2 levels
+  const getCategoryDisplayName = (categoryId?: string): string => {
+    if (!categoryId || !categories || categories.length === 0) {
+      return ''
+    }
+    
+    const category = categories.find(c => c.id === categoryId)
+    if (!category) {
+      return ''
+    }
+    
+    const path: string[] = []
+    let currentCategory: {id: string, name: string, parent_id?: string | null} | undefined = category
+    const visited = new Set<string>() // Prevent infinite loops
+    
+    // Build full path by traversing up to root
+    while (currentCategory && !visited.has(currentCategory.id)) {
+      visited.add(currentCategory.id)
+      path.unshift(currentCategory.name)
+      
+      if (currentCategory.parent_id) {
+        currentCategory = categories.find(c => c.id === currentCategory!.parent_id)
+      } else {
+        break
+      }
+    }
+    
+    // If path is empty, return empty
+    if (path.length === 0) {
+      return ''
+    }
+    
+    // If path has only 1 level, return it
+    if (path.length === 1) {
+      return path[0]
+    }
+    
+    // Skip root level if it's "Cosmetics" (case-insensitive)
+    const rootName = path[0]?.toLowerCase().trim()
+    const skipRoot = rootName === 'cosmetics' || rootName === 'cosmetic'
+    const startIndex = skipRoot ? 1 : 0
+    
+    // Get the next 2 levels after skipping root
+    const remainingPath = path.slice(startIndex)
+    
+    // If we have 2 or fewer levels after skipping, return all of them
+    if (remainingPath.length <= 2) {
+      return remainingPath.join(' • ')
+    }
+    
+    // If we have more than 2 levels after skipping, take the first 2 (not last 2)
+    // Example: "Cosmetics • Hygiène • Gel • Nettoyant" -> skip Cosmetics -> take first 2: "Hygiène • Gel"
+    return remainingPath.slice(0, 2).join(' • ')
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -388,7 +517,7 @@ export default function ProductsPage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Total Produits</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-base font-bold text-gray-900 dark:text-white">{products.length}</div>
+                <div className="text-base font-bold text-gray-900 dark:text-white">{statsProducts.length}</div>
               </CardContent>
             </Card>
             <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
@@ -396,7 +525,9 @@ export default function ProductsPage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Produits Actifs</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-base font-bold text-gray-900 dark:text-white">{products.filter((p) => p.status === 'active').length}</div>
+                <div className="text-base font-bold text-gray-900 dark:text-white">
+                  {statsProducts.filter((p) => p.status === 'active').length}
+                </div>
               </CardContent>
             </Card>
             <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
@@ -404,7 +535,9 @@ export default function ProductsPage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Stock Faible</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-base font-bold text-gray-900 dark:text-white">{products.filter((p) => p.stock_quantity < 10).length}</div>
+                <div className="text-base font-bold text-gray-900 dark:text-white">
+                  {statsProducts.filter((p) => p.stock_quantity < 10).length}
+                </div>
               </CardContent>
             </Card>
             <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
@@ -412,7 +545,9 @@ export default function ProductsPage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Sur le Site Web</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-base font-bold text-gray-900 dark:text-white">{products.filter((p) => p.show_to_website).length}</div>
+                <div className="text-base font-bold text-gray-900 dark:text-white">
+                  {statsProducts.filter((p) => p.show_to_website).length}
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -458,7 +593,14 @@ export default function ProductsPage() {
           {/* Products Table */}
           <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <CardHeader>
-              <CardTitle className="text-gray-900 dark:text-white">Liste des Produits ({filteredProducts.length})</CardTitle>
+              <CardTitle className="text-gray-900 dark:text-white">
+                Liste des Produits ({filteredProducts.length})
+                {hasFilters && allProducts.length > 0 && (
+                  <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">
+                    sur {allProducts.length} total
+                  </span>
+                )}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -571,9 +713,13 @@ export default function ProductsPage() {
                     ))}
                   </TableBody>
                 </Table>
-                {filteredProducts.length === 0 && (
+                {displayProducts.length === 0 && (
                   <div className="text-center py-8">
-                    <p className="text-gray-500 dark:text-gray-400">No products found</p>
+                    <p className="text-gray-500 dark:text-gray-400">
+                      {hasFilters && filteredProducts.length === 0
+                        ? 'Aucun produit trouvé avec ces filtres'
+                        : 'Aucun produit disponible'}
+                    </p>
                   </div>
                 )}
               </div>

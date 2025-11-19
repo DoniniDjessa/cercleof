@@ -92,7 +92,9 @@ export default function POSPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [services, setServices] = useState<Service[]>([])
   const [clients, setClients] = useState<Client[]>([])
-  const [categories, setCategories] = useState<Array<{id: string, name: string}>>([])
+  const [categories, setCategories] = useState<Array<{id: string, name: string, parent_id?: string | null}>>([])
+  const [allCategories, setAllCategories] = useState<Array<{id: string, name: string, parent_id?: string | null}>>([])
+  const [allProductsForFilter, setAllProductsForFilter] = useState<Product[]>([])
   const [cart, setCart] = useState<CartItem[]>([])
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [clientSearchTerm, setClientSearchTerm] = useState("")
@@ -321,7 +323,7 @@ export default function POSPage() {
         setLoading(true)
       }
       
-      // Fetch products
+      // Fetch products - limit to 30 initially for performance (when no search/filter)
       const { data: productsData, error: productsError } = await supabase
         .from('dd-products')
         .select(`
@@ -337,6 +339,8 @@ export default function POSPage() {
         `)
         .eq('is_active', true)
         .eq('status', 'active')
+        .limit(30)
+        .order('created_at', { ascending: false })
 
       if (productsError) throw productsError
 
@@ -354,10 +358,10 @@ export default function POSPage() {
       // Fetch clients
       await fetchClients()
 
-      // Fetch categories
+      // Fetch categories with parent information
       const { data: categoriesData, error: categoriesError } = await supabase
         .from('dd-categories')
-        .select('id, name')
+        .select('id, name, parent_id')
         .eq('is_active', true)
         .order('name')
 
@@ -375,6 +379,7 @@ export default function POSPage() {
       setProducts((productsData || []) as unknown as Product[])
       setServices((servicesData || []) as unknown as Service[])
       setCategories(categoriesData || [])
+      setAllCategories(categoriesData || [])
     } catch (error) {
       console.error('Error fetching data:', error)
       toast.error('Erreur lors du chargement des données')
@@ -1533,8 +1538,44 @@ export default function POSPage() {
     return matchesFirstName || matchesLastName || matchesEmail || matchesPhone || matchesFullName
   })
 
+  // Fetch all products when there's a search or category filter
+  useEffect(() => {
+    const fetchAllProductsForFilter = async () => {
+      if (searchTerm || selectedProductCategory !== 'all') {
+        const { data, error } = await supabase
+          .from('dd-products')
+          .select(`
+            *,
+            category:"dd-categories"(id, name),
+            variants:"dd-product-variants"(
+              id,
+              product_id,
+              name,
+              sku,
+              quantity
+            )
+          `)
+          .eq('is_active', true)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+        
+        if (!error && data) {
+          setAllProductsForFilter(data as unknown as Product[])
+        }
+      } else {
+        setAllProductsForFilter([])
+      }
+    }
+    
+    fetchAllProductsForFilter()
+  }, [searchTerm, selectedProductCategory])
+
   // Filter products with category filter
-  const filteredProducts = products.filter(product => {
+  const productsToFilter = (searchTerm || selectedProductCategory !== 'all') && allProductsForFilter.length > 0
+    ? allProductsForFilter
+    : products
+    
+  const filteredProducts = productsToFilter.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.sku?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       product.category?.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -1542,7 +1583,7 @@ export default function POSPage() {
     const matchesCategory = selectedProductCategory === 'all' || product.category?.id === selectedProductCategory
     
     return matchesSearch && matchesCategory
-  })
+  }).slice(0, 30) // Limit to 30 products for display
 
   // Filter services with category filter
   const filteredServices = services.filter(service => {
@@ -1554,6 +1595,67 @@ export default function POSPage() {
     
     return matchesSearch && matchesCategory
   })
+
+  // Build category path: skip root "Cosmetics" and show next 2 levels
+  const getCategoryDisplayName = (categoryId: string): string => {
+    if (!categoryId) {
+      return ''
+    }
+    
+    // Use allCategories if available, otherwise fall back to categories
+    const categoriesToUse = allCategories.length > 0 ? allCategories : categories
+    if (categoriesToUse.length === 0) {
+      return ''
+    }
+    
+    const category = categoriesToUse.find(c => c.id === categoryId)
+    if (!category) {
+      return ''
+    }
+    
+    const path: string[] = []
+    let currentCategory: {id: string, name: string, parent_id?: string | null} | undefined = category
+    const visited = new Set<string>() // Prevent infinite loops
+    
+    // Build full path by traversing up to root
+    while (currentCategory && !visited.has(currentCategory.id)) {
+      visited.add(currentCategory.id)
+      path.unshift(currentCategory.name)
+      
+      if (currentCategory.parent_id) {
+        currentCategory = categoriesToUse.find(c => c.id === currentCategory!.parent_id)
+      } else {
+        break
+      }
+    }
+    
+    // If path is empty, return empty
+    if (path.length === 0) {
+      return ''
+    }
+    
+    // If path has only 1 level, return it
+    if (path.length === 1) {
+      return path[0]
+    }
+    
+    // Skip root level if it's "Cosmetics" (case-insensitive)
+    const rootName = path[0]?.toLowerCase().trim()
+    const skipRoot = rootName === 'cosmetics' || rootName === 'cosmetic'
+    const startIndex = skipRoot ? 1 : 0
+    
+    // Get the next 2 levels after skipping root
+    const remainingPath = path.slice(startIndex)
+    
+    // If we have 2 or fewer levels after skipping, return all of them
+    if (remainingPath.length <= 2) {
+      return remainingPath.join(' • ')
+    }
+    
+    // If we have more than 2 levels after skipping, take the first 2 (not last 2)
+    // Example: "Cosmetics • Hygiène • Gel • Nettoyant" -> skip Cosmetics -> take first 2: "Hygiène • Gel"
+    return remainingPath.slice(0, 2).join(' • ')
+  }
 
   const handleConfirmVariant = () => {
     const product = variantSelection.product
@@ -1742,7 +1844,7 @@ export default function POSPage() {
                       }}
                       className="text-xs"
                     >
-                      {category.name}
+                      {getCategoryDisplayName(category.id)}
                     </Button>
                   ))}
               </div>
