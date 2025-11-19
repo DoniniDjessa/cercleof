@@ -1574,7 +1574,7 @@ Description Enrichie (longue)	Découvrez le secret...`}
                                     className={`flex w-full items-center justify-between px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700 ${isSelected ? "bg-gray-100 font-semibold dark:bg-gray-700" : ""}`}
                                   >
                                     <span className="pr-2 text-left">{tranche}</span>
-                                    {isSelected && <Check className="h-4 w-4 text-pink-500" />}
+                                    {isSelected && <Check className="h-4 w-4 text-slate-600 dark:text-slate-400" />}
                                   </button>
                                 )
                               })}
@@ -1590,7 +1590,7 @@ Description Enrichie (longue)	Découvrez le secret...`}
                                   setSelectedBenefices([])
                                   setTranchePopoverOpen(false)
                                 }}
-                                className="text-pink-600 transition hover:text-pink-700 dark:text-pink-400 dark:hover:text-pink-300"
+                                className="text-slate-600 transition hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
                               >
                                 Tout effacer
                               </button>
@@ -1630,7 +1630,7 @@ Description Enrichie (longue)	Découvrez le secret...`}
                                     className={`flex w-full items-center justify-between px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700 ${isSelected ? "bg-gray-100 font-semibold dark:bg-gray-700" : ""}`}
                                   >
                                     <span className="pr-2 text-left">{forme}</span>
-                                    {isSelected && <Check className="h-4 w-4 text-pink-500" />}
+                                    {isSelected && <Check className="h-4 w-4 text-slate-600 dark:text-slate-400" />}
                                   </button>
                                 )
                               })}
@@ -1645,7 +1645,7 @@ Description Enrichie (longue)	Découvrez le secret...`}
                                   setSelectedBenefices([])
                                   setFormePopoverOpen(false)
                                 }}
-                                className="text-pink-600 transition hover:text-pink-700 dark:text-pink-400 dark:hover:text-pink-300"
+                                className="text-slate-600 transition hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
                               >
                                 Tout effacer
                               </button>
@@ -1689,7 +1689,7 @@ Description Enrichie (longue)	Découvrez le secret...`}
                                     }`}
                                   >
                                     <span className="pr-2 text-left">{benefice}</span>
-                                    {isSelected && <Check className="h-4 w-4 text-pink-500" />}
+                                    {isSelected && <Check className="h-4 w-4 text-slate-600 dark:text-slate-400" />}
                                   </button>
                                 )
                               })}
@@ -1703,7 +1703,7 @@ Description Enrichie (longue)	Découvrez le secret...`}
                                   setSelectedBenefices([])
                                   setBeneficesPopoverOpen(false)
                                 }}
-                                className="text-pink-600 transition hover:text-pink-700 dark:text-pink-400 dark:hover:text-pink-300"
+                                className="text-slate-600 transition hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
                               >
                                 Tout effacer
                               </button>

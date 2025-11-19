@@ -592,7 +592,7 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
     return (
       <div className="p-6">
         <div className="text-center">
-          <p className="text-red-600 dark:text-red-400">{error || 'Produit non trouvé'}</p>
+          <p className="text-slate-600 dark:text-slate-400">{error || 'Produit non trouvé'}</p>
           <Button 
             variant="outline" 
             onClick={() => window.history.back()}
@@ -624,7 +624,7 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
         </Button>
         <div>
           <h1 className="text-3xl font-bold text-foreground dark:text-white">{product.name}</h1>
-          <p className="text-muted-foreground dark:text-gray-400">
+          <p className="text-gray-600 dark:text-gray-400">
             SKU: {product.sku || 'N/A'} • Code-barres: {product.barcode || 'N/A'}
           </p>
         </div>
@@ -658,7 +658,7 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-6 text-center">
-                  <p className="text-sm text-muted-foreground dark:text-gray-400">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
                     Aucune image n&apos;est encore associée à ce produit.
                   </p>
                   <Button size="sm" onClick={() => setImageDialogOpen(true)}>
@@ -804,11 +804,11 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
                 <>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-sm text-muted-foreground dark:text-gray-400">Catégorie</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Catégorie</p>
                       <p className="font-medium text-gray-900 dark:text-white">{product.category?.name || 'N/A'}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground dark:text-gray-400">Statut</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Statut</p>
                       <Badge className={
                         product.status === 'active' 
                           ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
@@ -820,18 +820,18 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
                       </Badge>
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground dark:text-gray-400">Marque</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Marque</p>
                       <p className="font-medium text-gray-900 dark:text-white">{product.brand || 'N/A'}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground dark:text-gray-400">Site Web</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Site Web</p>
                       <Badge className={product.show_to_website ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'}>
                         {product.show_to_website ? 'Oui' : 'Non'}
                       </Badge>
                     </div>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground dark:text-gray-400 mb-2">Description</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Description</p>
                     <p className="text-sm text-gray-900 dark:text-white">{product.description || 'Aucune description'}</p>
                   </div>
                 </>
@@ -847,21 +847,21 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
             <CardContent>
               <div className={`grid gap-4 ${canManageProducts ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-1'}`}>
                 <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
-                  <p className="text-xs text-muted-foreground dark:text-gray-400">Prix de Vente</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">Prix de Vente</p>
                   <p className="text-xl font-bold text-gray-900 dark:text-white">{product.price.toFixed(2)}f</p>
                 </div>
                 {canManageProducts && (
                   <>
                     <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
-                      <p className="text-xs text-muted-foreground dark:text-gray-400">Prix de Revient</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">Prix de Revient</p>
                       <p className="text-xl font-bold text-gray-900 dark:text-white">{product.cost.toFixed(2)}f</p>
                     </div>
                     <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-green-50 dark:bg-green-900/20">
-                      <p className="text-xs text-muted-foreground dark:text-gray-400">Bénéfice</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">Bénéfice</p>
                       <p className="text-xl font-bold text-green-600 dark:text-green-400">{profit.toFixed(2)}f</p>
                     </div>
                     <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg">
-                      <p className="text-xs text-muted-foreground dark:text-gray-400">Marge</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">Marge</p>
                       <p className="text-xl font-bold text-gray-900 dark:text-white">{margin}%</p>
                     </div>
                   </>
@@ -889,7 +889,7 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
             <CardContent>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground dark:text-gray-400">Stock Actuel</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Stock Actuel</span>
                   <span className="text-2xl font-bold text-gray-900 dark:text-white">{product.stock_quantity} unités</span>
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
@@ -904,7 +904,7 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
                     style={{ width: `${Math.min((product.stock_quantity / 100) * 100, 100)}%` }}
                   ></div>
                 </div>
-                <div className="text-sm text-muted-foreground dark:text-gray-400">
+                <div className="text-sm text-gray-600 dark:text-gray-400">
                   {product.stock_quantity === 0 
                     ? 'Rupture de stock' 
                     : product.stock_quantity < 10 
@@ -920,7 +920,7 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="text-gray-900 dark:text-white">Variantes</CardTitle>
-                <p className="text-xs text-muted-foreground dark:text-gray-400 mt-1">
+                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
                   Total des variantes: {variantTotalQuantity} / {product.stock_quantity} unités
                 </p>
               </div>
@@ -937,7 +937,7 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
             </CardHeader>
             <CardContent className="space-y-3">
               {variants.length === 0 ? (
-                <p className="text-sm text-muted-foreground dark:text-gray-400">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
                   Aucune variante définie pour ce produit.
                 </p>
               ) : (
@@ -946,7 +946,7 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
                     <div key={variant.id} className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
                       <div>
                         <p className="text-sm font-semibold text-gray-900 dark:text-white">{variant.name}</p>
-                        <p className="text-xs text-muted-foreground dark:text-gray-400">
+                        <p className="text-xs text-gray-600 dark:text-gray-400">
                           SKU: {variant.sku || '—'} • Stock: {variant.quantity}
                         </p>
                       </div>
@@ -965,7 +965,7 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
                             variant="outline"
                             size="sm"
                             onClick={() => handleDeleteVariant(variant)}
-                            className="h-8 w-8 p-0 text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
+                            className="h-8 w-8 p-0 text-slate-600 border-slate-200 hover:bg-slate-50 dark:text-slate-400 dark:border-slate-800 dark:hover:bg-slate-900/20"
                             title="Supprimer"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -977,7 +977,7 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
                 </div>
               )}
               {canManageProducts && availableVariantCapacity > 0 && (
-                <p className="text-xs text-muted-foreground dark:text-gray-400">
+                <p className="text-xs text-gray-600 dark:text-gray-400">
                   Capacité restante pour les variantes: {availableVariantCapacity} unité(s).
                 </p>
               )}
@@ -1033,21 +1033,21 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                <p className="text-xs text-muted-foreground dark:text-gray-400">Valeur du Stock</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">Valeur du Stock</p>
                 <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                   {(product.price * product.stock_quantity).toFixed(2)}f
                 </p>
               </div>
               {canManageProducts && (
                 <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                  <p className="text-xs text-muted-foreground dark:text-gray-400">Bénéfice Potentiel</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">Bénéfice Potentiel</p>
                   <p className="text-2xl font-bold text-green-600 dark:text-green-400">
                     {(profit * product.stock_quantity).toFixed(2)}f
                   </p>
                 </div>
               )}
               <div className="text-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                <p className="text-xs text-muted-foreground dark:text-gray-400">Date de Création</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">Date de Création</p>
                 <p className="text-sm font-medium text-purple-600 dark:text-purple-400">
                   {new Date(product.created_at).toLocaleDateString('fr-FR')}
                 </p>
@@ -1076,15 +1076,15 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <p className="text-sm text-muted-foreground dark:text-gray-400 mb-2">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                   Produit: <span className="font-medium text-gray-900 dark:text-white">{product.name}</span>
                 </p>
-                <p className="text-sm text-muted-foreground dark:text-gray-400">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
                   Stock actuel: <span className="font-medium text-gray-900 dark:text-white">{product.stock_quantity}</span>
                 </p>
                 {variants.length > 0 && (
                   <div className="mt-3">
-                    <p className="text-xs text-muted-foreground dark:text-gray-400 mb-1">Sélectionnez une variante (facultatif) :</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Sélectionnez une variante (facultatif) :</p>
                     <Select value={selectedVariantId} onValueChange={setSelectedVariantId}>
                       <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
                         <SelectValue placeholder="Sélectionner une variante" />
@@ -1242,7 +1242,7 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
 
               {imageFiles.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground dark:text-gray-400">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
                     {imageFiles.length} image(s) sélectionnée(s)
                   </p>
                   <div className="grid grid-cols-2 gap-3">

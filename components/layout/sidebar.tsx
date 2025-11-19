@@ -49,7 +49,12 @@ import {
   Activity,
   DollarSign,
   Clock,
-  MapPin
+  MapPin,
+  Sparkles,
+  MessageSquare,
+  Camera,
+  BarChart,
+  Mic
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -459,6 +464,41 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           href: '/admin/actions',
         },
       ]
+    },
+    {
+      title: 'Assistant IA',
+      items: [
+        {
+          name: 'Assistant Gemini',
+          icon: Sparkles,
+          href: '/admin/ai-assistant',
+        },
+        {
+          name: 'Recommandation Produit',
+          icon: MessageSquare,
+          href: '/admin/ai-assistant?flow=recommendation',
+        },
+        {
+          name: 'Analyse de Peau',
+          icon: Camera,
+          href: '/admin/ai-assistant?flow=skin-analysis',
+        },
+        {
+          name: 'Questions Business',
+          icon: BarChart,
+          href: '/admin/ai-assistant?flow=business-query',
+        },
+        {
+          name: 'Navigation Vocale',
+          icon: Mic,
+          href: '/admin/ai-assistant?flow=voice-nav',
+        },
+        {
+          name: 'Paramètres',
+          icon: Settings,
+          href: '/admin/ai-assistant/settings',
+        },
+      ]
     }
   ]
 
@@ -669,7 +709,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                 variant="ghost"
                 size="sm"
                 onClick={handleSignOut}
-                className="w-full justify-start text-slate-600 dark:text-slate-300 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                className="w-full justify-start text-slate-600 dark:text-slate-300 hover:bg-slate-50 hover:text-slate-700 dark:hover:bg-slate-900/20 dark:hover:text-slate-400"
               >
                 <LogOut className="h-4 w-4 mr-2" />
                 {t('nav.signOut')}
@@ -691,7 +731,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                 variant="ghost"
                 size="icon"
                 onClick={handleSignOut}
-                className="h-6 w-6 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                className="h-6 w-6 hover:bg-slate-50 hover:text-slate-700 dark:hover:bg-slate-900/20 dark:hover:text-slate-400"
                 title={t('nav.signOut')}
               >
                 <LogOut className="h-3 w-3" />

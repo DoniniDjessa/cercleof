@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Sidebar } from './sidebar'
 import { Navbar } from './navbar'
+import { VoiceNavigationButton } from '@/components/ai/voice-navigation-button'
 import { cn } from '@/lib/utils'
 
 interface MainLayoutProps {
@@ -73,6 +74,9 @@ export function MainLayout({ children }: MainLayoutProps) {
           </motion.div>
         </main>
       </div>
+
+      {/* Voice Navigation Button - Only shows when enabled */}
+      <VoiceNavigationButton />
     </div>
   )
 }

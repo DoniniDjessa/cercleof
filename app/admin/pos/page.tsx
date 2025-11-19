@@ -180,6 +180,92 @@ export default function POSPage() {
     }
   }, [loading, showDailySalesModal])
 
+  // Listen for voice navigation commands on POS page
+  useEffect(() => {
+    const handlePOSSelectClient = async (event: Event) => {
+      const customEvent = event as CustomEvent
+      const clientName = customEvent.detail?.name
+      if (!clientName) return
+
+      try {
+        const nameParts = clientName.trim().split(/\s+/)
+        let query = supabase
+          .from('dd-clients')
+          .select('id, first_name, last_name, email, phone')
+          .eq('is_active', true)
+
+        if (nameParts.length === 1) {
+          query = query.or(`first_name.ilike.%${nameParts[0]}%,last_name.ilike.%${nameParts[0]}%`)
+        } else {
+          query = query
+            .ilike('first_name', `%${nameParts[0]}%`)
+            .ilike('last_name', `%${nameParts.slice(1).join(' ')}%`)
+        }
+
+        const { data: clients, error } = await query.limit(5)
+
+        if (error) throw error
+
+        if (clients && clients.length > 0) {
+          const client = clients[0]
+          setSelectedClient({
+            id: client.id,
+            first_name: client.first_name,
+            last_name: client.last_name,
+            email: client.email || null,
+            phone: client.phone || null,
+          })
+          setClientSearchTerm(`${client.first_name} ${client.last_name}`)
+          toast.success(`Client sélectionné: ${client.first_name} ${client.last_name}`)
+        } else {
+          toast.error(`Aucun client trouvé pour: ${clientName}`)
+        }
+      } catch (error) {
+        console.error('Error searching client:', error)
+        toast.error('Erreur lors de la recherche du client')
+      }
+    }
+
+    const handlePOSAddProduct = async (event: Event) => {
+      const customEvent = event as CustomEvent
+      const productName = customEvent.detail?.name
+      if (!productName) return
+
+      try {
+        const { data: products, error } = await supabase
+          .from('dd-products')
+          .select('*, variants:"dd-product-variants"(id, product_id, name, sku, quantity)')
+          .ilike('name', `%${productName}%`)
+          .eq('is_active', true)
+          .eq('status', 'active')
+          .limit(5)
+
+        if (error) throw error
+
+        if (products && products.length > 0) {
+          const product = products[0] as Product
+          // Dispatch custom event that will be handled by the POS page's addToCart
+          window.dispatchEvent(new CustomEvent('pos-voice-add-product', { detail: { product } }))
+          toast.success(`Produit ajouté: ${product.name}`)
+        } else {
+          toast.error(`Aucun produit trouvé pour: ${productName}`)
+        }
+      } catch (error) {
+        console.error('Error searching product:', error)
+        toast.error('Erreur lors de la recherche du produit')
+      }
+    }
+
+    window.addEventListener('pos-select-client', handlePOSSelectClient)
+    window.addEventListener('pos-add-product', handlePOSAddProduct)
+
+    return () => {
+      window.removeEventListener('pos-select-client', handlePOSSelectClient)
+      window.removeEventListener('pos-add-product', handlePOSAddProduct)
+    }
+  }, []) // Empty deps - handlers are stable
+
+
   const fetchCurrentUserRole = async () => {
     try {
       setCheckingRole(true)
@@ -515,6 +601,22 @@ export default function POSPage() {
   const removeFromCart = (id: string, type: 'product' | 'service') => {
     setCart(cart.filter(item => !(item.id === id && item.type === type)))
   }
+
+  // Handle voice-add-product event from voice navigation
+  useEffect(() => {
+    const handleVoiceAddProduct = (event: CustomEvent) => {
+      const product = event.detail.product as Product
+      if (product) {
+        addToCart(product, 'product')
+      }
+    }
+
+    window.addEventListener('pos-voice-add-product', handleVoiceAddProduct as EventListener)
+
+    return () => {
+      window.removeEventListener('pos-voice-add-product', handleVoiceAddProduct as EventListener)
+    }
+  }, [addToCart])
   
   // Update cart item price - only affects the cart, NOT the database product price
   // This allows caissieres and admins to adjust prices for specific sales without changing the base product price

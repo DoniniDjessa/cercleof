@@ -170,7 +170,7 @@ export default function LoginPage() {
                   <div className="mt-6 text-center">
                     <p className="font-body text-sm text-muted-foreground">
                       {t('login.needAccount')}{' '}
-                      <span className="text-pink-600 font-medium">
+                      <span className="text-slate-600 dark:text-slate-400 font-medium">
                         {t('login.contactAdmin')}
                       </span>
                     </p>
