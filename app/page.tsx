@@ -64,6 +64,27 @@ export default function Home() {
     return <AuthLoadingScreen />
   }
 
+  // Redirect non-admins to POS page
+  useEffect(() => {
+    if (userProfile && !profileLoading) {
+      const role = userProfile.role?.toLowerCase() || ''
+      if (!['admin', 'superadmin', 'manager'].includes(role)) {
+        window.location.href = '/admin/pos'
+      }
+    }
+  }, [userProfile, profileLoading])
+
+  // Show loading while checking role
+  if (profileLoading || !userProfile) {
+    return <AuthLoadingScreen />
+  }
+
+  // Redirect non-admins - this is a safeguard
+  const role = userProfile.role?.toLowerCase() || ''
+  if (!['admin', 'superadmin', 'manager'].includes(role)) {
+    return <AuthLoadingScreen />
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-gray-900 p-6">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

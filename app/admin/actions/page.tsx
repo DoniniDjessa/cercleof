@@ -1,8 +1,10 @@
 "use client"
 
 import React, { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
+import toast from 'react-hot-toast'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -51,6 +53,7 @@ interface ActionDetails {
 
 export default function ActionsPage() {
   const { user: authUser } = useAuth()
+  const router = useRouter()
   const [actions, setActions] = useState<Action[]>([])
   const [loading, setLoading] = useState(true)
   const [checkingRole, setCheckingRole] = useState(true)
@@ -64,7 +67,7 @@ export default function ActionsPage() {
   const itemsPerPage = 50
 
   // Check if user is admin (only admins can access this page)
-  const isAdmin = currentUserRole === 'admin' || currentUserRole === 'superadmin'
+  const isAdmin = currentUserRole && ['admin', 'superadmin', 'manager'].includes(currentUserRole.toLowerCase())
 
   useEffect(() => {
     fetchCurrentUserRole()
@@ -90,7 +93,14 @@ export default function ActionsPage() {
         return
       }
 
-      setCurrentUserRole(data?.role || '')
+      const role = data?.role || ''
+      setCurrentUserRole(role)
+      
+      // Redirect non-admins immediately
+      if (role && !['admin', 'superadmin', 'manager'].includes(role.toLowerCase())) {
+        toast.error('Accès restreint : Cette page est réservée aux administrateurs')
+        router.push('/admin/pos')
+      }
     } catch (error) {
       console.error('Error:', error)
       setCurrentUserRole('')
@@ -98,6 +108,13 @@ export default function ActionsPage() {
       setCheckingRole(false)
     }
   }
+
+  // Redirect if not admin after role check
+  useEffect(() => {
+    if (!checkingRole && currentUserRole && !isAdmin) {
+      router.push('/admin/pos')
+    }
+  }, [checkingRole, currentUserRole, isAdmin, router])
 
   const fetchActions = async () => {
     try {

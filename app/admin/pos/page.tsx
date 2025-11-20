@@ -699,7 +699,7 @@ export default function POSPage() {
       text-align: center; 
       margin-bottom: 15px; 
       padding-bottom: 12px; 
-      border-bottom: 2px solid #e91e63; 
+      border-bottom: 2px solid #000000; 
     }
     .header h1 { 
       font-size: 20px; 
@@ -707,19 +707,20 @@ export default function POSPage() {
       margin-bottom: 6px; 
       text-transform: uppercase;
       letter-spacing: 1px;
-      color: #e91e63;
+      color: #000000;
       font-family: 'Arial Black', 'Arial', sans-serif;
     }
     .header .subtitle {
       font-size: 11px;
-      color: #666;
+      color: #000000;
       margin-bottom: 4px;
       font-weight: 500;
     }
     .header .date-time {
       font-size: 10px;
-      color: #888;
+      color: #000000;
       margin-top: 4px;
+      font-weight: 500;
     }
     .section { 
       margin-bottom: 12px; 
@@ -729,7 +730,7 @@ export default function POSPage() {
     .section-title {
       font-weight: 600;
       font-size: 11px;
-      color: #666;
+      color: #000000;
       margin-bottom: 6px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
@@ -761,8 +762,9 @@ export default function POSPage() {
     }
     .item-details { 
       font-size: 11px; 
-      color: #666;
+      color: #000000;
       margin-left: 8px;
+      font-weight: 500;
     }
     .item-total {
       text-align: right;
@@ -782,27 +784,29 @@ export default function POSPage() {
       justify-content: space-between; 
       font-size: 12px; 
       margin-bottom: 4px; 
-      color: #555;
+      color: #000000;
+      font-weight: 500;
     }
     .total-final { 
       font-weight: 700; 
       font-size: 16px; 
       margin-top: 8px; 
       padding-top: 8px; 
-      border-top: 2px solid #e91e63; 
+      border-top: 2px solid #000000; 
       color: #1a1a1a;
     }
     .footer { 
       text-align: center; 
       margin-top: 15px; 
       padding-top: 12px; 
-      border-top: 1px dashed #ddd; 
+      border-top: 1px dashed #ccc; 
       font-size: 10px; 
-      color: #888; 
+      color: #000000; 
+      font-weight: 500;
     }
     .footer .thank-you {
       font-weight: 600;
-      color: #e91e63;
+      color: #000000;
       margin-bottom: 4px;
     }
     @media print {
@@ -830,7 +834,7 @@ export default function POSPage() {
     <div class="section">
       <p class="section-title">Client</p>
       <p style="font-weight: 600;">${escapeHtml(receiptData.client.first_name)} ${escapeHtml(receiptData.client.last_name)}</p>
-      ${receiptData.client.phone ? `<p style="font-size: 11px; color: #666;">📞 ${escapeHtml(receiptData.client.phone)}</p>` : ''}
+      ${receiptData.client.phone ? `<p style="font-size: 11px; color: #000000; font-weight: 500;">📞 ${escapeHtml(receiptData.client.phone)}</p>` : ''}
     </div>
   ` : ''}
   <div class="section">
@@ -853,13 +857,13 @@ export default function POSPage() {
       <span>${receiptData.subtotal.toFixed(0)}f</span>
     </div>
     ${receiptData.discount > 0 ? `
-      <div class="total-row" style="color: #e91e63;">
+      <div class="total-row" style="color: #000000;">
         <span>Réduction</span>
         <span>-${receiptData.discount.toFixed(0)}f</span>
       </div>
     ` : ''}
     ${receiptData.giftCardAmount > 0 ? `
-      <div class="total-row" style="color: #2196F3;">
+      <div class="total-row" style="color: #000000;">
         <span>Carte Cadeau</span>
         <span>-${receiptData.giftCardAmount.toFixed(0)}f</span>
       </div>
@@ -872,7 +876,7 @@ export default function POSPage() {
   <div class="section">
     <p class="section-title">Paiement</p>
     <p style="font-weight: 600; margin-bottom: 4px;">${escapeHtml(paymentMethodText)}</p>
-    <p style="font-size: 11px; color: #666;">Vendu par: ${escapeHtml(receiptData.user)}</p>
+    <p style="font-size: 11px; color: #000000; font-weight: 500;">Vendu par: ${escapeHtml(receiptData.user)}</p>
   </div>
   <div class="footer">
     <p class="thank-you">Merci de votre visite!</p>

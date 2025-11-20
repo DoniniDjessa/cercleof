@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
+import { createClient } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -45,11 +46,38 @@ export default function LoginPage() {
         setError(error.message)
         setLoading(false)
       } else {
-        console.log('Login successful, redirecting to home...')
+        console.log('Login successful, checking user role for redirect...')
         // Small delay to ensure session is properly established
-        setTimeout(() => {
-          window.location.href = '/'
-        }, 100)
+        setTimeout(async () => {
+          try {
+            // Get user role to determine redirect destination
+            const supabase = createClient()
+            const { data: { user: authUser } } = await supabase.auth.getUser()
+            
+            if (authUser) {
+              const { data: userData } = await supabase
+                .from('dd-users')
+                .select('role')
+                .eq('auth_user_id', authUser.id)
+                .single()
+
+              const role = userData?.role?.toLowerCase() || ''
+              
+              // Redirect admins to dashboard, others to POS
+              if (['admin', 'superadmin', 'manager'].includes(role)) {
+                window.location.href = '/'
+              } else {
+                window.location.href = '/admin/pos'
+              }
+            } else {
+              window.location.href = '/admin/pos'
+            }
+          } catch (err) {
+            console.error('Error checking user role:', err)
+            // Default to POS on error
+            window.location.href = '/admin/pos'
+          }
+        }, 200)
       }
     } catch (err) {
       setError('An unexpected error occurred')

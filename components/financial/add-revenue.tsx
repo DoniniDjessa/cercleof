@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,19 +16,71 @@ import toast from "react-hot-toast"
 
 interface AddRevenueProps {
   onRevenueCreated?: () => void
+  revenueId?: string | null // If provided, we're in edit mode
+  onCancel?: () => void
 }
 
-export function AddRevenue({ onRevenueCreated }: AddRevenueProps) {
+export function AddRevenue({ onRevenueCreated, revenueId, onCancel }: AddRevenueProps) {
   const { user: authUser } = useAuth()
   const [loading, setLoading] = useState(false)
+  const [fetching, setFetching] = useState(false)
+  const isEditMode = !!revenueId
+  
+  // Get current date and time for default values
+  const now = new Date()
+  const defaultDate = now.toISOString().split('T')[0]
+  const defaultTime = now.toTimeString().slice(0, 5) // HH:mm format
   
   const [formData, setFormData] = useState({
     type: "",
     source_id: "",
     montant: 0,
-    date: new Date().toISOString().split('T')[0],
+    date: defaultDate,
+    time: defaultTime,
     note: "",
   })
+
+  // Fetch revenue data if in edit mode
+  useEffect(() => {
+    if (revenueId) {
+      fetchRevenueData()
+    }
+  }, [revenueId])
+
+  const fetchRevenueData = async () => {
+    if (!revenueId) return
+    
+    try {
+      setFetching(true)
+      const { data, error } = await supabase
+        .from('dd-revenues')
+        .select('*')
+        .eq('id', revenueId)
+        .single()
+
+      if (error) throw error
+
+      if (data) {
+        const revenueDate = new Date(data.date)
+        const dateStr = revenueDate.toISOString().split('T')[0]
+        const timeStr = revenueDate.toTimeString().slice(0, 5)
+        
+        setFormData({
+          type: data.type || "",
+          source_id: data.source_id || "",
+          montant: data.montant || 0,
+          date: dateStr,
+          time: timeStr,
+          note: data.note || "",
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching revenue:', error)
+      toast.error('Erreur lors du chargement du revenu')
+    } finally {
+      setFetching(false)
+    }
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target
@@ -102,42 +154,73 @@ export function AddRevenue({ onRevenueCreated }: AddRevenueProps) {
         }
       }
 
+      // Combine date and time into a single datetime
+      const dateTimeStr = `${formData.date}T${formData.time}:00`
+      const dateTime = new Date(dateTimeStr)
+
       const revenueData = {
         type: formData.type,
         source_id: sourceIdValue,
         montant: montantValue,
-        date: new Date(formData.date).toISOString(),
+        date: dateTime.toISOString(),
         note: formData.note && formData.note.trim() !== '' ? formData.note.trim() : null,
-        enregistre_par: currentUser.id
+        ...(isEditMode ? {} : { enregistre_par: currentUser.id }) // Don't update enregistre_par on edit
       }
 
-      const { data, error } = await supabase
-        .from('dd-revenues')
-        .insert([revenueData])
-        .select()
+      let data, error
+      if (isEditMode && revenueId) {
+        // Update existing revenue
+        const { data: updateData, error: updateError } = await supabase
+          .from('dd-revenues')
+          .update(revenueData)
+          .eq('id', revenueId)
+          .select()
+        data = updateData
+        error = updateError
+      } else {
+        // Create new revenue
+        const { data: insertData, error: insertError } = await supabase
+          .from('dd-revenues')
+          .insert([revenueData])
+          .select()
+        data = insertData
+        error = insertError
+      }
 
       if (error) {
-        console.error('Error creating revenue:', error)
-        toast.error('Erreur lors de la création du revenu: ' + error.message)
+        console.error(`Error ${isEditMode ? 'updating' : 'creating'} revenue:`, error)
+        toast.error(`Erreur lors de ${isEditMode ? 'la mise à jour' : 'la création'} du revenu: ` + error.message)
         return
       }
 
-      toast.success("Revenu enregistré avec succès!")
+      toast.success(`Revenu ${isEditMode ? 'modifié' : 'enregistré'} avec succès!`)
       
-      // Reset form
-      setFormData({
-        type: "",
-        source_id: "",
-        montant: 0,
-        date: new Date().toISOString().split('T')[0],
-        note: "",
-      })
+      if (isEditMode) {
+        // In edit mode, just call the callback and let parent handle navigation
+        if (onRevenueCreated) {
+          onRevenueCreated()
+        }
+        if (onCancel) {
+          onCancel()
+        }
+      } else {
+        // Reset form for create mode
+        const now = new Date()
+        setFormData({
+          type: "",
+          source_id: "",
+          montant: 0,
+          date: now.toISOString().split('T')[0],
+          time: now.toTimeString().slice(0, 5),
+          note: "",
+        })
 
-      // Navigate back to revenues list
-      window.history.replaceState({}, '', '/admin/revenues')
-      
-      if (onRevenueCreated) {
-        onRevenueCreated()
+        // Navigate back to revenues list
+        window.history.replaceState({}, '', '/admin/revenues')
+        
+        if (onRevenueCreated) {
+          onRevenueCreated()
+        }
       }
       
     } catch (error) {
@@ -149,19 +232,33 @@ export function AddRevenue({ onRevenueCreated }: AddRevenueProps) {
   }
 
   const handleCancel = () => {
-    window.history.replaceState({}, '', '/admin/revenues')
-    window.location.reload()
+    if (isEditMode && onCancel) {
+      onCancel()
+    } else {
+      window.history.replaceState({}, '', '/admin/revenues')
+      window.location.reload()
+    }
   }
 
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-foreground dark:text-white">Nouveau Revenu</h1>
-        <p className="text-muted-foreground dark:text-gray-400">Enregistrer un nouveau revenu</p>
+        <h1 className="text-3xl font-bold text-foreground dark:text-white">
+          {isEditMode ? 'Modifier le Revenu' : 'Nouveau Revenu'}
+        </h1>
+        <p className="text-muted-foreground dark:text-gray-400">
+          {isEditMode ? 'Modifier les informations du revenu' : 'Enregistrer un nouveau revenu'}
+        </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {fetching && (
+        <div className="flex items-center justify-center p-8">
+          <ButtonLoadingSpinner />
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className={`grid grid-cols-1 lg:grid-cols-3 gap-6 ${fetching ? 'opacity-50 pointer-events-none' : ''}`}>
         {/* Main Form */}
         <div className="lg:col-span-2 space-y-6">
           {/* Revenue Information */}
@@ -225,17 +322,31 @@ export function AddRevenue({ onRevenueCreated }: AddRevenueProps) {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="date" className="text-gray-700 dark:text-gray-300">Date *</Label>
-                <Input
-                  id="date"
-                  name="date"
-                  type="date"
-                  value={formData.date}
-                  onChange={handleChange}
-                  required
-                  className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="date" className="text-gray-700 dark:text-gray-300">Date *</Label>
+                  <Input
+                    id="date"
+                    name="date"
+                    type="date"
+                    value={formData.date}
+                    onChange={handleChange}
+                    required
+                    className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="time" className="text-gray-700 dark:text-gray-300">Heure *</Label>
+                  <Input
+                    id="time"
+                    name="time"
+                    type="time"
+                    value={formData.time}
+                    onChange={handleChange}
+                    required
+                    className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -273,9 +384,14 @@ export function AddRevenue({ onRevenueCreated }: AddRevenueProps) {
                   </p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground dark:text-gray-400">Date</p>
+                  <p className="text-muted-foreground dark:text-gray-400">Date et Heure</p>
                   <p className="font-medium text-gray-900 dark:text-white">
-                    {formData.date ? new Date(formData.date).toLocaleDateString('fr-FR') : "—"}
+                    {formData.date ? (
+                      <>
+                        {new Date(formData.date).toLocaleDateString('fr-FR')}
+                        {formData.time && ` à ${formData.time}`}
+                      </>
+                    ) : "—"}
                   </p>
                 </div>
                 <div>
@@ -290,7 +406,7 @@ export function AddRevenue({ onRevenueCreated }: AddRevenueProps) {
                   className="flex-1" 
                   disabled={loading}
                 >
-                  {loading ? <ButtonLoadingSpinner /> : "Enregistrer le Revenu"}
+                  {loading ? <ButtonLoadingSpinner /> : isEditMode ? "Modifier le Revenu" : "Enregistrer le Revenu"}
                 </Button>
                 <Button 
                   type="button" 

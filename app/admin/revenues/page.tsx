@@ -9,10 +9,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { AnimatedButton } from "@/components/ui/animated-button"
 import { TableLoadingState } from "@/components/ui/table-loading-state"
-import { Search, Eye, Trash2, TrendingUp, DollarSign, Plus, Calendar, TrendingDown, BarChart3 } from "lucide-react"
+import { Search, Eye, Trash2, TrendingUp, DollarSign, Plus, Calendar, TrendingDown, BarChart3, Pencil } from "lucide-react"
 import { AddRevenue } from "@/components/financial/add-revenue"
+import { useAuth } from "@/contexts/AuthContext"
 import { supabase } from "@/lib/supabase"
 import toast from "react-hot-toast"
+import { AuthLoadingScreen } from "@/components/ui/context-loaders"
 
 interface Revenue {
   id: string
@@ -41,15 +43,20 @@ interface Expense {
 export default function RevenuesPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { user } = useAuth()
   const [revenues, setRevenues] = useState<Revenue[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const [editingRevenueId, setEditingRevenueId] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [dateFilter, setDateFilter] = useState<string>('all')
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: '', end: '' })
+  const [checkingRole, setCheckingRole] = useState(true)
+  const [userRole, setUserRole] = useState<string>('')
+  const [isAdmin, setIsAdmin] = useState(false)
   const itemsPerPage = 20
 
   useEffect(() => {
@@ -62,9 +69,54 @@ export default function RevenuesPage() {
   }, [searchParams])
 
   useEffect(() => {
-    fetchRevenues()
-    fetchExpenses()
-  }, [currentPage, dateFilter, dateRange])
+    if (user) {
+      fetchUserRole()
+    }
+  }, [user])
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchRevenues()
+      fetchExpenses()
+    }
+  }, [currentPage, dateFilter, dateRange, isAdmin])
+
+  const fetchUserRole = async () => {
+    if (!user?.id) {
+      setCheckingRole(false)
+      return
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('dd-users')
+        .select('role')
+        .eq('auth_user_id', user.id)
+        .single()
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching user role:', error)
+        setUserRole('')
+        setIsAdmin(false)
+      } else {
+        const role = data?.role || ''
+        setUserRole(role)
+        setIsAdmin(['admin', 'superadmin', 'manager'].includes(role.toLowerCase()))
+        
+        // Redirect non-admins immediately
+        if (role && !['admin', 'superadmin', 'manager'].includes(role.toLowerCase())) {
+          toast.error('Accès restreint : Cette page est réservée aux administrateurs')
+          router.push('/admin/pos')
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching user role:', error)
+      setUserRole('')
+      setIsAdmin(false)
+    } finally {
+      setCheckingRole(false)
+    }
+  }
 
   const fetchRevenues = async () => {
     try {
@@ -258,6 +310,19 @@ export default function RevenuesPage() {
       setShowCreateForm(false)
       fetchRevenues()
     }} />
+  }
+
+  if (editingRevenueId) {
+    return <AddRevenue 
+      revenueId={editingRevenueId}
+      onRevenueCreated={() => {
+        setEditingRevenueId(null)
+        fetchRevenues()
+      }}
+      onCancel={() => {
+        setEditingRevenueId(null)
+      }}
+    />
   }
 
   return (
@@ -474,7 +539,8 @@ export default function RevenuesPage() {
                           <p className="text-sm text-gray-500 dark:text-gray-400">
                             {new Date(revenue.date).toLocaleTimeString('fr-FR', { 
                               hour: '2-digit', 
-                              minute: '2-digit' 
+                              minute: '2-digit',
+                              second: '2-digit'
                             })}
                           </p>
                         </div>
@@ -489,6 +555,15 @@ export default function RevenuesPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setEditingRevenueId(revenue.id)}
+                            className="text-green-600 border-green-200 hover:bg-green-50 dark:text-green-400 dark:border-green-800 dark:hover:bg-green-900/20"
+                            title="Modifier"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
                           <Button
                             variant="outline"
                             size="sm"

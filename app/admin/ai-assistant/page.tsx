@@ -38,6 +38,26 @@ export default function AIAssistantPage() {
   const [currentFlow, setCurrentFlow] = useState<FlowType>(null)
   const [userRole, setUserRole] = useState<string>('')
   const [loading, setLoading] = useState(false)
+  const [roleChecked, setRoleChecked] = useState(false)
+
+  // Early return if user is not admin
+  if (roleChecked && userRole && !['admin', 'superadmin', 'manager'].includes(userRole.toLowerCase())) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Accès restreint</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p>Cette fonctionnalité est réservée aux administrateurs.</p>
+            <Button onClick={() => router.push('/admin/pos')} className="mt-4">
+              Retour au Point de Vente
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   // Flow 1: Product Recommendation
   const [recommendationQuery, setRecommendationQuery] = useState('')
@@ -77,11 +97,19 @@ export default function AIAssistantPage() {
 
       if (!error && data) {
         setUserRole(data.role || '')
+        setRoleChecked(true)
+        // Redirect non-admins immediately
+        if (!['admin', 'superadmin', 'manager'].includes((data.role || '').toLowerCase())) {
+          router.push('/admin/pos')
+        }
+      } else {
+        setRoleChecked(true)
       }
     } catch (error) {
       console.error('Error fetching user role:', error)
+      setRoleChecked(true)
     }
-  }, [user?.id])
+  }, [user?.id, router])
 
   useEffect(() => {
     const flow = searchParams.get('flow') as FlowType
@@ -90,6 +118,14 @@ export default function AIAssistantPage() {
     }
     fetchUserRole()
   }, [searchParams, user, fetchUserRole])
+
+  // Check if user is admin - restrict access to admins only
+  useEffect(() => {
+    if (userRole && !['admin', 'superadmin', 'manager'].includes(userRole.toLowerCase())) {
+      toast.error('Accès restreint : Cette fonctionnalité est réservée aux administrateurs')
+      router.push('/admin/pos')
+    }
+  }, [userRole, router])
 
   // Flow 1: Product Recommendation
   const handleProductRecommendation = async () => {

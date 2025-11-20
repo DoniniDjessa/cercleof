@@ -93,7 +93,7 @@ export default function ExpensesPage() {
 
       const role = data?.role || ''
       setCurrentUserRole(role)
-      setIsAdmin(role === 'admin' || role === 'superadmin')
+      setIsAdmin(['admin', 'superadmin', 'manager'].includes(role.toLowerCase()))
     } catch (error) {
       console.error('Error fetching user role:', error)
     }
