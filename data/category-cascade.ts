@@ -239,6 +239,37 @@ const BASE_CASCADE = [
         "Peaux sensibles"
       ]
     }
+  },
+  {
+    tranche_principale: "Santé du corps",
+    sous_tranches: {
+      formes: [
+        "Gellules",
+        "Capsules",
+        "Pastilles/comprimés",
+        "Sirop",
+        "Jus",
+        "Poudre",
+        "Gélules végétales",
+        "Infusion",
+        "Complément liquide",
+        "Complément solide"
+      ],
+      benefices: [
+        "Énergisant",
+        "Renforcement immunitaire",
+        "Digestion",
+        "Détoxifiant",
+        "Antioxydant",
+        "Vitalité",
+        "Équilibre",
+        "Bien-être général",
+        "Renforcement osseux",
+        "Circulation",
+        "Stress",
+        "Sommeil"
+      ]
+    }
   }
 ];
 
