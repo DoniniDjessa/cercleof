@@ -1132,11 +1132,12 @@ const SKIN_TYPES = [
   }
 
   // Handle AI image analysis for intelligent product addition
+  // Note: file is already compressed from handleAIImageUpload or handleAICameraCapture
   const handleAIImageAnalysis = async (file: File) => {
     try {
       setAnalyzingImage(true)
       
-      // Add image to images array immediately so it gets saved with the product
+      // Add compressed image to images array immediately so it gets saved with the product
       // Always ensure the analyzed image is in the array for intelligent mode
       setImages((prev) => {
         // Check if this exact file is already in array
@@ -1381,23 +1382,8 @@ const SKIN_TYPES = [
           setSkuManuallyEdited(true)
         }
 
-        // Ensure the analyzed image is in the images array for saving
-        if (file) {
-          setImages((prev) => {
-            // Check if this exact file is already in array
-            const exists = prev.some(
-              img => img.name === file.name && 
-              img.size === file.size && 
-              img.lastModified === file.lastModified
-            )
-            if (!exists) {
-              // In intelligent mode, replace existing images with the analyzed one
-              // This ensures the analyzed image is saved
-              return [file]
-            }
-            return prev
-          })
-        }
+        // Image is already compressed and added to images array in handleAIImageAnalysis
+        // No need to add it again here since it's already in the array
 
         toast.success('Analyse terminée! Les champs détectables ont été remplis automatiquement par le système. L\'image sera sauvegardée avec le produit.')
       } else {
@@ -1422,17 +1408,19 @@ const SKIN_TYPES = [
       return
     }
 
-    // Set preview
-    const preview = await readFileAsDataURL(file)
+    // Compress image before analysis (same as ajout rapide)
+    const [compressedFile] = await compressImages(
+      [file],
+      { maxWidth: 1920, maxHeight: 1920, quality: 0.8, maxSizeMB: 2 }
+    )
+
+    // Set preview with compressed file
+    const preview = await readFileAsDataURL(compressedFile)
     setAiAnalysisPreview(preview)
-    setAiAnalysisImage(file)
+    setAiAnalysisImage(compressedFile)
 
-    // Add image to images array immediately so it gets saved with the product
-    // This ensures the analyzed image is available for saving
-    setImages([file])
-
-    // Automatically analyze the image (which will also ensure image is in array)
-    await handleAIImageAnalysis(file)
+    // Automatically analyze the compressed image (which will add it to images array)
+    await handleAIImageAnalysis(compressedFile)
   }
 
   // Handle camera capture for AI analysis
@@ -1455,14 +1443,19 @@ const SKIN_TYPES = [
           canvas.toBlob(async (blob) => {
             if (blob) {
               const file = new File([blob], 'camera-capture.jpg', { type: 'image/jpeg' })
-              const preview = await readFileAsDataURL(file)
+              
+              // Compress image before analysis (same as ajout rapide)
+              const [compressedFile] = await compressImages(
+                [file],
+                { maxWidth: 1920, maxHeight: 1920, quality: 0.8, maxSizeMB: 2 }
+              )
+              
+              const preview = await readFileAsDataURL(compressedFile)
               setAiAnalysisPreview(preview)
-              setAiAnalysisImage(file)
+              setAiAnalysisImage(compressedFile)
               
-              // Set as product image immediately
-              setImages([file])
-              
-              await handleAIImageAnalysis(file)
+              // Automatically analyze the compressed image (which will add it to images array)
+              await handleAIImageAnalysis(compressedFile)
             }
           }, 'image/jpeg')
         }

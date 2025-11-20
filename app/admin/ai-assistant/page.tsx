@@ -219,8 +219,11 @@ export default function AIAssistantPage() {
     // Stop any ongoing speech
     window.speechSynthesis.cancel()
 
+    // Remove asterisks (*) from text before speaking
+    const cleanedText = text.replace(/\*/g, '')
+
     // Create utterance
-    const utterance = new SpeechSynthesisUtterance(text)
+    const utterance = new SpeechSynthesisUtterance(cleanedText)
     utterance.lang = 'fr-FR'
     utterance.rate = 1.0
     utterance.pitch = 1.0
