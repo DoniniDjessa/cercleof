@@ -25,8 +25,9 @@ interface Revenue {
   enregistre_par: string
   user?: {
     id: string
-    first_name: string
-    last_name: string
+    pseudo: string
+    first_name?: string
+    last_name?: string
   }
 }
 
@@ -75,7 +76,7 @@ export default function RevenuesPage() {
         .from('dd-revenues')
         .select(`
           *,
-          user:dd-users(id, first_name, last_name)
+          user:dd-users(id, pseudo, first_name, last_name)
         `, { count: 'exact' })
 
       // Apply date filters
@@ -227,8 +228,9 @@ export default function RevenuesPage() {
     revenue.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
     revenue.note?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     revenue.source_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    revenue.user?.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    revenue.user?.last_name.toLowerCase().includes(searchTerm.toLowerCase())
+    revenue.user?.pseudo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    revenue.user?.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    revenue.user?.last_name?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   const totalRevenues = revenues.length
@@ -479,7 +481,7 @@ export default function RevenuesPage() {
                       </TableCell>
                       <TableCell>
                         <span className="text-gray-900 dark:text-white">
-                          {revenue.user ? `${revenue.user.first_name} ${revenue.user.last_name}` : "—"}
+                          {revenue.user?.pseudo || "—"}
                         </span>
                       </TableCell>
                       <TableCell>

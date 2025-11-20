@@ -85,12 +85,29 @@ export function AddRevenue({ onRevenueCreated }: AddRevenueProps) {
         return
       }
 
+      // Ensure source_id is either a valid UUID string or null (not empty string)
+      // UUID validation regex pattern
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+      let sourceIdValue: string | null = null
+      
+      if (formData.source_id && formData.source_id.trim() !== '') {
+        const trimmedSourceId = formData.source_id.trim()
+        // Validate UUID format if provided
+        if (uuidRegex.test(trimmedSourceId)) {
+          sourceIdValue = trimmedSourceId
+        } else {
+          toast.error('L\'ID Source doit être un UUID valide ou laissé vide')
+          setLoading(false)
+          return
+        }
+      }
+
       const revenueData = {
         type: formData.type,
-        source_id: formData.source_id || null,
+        source_id: sourceIdValue,
         montant: montantValue,
         date: new Date(formData.date).toISOString(),
-        note: formData.note || null,
+        note: formData.note && formData.note.trim() !== '' ? formData.note.trim() : null,
         enregistre_par: currentUser.id
       }
 
