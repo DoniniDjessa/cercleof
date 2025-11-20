@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Upload, RefreshCw, X, Image as ImageIcon, Camera, Plus, Trash2, ChevronsUpDown, Check } from "lucide-react"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Upload, RefreshCw, X, Image as ImageIcon, Camera, Plus, Trash2, ChevronsUpDown, Check, Sparkles } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
 import { supabase } from "@/lib/supabase"
 import { ButtonLoadingSpinner } from "@/components/ui/context-loaders"
@@ -119,6 +120,10 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
   const [searchingSimilar, setSearchingSimilar] = useState(false)
   const [showSimilarProducts, setShowSimilarProducts] = useState(false)
   const [structuredDescription, setStructuredDescription] = useState("")
+  const [activeTab, setActiveTab] = useState("rapide")
+  const [analyzingImage, setAnalyzingImage] = useState(false)
+  const [aiAnalysisImage, setAiAnalysisImage] = useState<File | null>(null)
+  const [aiAnalysisPreview, setAiAnalysisPreview] = useState<string>("")
   const cascadeDomains = useMemo(() => Object.keys(CATEGORY_CASCADE), [])
 const SKIN_TYPES = [
   "Peau normale",
@@ -1126,6 +1131,298 @@ const SKIN_TYPES = [
     }
   }
 
+  // Handle AI image analysis for intelligent product addition
+  const handleAIImageAnalysis = async (file: File) => {
+    try {
+      setAnalyzingImage(true)
+      const imageBase64 = await readFileAsDataURL(file)
+
+      const response = await fetch('/api/ai/product-image-analysis', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          imageBase64,
+          userRole: currentUserRole,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        const errorMessage = errorData.error || errorData.details || 'Erreur lors de l\'analyse de l\'image'
+        console.error('API Error:', errorData)
+        throw new Error(errorMessage)
+      }
+
+      const result = await response.json()
+
+      if (result.success && result.data) {
+        const analysis = result.data
+
+        // Fill form with AI analysis
+        if (analysis.name) {
+          setFormData((prev) => ({ ...prev, name: analysis.name }))
+        }
+        if (analysis.brand) {
+          setFormData((prev) => ({ ...prev, brand: analysis.brand }))
+        }
+        if (analysis.description) {
+          // Use description as is (already complete from Gemini)
+          setFormData((prev) => ({ ...prev, description: analysis.description }))
+        }
+        
+        // Handle tranche principale first
+        let foundTranche: string | null = null
+        let foundDomain: string | null = null
+        if (analysis.tranchePrincipale) {
+          const tranchePrincipale = analysis.tranchePrincipale.trim()
+          // Find matching tranche in CATEGORY_CASCADE
+          for (const domain of Object.keys(CATEGORY_CASCADE)) {
+            const cascadeData = CATEGORY_CASCADE[domain as keyof typeof CATEGORY_CASCADE]
+            const matchingTranche = cascadeData.find((node) => 
+              node.tranche_principale.toLowerCase() === tranchePrincipale.toLowerCase() ||
+              tranchePrincipale.toLowerCase().includes(node.tranche_principale.toLowerCase()) ||
+              node.tranche_principale.toLowerCase().includes(tranchePrincipale.toLowerCase())
+            )
+            if (matchingTranche) {
+              foundTranche = matchingTranche.tranche_principale
+              foundDomain = domain
+              // Set domain if not already set
+              if (!selectedDomain || selectedDomain !== domain) {
+                setSelectedDomain(domain)
+              }
+              // Add tranche if not already selected
+              setSelectedTranches((prev) => {
+                if (!prev.includes(matchingTranche.tranche_principale)) {
+                  return prev.length < 2 ? [...prev, matchingTranche.tranche_principale] : [matchingTranche.tranche_principale]
+                }
+                return prev
+              })
+              break
+            }
+          }
+        }
+
+        // Handle forme - use found tranche or search all tranches
+        if (analysis.form) {
+          const formValue = analysis.form.trim()
+          let matchingForme: string | null = null
+          
+          if (foundTranche && foundDomain) {
+            // Use the found tranche
+            const cascadeData = CATEGORY_CASCADE[foundDomain as keyof typeof CATEGORY_CASCADE]
+            const matchingTranche = cascadeData.find(node => node.tranche_principale === foundTranche)
+            if (matchingTranche) {
+              const foundForme = matchingTranche.sous_tranches.formes.find((forme) =>
+                forme.toLowerCase() === formValue.toLowerCase() ||
+                formValue.toLowerCase().includes(forme.toLowerCase()) ||
+                forme.toLowerCase().includes(formValue.toLowerCase())
+              )
+              if (foundForme) {
+                matchingForme = foundForme
+              }
+            }
+          } else {
+            // Search all tranches if no tranche was found
+            for (const domain of Object.keys(CATEGORY_CASCADE)) {
+              const cascadeData = CATEGORY_CASCADE[domain as keyof typeof CATEGORY_CASCADE]
+              for (const node of cascadeData) {
+                const foundForme = node.sous_tranches.formes.find((forme) =>
+                  forme.toLowerCase() === formValue.toLowerCase() ||
+                  formValue.toLowerCase().includes(forme.toLowerCase()) ||
+                  forme.toLowerCase().includes(formValue.toLowerCase())
+                )
+                if (foundForme) {
+                  matchingForme = foundForme
+                  // Also set the tranche if not already set
+                  if (!foundTranche) {
+                    foundTranche = node.tranche_principale
+                    foundDomain = domain
+                    setSelectedDomain(domain)
+                    setSelectedTranches((prev) => {
+                      if (!prev.includes(node.tranche_principale)) {
+                        return prev.length < 2 ? [...prev, node.tranche_principale] : [node.tranche_principale]
+                      }
+                      return prev
+                    })
+                  }
+                  break
+                }
+              }
+              if (matchingForme) break
+            }
+          }
+          
+          if (matchingForme) {
+            setSelectedFormes((prev) => {
+              if (!prev.includes(matchingForme!)) {
+                return prev.length < 2 ? [...prev, matchingForme!] : [matchingForme!]
+              }
+              return prev
+            })
+          }
+        }
+
+        // Handle benefits - use found tranche or search all tranches
+        if (analysis.benefits && Array.isArray(analysis.benefits) && analysis.benefits.length > 0) {
+          let allBenefices: string[] = []
+          
+          if (foundTranche && foundDomain) {
+            // Use the found tranche
+            const cascadeData = CATEGORY_CASCADE[foundDomain as keyof typeof CATEGORY_CASCADE]
+            const matchingTranche = cascadeData.find(node => node.tranche_principale === foundTranche)
+            if (matchingTranche) {
+              allBenefices = matchingTranche.sous_tranches.benefices
+            }
+          } else {
+            // Search all tranches if no tranche was found
+            for (const domain of Object.keys(CATEGORY_CASCADE)) {
+              const cascadeData = CATEGORY_CASCADE[domain as keyof typeof CATEGORY_CASCADE]
+              for (const node of cascadeData) {
+                allBenefices.push(...node.sous_tranches.benefices)
+              }
+            }
+          }
+          
+          // Match benefits from analysis with available benefices
+          const matchingBenefices: string[] = []
+          for (const benefit of analysis.benefits) {
+            const matching = allBenefices.find((b) =>
+              b.toLowerCase() === benefit.toLowerCase() ||
+              benefit.toLowerCase().includes(b.toLowerCase()) ||
+              b.toLowerCase().includes(benefit.toLowerCase())
+            )
+            if (matching && !matchingBenefices.includes(matching)) {
+              matchingBenefices.push(matching)
+            }
+          }
+          
+          if (matchingBenefices.length > 0) {
+            setSelectedBenefices((prev) => {
+              const newBenefices = [...prev]
+              matchingBenefices.forEach((b) => {
+                if (!newBenefices.includes(b)) {
+                  newBenefices.push(b)
+                }
+              })
+              return newBenefices
+            })
+          }
+        }
+
+        // Handle skin types
+        if (analysis.skinTypes && Array.isArray(analysis.skinTypes) && analysis.skinTypes.length > 0) {
+          const matchingSkinTypes: string[] = []
+          analysis.skinTypes.forEach((skinType: string) => {
+            const matching = SKIN_TYPES.find((st) =>
+              st.toLowerCase() === skinType.toLowerCase() ||
+              skinType.toLowerCase().includes(st.toLowerCase()) ||
+              st.toLowerCase().includes(skinType.toLowerCase())
+            )
+            if (matching && !matchingSkinTypes.includes(matching)) {
+              matchingSkinTypes.push(matching)
+            }
+          })
+          if (matchingSkinTypes.length > 0) {
+            setSelectedSkinTypes((prev) => {
+              const newSkinTypes = [...prev]
+              matchingSkinTypes.forEach((st) => {
+                if (!newSkinTypes.includes(st)) {
+                  newSkinTypes.push(st)
+                }
+              })
+              return newSkinTypes
+            })
+          }
+        }
+
+        if (analysis.category && categories.length > 0) {
+          // Find matching category
+          const matchingCategory = categories.find((c) =>
+            c.name.toLowerCase().includes(analysis.category.toLowerCase()) ||
+            analysis.category.toLowerCase().includes(c.name.toLowerCase())
+          )
+          if (matchingCategory) {
+            setSelectedCategoryId(matchingCategory.id)
+            setFormData((prev) => ({ ...prev, category: matchingCategory.id }))
+          }
+        }
+        if (analysis.sku) {
+          setFormData((prev) => ({ ...prev, sku: analysis.sku }))
+          setSkuManuallyEdited(true)
+        }
+
+        toast.success('Analyse terminée! Les champs détectables ont été remplis automatiquement par le système.')
+      } else {
+        toast.error('Aucune donnée extraite de l\'image par le système')
+      }
+    } catch (error: any) {
+      console.error('Error analyzing image:', error)
+      toast.error(error.message || 'Erreur lors de l\'analyse de l\'image')
+    } finally {
+      setAnalyzingImage(false)
+    }
+  }
+
+  // Handle image upload for AI analysis
+  const handleAIImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Veuillez sélectionner une image')
+      return
+    }
+
+    // Set preview
+    const preview = await readFileAsDataURL(file)
+    setAiAnalysisPreview(preview)
+    setAiAnalysisImage(file)
+
+    // Automatically analyze the image
+    await handleAIImageAnalysis(file)
+  }
+
+  // Handle camera capture for AI analysis
+  const handleAICameraCapture = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+      const video = document.createElement('video')
+      video.srcObject = stream
+      video.play()
+
+      video.onloadedmetadata = () => {
+        const canvas = document.createElement('canvas')
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+        const ctx = canvas.getContext('2d')
+        if (ctx) {
+          ctx.drawImage(video, 0, 0)
+          stream.getTracks().forEach((track) => track.stop())
+
+          canvas.toBlob(async (blob) => {
+            if (blob) {
+              const file = new File([blob], 'camera-capture.jpg', { type: 'image/jpeg' })
+              const preview = await readFileAsDataURL(file)
+              setAiAnalysisPreview(preview)
+              setAiAnalysisImage(file)
+              
+              // Set as product image immediately
+              setImages([file])
+              
+              await handleAIImageAnalysis(file)
+            }
+          }, 'image/jpeg')
+        }
+      }
+    } catch (error) {
+      console.error('Error accessing camera:', error)
+      toast.error('Erreur d\'accès à la caméra')
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -1374,7 +1671,17 @@ const SKIN_TYPES = [
         <p className="text-sm text-muted-foreground dark:text-gray-400">Créer un nouveau produit dans votre inventaire</p>
       </div>
 
-      <form onSubmit={handleSubmit}>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="rapide">Ajout Rapide</TabsTrigger>
+          <TabsTrigger value="intelligent">
+            <Sparkles className="w-4 h-4 mr-2" />
+            Ajout Intelligent
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="rapide" className="mt-6">
+          <form onSubmit={handleSubmit}>
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
             <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
@@ -2207,6 +2514,759 @@ Description Enrichie (longue)	Découvrez le secret...`}
           </Button>
         </div>
       </form>
+        </TabsContent>
+
+        <TabsContent value="intelligent" className="mt-6">
+          <form onSubmit={handleSubmit}>
+            <div className="grid gap-6 lg:grid-cols-3">
+              <div className="lg:col-span-2 space-y-6">
+                {/* AI Image Upload Section */}
+                <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                  <CardHeader>
+                    <CardTitle className="text-gray-900 dark:text-white flex items-center">
+                      <Sparkles className="w-5 h-5 mr-2 text-purple-600" />
+                      Télécharger une Image du Produit
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Téléchargez ou capturez une photo du produit. Le système analysera l'image et remplira automatiquement les champs détectables du formulaire.
+                    </p>
+
+                    {/* Image Preview */}
+                    {aiAnalysisPreview && (
+                      <div className="relative w-full max-w-md mx-auto">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={aiAnalysisPreview}
+                          alt="Produit à analyser"
+                          className="w-full h-auto rounded-lg border border-gray-200 dark:border-gray-600"
+                        />
+                        {analyzingImage && (
+                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-lg">
+                            <div className="text-center text-white">
+                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
+                              <p className="text-sm">Analyse en cours...</p>
+                            </div>
+                          </div>
+                        )}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute top-2 right-2"
+                          onClick={() => {
+                            setAiAnalysisPreview("")
+                            setAiAnalysisImage(null)
+                          }}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Upload Buttons */}
+                    <div className="flex gap-4">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="flex-1 bg-transparent border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                        onClick={() => document.getElementById('ai-image-upload')?.click()}
+                        disabled={analyzingImage}
+                      >
+                        <ImageIcon className="w-4 h-4 mr-2" />
+                        {analyzingImage ? <ButtonLoadingSpinner /> : 'Galerie'}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="flex-1 bg-transparent border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                        onClick={handleAICameraCapture}
+                        disabled={analyzingImage}
+                      >
+                        <Camera className="w-4 h-4 mr-2" />
+                        Caméra
+                      </Button>
+                    </div>
+
+                    <input
+                      id="ai-image-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleAIImageUpload}
+                    />
+                  </CardContent>
+                </Card>
+
+                {/* Product Info - Same as Ajout Rapide */}
+                <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                  <CardHeader>
+                    <CardTitle className="text-gray-900 dark:text-white">Informations du Produit</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="intelligent-name" className="text-gray-700 dark:text-gray-300">Nom du Produit *</Label>
+                      <div className="relative">
+                        <Input 
+                          id="intelligent-name" 
+                          name="name"
+                          value={formData.name}
+                          onChange={handleChange}
+                          onFocus={() => {
+                            if (similarProducts.length > 0) {
+                              setShowSimilarProducts(true)
+                            }
+                          }}
+                          onBlur={() => {
+                            setTimeout(() => setShowSimilarProducts(false), 200)
+                          }}
+                          placeholder="Sera rempli automatiquement par le système" 
+                          required
+                          className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                        />
+                        {showSimilarProducts && similarProducts.length > 0 && (
+                          <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                            {similarProducts.map((product) => (
+                              <button
+                                key={product.id}
+                                type="button"
+                                onClick={() => {
+                                  setFormData((prev) => ({ ...prev, name: product.name }))
+                                  setShowSimilarProducts(false)
+                                }}
+                                className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                              >
+                                {product.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="intelligent-description" className="text-gray-700 dark:text-gray-300">Description</Label>
+                      <Textarea 
+                        id="intelligent-description" 
+                        name="description"
+                        value={formData.description}
+                        onChange={handleChange}
+                        placeholder="Sera rempli automatiquement par le système" 
+                        rows={4}
+                        className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                      />
+                    </div>
+                    <div className="space-y-4 rounded-lg border border-dashed border-gray-200 dark:border-gray-700 p-4 bg-gray-50/60 dark:bg-gray-900/30">
+                      <div className="space-y-2">
+                        <Label className="text-gray-700 dark:text-gray-300">Domaine *</Label>
+                        <p className="text-xs text-muted-foreground dark:text-gray-400">
+                          <span className="font-medium">Cosmetics</span> = produits externes • <span className="font-medium">COB</span> = produits maison.
+                        </p>
+                        <Select
+                          value={selectedDomain}
+                          onValueChange={(value) => {
+                            setSelectedDomain(value)
+                            setSelectedTranches([])
+                            setSelectedFormes([])
+                            setSelectedBenefices([])
+                            setSelectedSkinTypes([])
+                            setSkuManuallyEdited(false)
+                            setBarcodeManuallyEdited(false)
+                          }}
+                        >
+                          <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
+                            <SelectValue placeholder="Sélectionner un domaine" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {cascadeDomains.map((domain) => {
+                              const label =
+                                domain === domain.toUpperCase()
+                                  ? domain
+                                  : domain.charAt(0).toUpperCase() + domain.slice(1)
+                              return (
+                                <SelectItem key={domain} value={domain}>
+                                  {label}
+                                </SelectItem>
+                              )
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-3">
+                        <div className="space-y-2">
+                          <Label className="text-gray-700 dark:text-gray-300">Tranche principale *</Label>
+                          <Popover open={tranchePopoverOpen} onOpenChange={setTranchePopoverOpen}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full justify-between bg-gray-50 text-sm font-medium text-gray-900 dark:bg-gray-700 dark:text-gray-100"
+                                disabled={availableTranches.length === 0}
+                              >
+                                <span className="line-clamp-2 text-left">{availableTranches.length === 0 ? "Aucune tranche disponible" : trancheSummary}</span>
+                                <ChevronsUpDown className="h-4 w-4 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-72 p-0" align="start">
+                              {availableTranches.length === 0 ? (
+                                <p className="px-3 py-2 text-xs text-muted-foreground">
+                                  Aucune tranche disponible pour ce domaine.
+                                </p>
+                              ) : (
+                                <div className="max-h-64 overflow-y-auto py-1">
+                                  {availableTranches.map((item) => {
+                                    const tranche = item.tranche_principale
+                                    const isSelected = selectedTranches.includes(tranche)
+                                    return (
+                                      <button
+                                        key={tranche}
+                                        type="button"
+                                        onClick={() => handleToggleTranche(tranche)}
+                                        className={`flex w-full items-center justify-between px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700 ${isSelected ? "bg-gray-100 font-semibold dark:bg-gray-700" : ""}`}
+                                      >
+                                        <span className="pr-2 text-left">{tranche}</span>
+                                        {isSelected && <Check className="h-4 w-4 text-slate-600 dark:text-slate-400" />}
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                              {selectedTranches.length > 0 && (
+                                <div className="border-t border-gray-200 bg-gray-50 px-3 py-2 text-right text-xs dark:border-gray-700 dark:bg-gray-900/60">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedTranches([])
+                                      setSelectedFormes([])
+                                      setSelectedBenefices([])
+                                      setTranchePopoverOpen(false)
+                                    }}
+                                    className="text-slate-600 transition hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
+                                  >
+                                    Tout effacer
+                                  </button>
+                                </div>
+                              )}
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-gray-700 dark:text-gray-300">Forme *</Label>
+                          <Popover open={formePopoverOpen} onOpenChange={setFormePopoverOpen}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full justify-between bg-gray-50 text-sm font-medium text-gray-900 dark:bg-gray-700 dark:text-gray-100"
+                                disabled={availableFormes.length === 0}
+                              >
+                                <span className="line-clamp-2 text-left">{availableFormes.length === 0 ? "Aucune forme disponible" : formeSummary}</span>
+                                <ChevronsUpDown className="h-4 w-4 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-72 p-0" align="start">
+                              {availableFormes.length === 0 ? (
+                                <p className="px-3 py-2 text-xs text-muted-foreground">
+                                  Sélectionnez d'abord une tranche principale.
+                                </p>
+                              ) : (
+                                <div className="max-h-64 overflow-y-auto py-1">
+                                  {availableFormes.map((forme) => {
+                                    const isSelected = selectedFormes.includes(forme)
+                                    return (
+                                      <button
+                                        key={forme}
+                                        type="button"
+                                        onClick={() => handleToggleForme(forme)}
+                                        className={`flex w-full items-center justify-between px-3 py-2 text-sm text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700 ${isSelected ? "bg-gray-100 font-semibold dark:bg-gray-700" : ""}`}
+                                      >
+                                        <span className="pr-2 text-left">{forme}</span>
+                                        {isSelected && <Check className="h-4 w-4 text-slate-600 dark:text-slate-400" />}
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                              {selectedFormes.length > 0 && (
+                                <div className="border-t border-gray-200 bg-gray-50 px-3 py-2 text-right text-xs dark:border-gray-700 dark:bg-gray-900/60">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedFormes([])
+                                      setSelectedBenefices([])
+                                      setFormePopoverOpen(false)
+                                    }}
+                                    className="text-slate-600 transition hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
+                                  >
+                                    Tout effacer
+                                  </button>
+                                </div>
+                              )}
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs text-gray-700 dark:text-gray-300 uppercase tracking-wide">Bénéfices *</Label>
+                          <Popover open={beneficesPopoverOpen} onOpenChange={setBeneficesPopoverOpen}>
+                            <PopoverTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full justify-between bg-gray-50 text-xs font-medium text-gray-900 dark:bg-gray-700 dark:text-gray-100"
+                                disabled={availableBenefices.length === 0}
+                              >
+                                <span className="line-clamp-2 text-left capitalize">
+                                  {availableBenefices.length === 0 ? "Aucun bénéfice disponible" : beneficeSummary}
+                                </span>
+                                <ChevronsUpDown className="h-4 w-4 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-72 p-0" align="start">
+                              {availableBenefices.length === 0 ? (
+                                <p className="px-3 py-2 text-xs text-muted-foreground">
+                                  Aucun bénéfice disponible pour cette sélection.
+                                </p>
+                              ) : (
+                                <div className="max-h-64 overflow-y-auto py-1">
+                                  {availableBenefices.map((benefice) => {
+                                    const isSelected = selectedBenefices.includes(benefice)
+                                    return (
+                                      <button
+                                        key={benefice}
+                                        type="button"
+                                        onClick={() => handleToggleBenefice(benefice)}
+                                        className={`flex w-full items-center justify-between px-3 py-2 text-xs text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700 ${
+                                          isSelected ? "bg-gray-100 font-semibold dark:bg-gray-700" : ""
+                                        }`}
+                                      >
+                                        <span className="pr-2 text-left">{benefice}</span>
+                                        {isSelected && <Check className="h-4 w-4 text-slate-600 dark:text-slate-400" />}
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                              {selectedBenefices.length > 0 && (
+                                <div className="border-t border-gray-200 bg-gray-50 px-3 py-2 text-right text-xs dark:border-gray-700 dark:bg-gray-900/60">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedBenefices([])
+                                      setBeneficesPopoverOpen(false)
+                                    }}
+                                    className="text-slate-600 transition hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
+                                  >
+                                    Tout effacer
+                                  </button>
+                                </div>
+                              )}
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-xs text-gray-700 dark:text-gray-300 uppercase tracking-wide">Types de peau (optionnel)</Label>
+                        <Popover open={skinTypePopoverOpen} onOpenChange={setSkinTypePopoverOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="w-full justify-between bg-gray-50 text-xs font-medium text-gray-900 dark:bg-gray-700 dark:text-gray-100"
+                            >
+                              <span className="line-clamp-2 text-left capitalize">{skinTypeSummary}</span>
+                              <ChevronsUpDown className="h-4 w-4 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-72 p-0" align="start">
+                            <div className="max-h-64 overflow-y-auto py-1">
+                              {SKIN_TYPES.map((skinType) => {
+                                const isSelected = selectedSkinTypes.includes(skinType)
+                                return (
+                                  <button
+                                    key={skinType}
+                                    type="button"
+                                    onClick={() => handleToggleSkinType(skinType)}
+                                    className={`flex w-full items-center justify-between px-3 py-2 text-xs text-gray-700 transition hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700 ${
+                                      isSelected ? "bg-gray-100 font-semibold dark:bg-gray-700" : ""
+                                    }`}
+                                  >
+                                    <span className="pr-2 text-left">{skinType}</span>
+                                    {isSelected && <Check className="h-4 w-4 text-pink-500" />}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                            {selectedSkinTypes.length > 0 && (
+                              <div className="border-t border-gray-200 bg-gray-50 px-3 py-2 text-right text-xs dark:border-gray-700 dark:bg-gray-900/60">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedSkinTypes([])
+                                    setSkinTypePopoverOpen(false)
+                                  }}
+                                  className="text-pink-600 transition hover:text-pink-700 dark:text-pink-400 dark:hover:text-pink-300"
+                                >
+                                  Tout effacer
+                                </button>
+                              </div>
+                            )}
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-gray-700 dark:text-gray-300">Catégorie (sélection manuelle)</Label>
+                        <Select
+                          value={selectedCategoryId || formData.category || "none"}
+                          onValueChange={(value) => {
+                            if (value === "none") {
+                              setSelectedCategoryId("")
+                              setFormData(prev => ({ ...prev, category: "" }))
+                            } else {
+                              setSelectedCategoryId(value)
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
+                            <SelectValue placeholder="Sélectionnez une catégorie" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[300px]">
+                            <SelectItem value="none">Aucune catégorie</SelectItem>
+                            {(() => {
+                              const groupedCategories = new Map<string, Array<{id: string, name: string, parent_id?: string | null}>>()
+                              categories.forEach(category => {
+                                const key = category.parent_id || 'parent'
+                                if (!groupedCategories.has(key)) {
+                                  groupedCategories.set(key, [])
+                                }
+                                groupedCategories.get(key)?.push(category)
+                              })
+                              const items: ReactNode[] = []
+                              categories
+                                .filter(cat => !cat.parent_id)
+                                .forEach(category => {
+                                  const categoryServices = groupedCategories.get(category.id) || []
+                                  items.push(
+                                    <SelectItem key={category.id} value={category.id} className="font-semibold">
+                                      {category.name}
+                                    </SelectItem>
+                                  )
+                                  if (categoryServices.length > 0) {
+                                    categoryServices.forEach(subcategory => {
+                                      items.push(
+                                        <SelectItem key={subcategory.id} value={subcategory.id} className="pl-8">
+                                          └─ {subcategory.name}
+                                        </SelectItem>
+                                      )
+                                    })
+                                  }
+                                })
+                              return items.length > 0 ? items : (
+                                <div className="px-2 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">
+                                  Aucune catégorie trouvée
+                                </div>
+                              )
+                            })()}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Ou utilisez la classification ci-dessus pour sélectionner automatiquement une catégorie
+                        </p>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label className="text-gray-700 dark:text-gray-300">Catégorie (classification automatique)</Label>
+                        <Input
+                          value={matchingCategory?.name || cascadeCategoryName || ""}
+                          readOnly
+                          placeholder="Sélectionnez la classification pour voir la catégorie correspondante"
+                          className="bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                        />
+                        {matchingCategory && (
+                          <p className="text-xs text-green-600 dark:text-green-400">
+                            Catégorie trouvée : {matchingCategory.name}
+                          </p>
+                        )}
+                      </div>
+
+                      {cascadeDescription && (
+                        <div className="space-y-2">
+                          <Label className="text-gray-700 dark:text-gray-300">Résumé de classification</Label>
+                          <Textarea
+                            value={cascadeDescription}
+                            readOnly
+                            rows={2}
+                            className="bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="intelligent-brand" className="text-gray-700 dark:text-gray-300">Marque</Label>
+                      <Input 
+                        id="intelligent-brand" 
+                        name="brand"
+                        value={formData.brand}
+                        onChange={handleChange}
+                        placeholder="Sera rempli automatiquement par le système"
+                        className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                  <CardHeader>
+                    <CardTitle className="text-gray-900 dark:text-white">Prix et Inventaire</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="intelligent-price" className="text-gray-700 dark:text-gray-300">Prix *</Label>
+                        <Input 
+                          id="intelligent-price" 
+                          name="price"
+                          type="number" 
+                          step="0.01"
+                          value={formData.price}
+                          onChange={handleChange}
+                          placeholder="0.00" 
+                          required
+                          className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="intelligent-cost" className="text-gray-700 dark:text-gray-300">Coût</Label>
+                        <Input 
+                          id="intelligent-cost" 
+                          name="cost"
+                          type="number" 
+                          step="0.01"
+                          value={formData.cost}
+                          onChange={handleChange}
+                          placeholder="0.00" 
+                          className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="intelligent-stock" className="text-gray-700 dark:text-gray-300">Quantité en Stock *</Label>
+                        <Input 
+                          id="intelligent-stock" 
+                          name="stock"
+                          type="number" 
+                          value={formData.stock}
+                          onChange={handleChange}
+                          placeholder="0" 
+                          required
+                          className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="intelligent-sku" className="text-gray-700 dark:text-gray-300">SKU</Label>
+                        <div className="flex gap-2">
+                          <Input 
+                            id="intelligent-sku" 
+                            name="sku"
+                            value={formData.sku}
+                            onChange={handleChange}
+                            placeholder="Sera rempli automatiquement par le système si visible"
+                            className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSkuManuallyEdited(false)
+                              if (selectedCategory) {
+                                const newSKU = generateSKU(selectedCategory.name, formData.name)
+                                setFormData(prev => ({ ...prev, sku: newSKU }))
+                              }
+                            }}
+                            className="bg-transparent border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="intelligent-barcode" className="text-gray-700 dark:text-gray-300">Code-barres</Label>
+                        <div className="flex gap-2">
+                          <Input 
+                            id="intelligent-barcode" 
+                            name="barcode"
+                            value={formData.barcode}
+                            onChange={handleChange}
+                            placeholder="Code-barres généré automatiquement"
+                            className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setBarcodeManuallyEdited(false)
+                              const newBarcode = generateBarcode()
+                              setFormData(prev => ({ ...prev, barcode: newBarcode }))
+                            }}
+                            className="bg-transparent border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle className="text-gray-900 dark:text-white">Variantes</CardTitle>
+                      <p className="text-xs text-muted-foreground dark:text-gray-400 mt-1">
+                        Créez des variantes (ex: tailles, couleurs). La somme des quantités doit être inférieure ou égale au stock total.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addVariantRow}
+                      className="gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Ajouter
+                    </Button>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {variants.length === 0 ? (
+                      <p className="text-sm text-muted-foreground dark:text-gray-400">
+                        Aucune variante ajoutée.
+                      </p>
+                    ) : (
+                      <div className="space-y-3">
+                        {variants.map(variant => (
+                          <div key={variant.id} className="grid gap-3 md:grid-cols-12 items-end border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                            <div className="md:col-span-5 space-y-2">
+                              <Label className="text-gray-700 dark:text-gray-300">Nom *</Label>
+                              <Input
+                                value={variant.name}
+                                onChange={(e) => updateVariantField(variant.id, 'name', e.target.value)}
+                                placeholder="Ex: Taille M, Rouge"
+                                className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                              />
+                            </div>
+                            <div className="md:col-span-4 space-y-2">
+                              <Label className="text-gray-700 dark:text-gray-300">SKU</Label>
+                              <Input
+                                value={variant.sku}
+                                onChange={(e) => updateVariantField(variant.id, 'sku', e.target.value)}
+                                placeholder="SKU spécifique à la variante"
+                                className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                              />
+                            </div>
+                            <div className="md:col-span-2 space-y-2">
+                              <Label className="text-gray-700 dark:text-gray-300">Quantité *</Label>
+                              <Input
+                                type="number"
+                                min="0"
+                                value={variant.quantity}
+                                onChange={(e) => updateVariantField(variant.id, 'quantity', e.target.value)}
+                                placeholder="0"
+                                className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                              />
+                            </div>
+                            <div className="md:col-span-1 flex justify-end">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                onClick={() => removeVariantRow(variant.id)}
+                                className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {variants.length > 0 && (
+                      <div className="text-xs text-muted-foreground dark:text-gray-400">
+                        Total des quantités variantes: {variants.reduce((sum, variant) => sum + (parseInt(variant.quantity || '0', 10) || 0), 0)} / {formData.stock || 0}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="space-y-6">
+                <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                  <CardHeader>
+                    <CardTitle className="text-gray-900 dark:text-white">Statut et Paramètres</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="intelligent-status" className="text-gray-700 dark:text-gray-300">Statut du Produit</Label>
+                      <Select value={formData.status} onValueChange={(value) => handleSelectChange('status', value)}>
+                        <SelectTrigger id="intelligent-status" className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="active">Actif</SelectItem>
+                          <SelectItem value="draft">Brouillon</SelectItem>
+                          <SelectItem value="archived">Archivé</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox 
+                          id="intelligent-show_on_website" 
+                          checked={formData.show_on_website}
+                          onCheckedChange={(checked) => handleCheckboxChange('show_on_website', checked as boolean)}
+                          className="border-gray-300 dark:border-gray-600"
+                        />
+                        <Label htmlFor="intelligent-show_on_website" className="text-gray-700 dark:text-gray-300">
+                          Afficher sur le site web
+                        </Label>
+                      </div>
+                      <p className="text-xs text-muted-foreground dark:text-gray-400">
+                        Cochez cette case pour afficher ce produit sur votre site web public
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-4 mt-6">
+              <Button
+                type="button"
+                variant="outline"
+                className="bg-transparent border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                onClick={() => window.history.replaceState({}, '', '/admin/products')}
+                disabled={loading || analyzingImage}
+              >
+                Annuler
+              </Button>
+              <Button
+                type="submit"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                disabled={loading || analyzingImage}
+              >
+                {loading ? <ButtonLoadingSpinner /> : 'Créer le Produit'}
+              </Button>
+            </div>
+          </form>
+        </TabsContent>
+      </Tabs>
 
       {isCropModalOpen && currentCropPreview && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
