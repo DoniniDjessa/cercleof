@@ -28,7 +28,8 @@ const BASE_CASCADE = [
         "Eau micellaire",
         "Gommage / Exfoliant",
         "Contour des yeux",
-        "Gellules"
+        "Gellules",
+        "Pastilles/comprimés"
       ],
       benefices: [
         "Hydratant",
@@ -61,7 +62,9 @@ const BASE_CASCADE = [
         "Bain moussant / Sels de bain",
         "Savon",
         "Gellules",
-        "Capsules"
+        "Capsules",
+        "Pastilles/comprimés",
+        "Sirop"
       ],
       benefices: [
         "Hydratant",
@@ -90,7 +93,9 @@ const BASE_CASCADE = [
         "Lotion",
         "Gel / Cire coiffante",
         "Gellules",
-        "Capsules"
+        "Capsules",
+        "Pastilles/comprimés",
+        "Sirop"
       ],
       benefices: [
         "Nourrissant",
@@ -223,7 +228,7 @@ const BASE_CASCADE = [
   {
     tranche_principale: "Soin spécifique / dermatologique",
     sous_tranches: {
-      formes: ["Crème", "Gel", "Sérum", "Lotion", "Baume", "Spray", "Gellules", "Capsules"],
+      formes: ["Crème", "Gel", "Sérum", "Lotion", "Baume", "Spray", "Gellules", "Capsules", "Pastilles/comprimés", "Sirop"],
       benefices: [
         "Anti-acné",
         "Anti-taches",
