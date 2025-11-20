@@ -31,8 +31,14 @@ export function AddRevenue({ onRevenueCreated }: AddRevenueProps) {
   })
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
+    const { name, value, type } = e.target
+    if (type === 'number' && name === 'montant') {
+      // Handle number input separately
+      const numValue = value === '' ? 0 : parseFloat(value) || 0
+      setFormData((prev) => ({ ...prev, [name]: numValue }))
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }))
+    }
   }
 
   const handleSelectChange = (name: string, value: string) => {
@@ -70,10 +76,19 @@ export function AddRevenue({ onRevenueCreated }: AddRevenueProps) {
         return
       }
 
+      // Validate and convert montant
+      const montantValue = Number(formData.montant) || 0
+
+      if (isNaN(montantValue) || montantValue <= 0) {
+        toast.error('Veuillez entrer un montant valide (supérieur à 0)')
+        setLoading(false)
+        return
+      }
+
       const revenueData = {
         type: formData.type,
         source_id: formData.source_id || null,
-        montant: parseFloat(formData.montant.toString()),
+        montant: montantValue,
         date: new Date(formData.date).toISOString(),
         note: formData.note || null,
         enregistre_par: currentUser.id
@@ -181,8 +196,12 @@ export function AddRevenue({ onRevenueCreated }: AddRevenueProps) {
                   type="number"
                   min="0"
                   step="0.01"
-                  value={formData.montant}
+                  value={formData.montant === 0 ? '' : formData.montant}
                   onChange={handleChange}
+                  onFocus={(e) => {
+                    // Select all text when focused for easy editing
+                    e.target.select()
+                  }}
                   placeholder="0.00"
                   required
                   className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
@@ -232,7 +251,9 @@ export function AddRevenue({ onRevenueCreated }: AddRevenueProps) {
                 </div>
                 <div>
                   <p className="text-muted-foreground dark:text-gray-400">Montant</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{formData.montant.toFixed(0)}f</p>
+                  <p className="font-medium text-gray-900 dark:text-white">
+                    {formData.montant && !isNaN(formData.montant) ? formData.montant.toFixed(0) : '0'}f
+                  </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground dark:text-gray-400">Date</p>
