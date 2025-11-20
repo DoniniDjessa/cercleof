@@ -76,7 +76,7 @@ export default function RevenuesPage() {
         .from('dd-revenues')
         .select(`
           *,
-          user:dd-users(id, pseudo, first_name, last_name)
+          user:"dd-users"!enregistre_par(id, pseudo, first_name, last_name)
         `, { count: 'exact' })
 
       // Apply date filters
@@ -481,7 +481,10 @@ export default function RevenuesPage() {
                       </TableCell>
                       <TableCell>
                         <span className="text-gray-900 dark:text-white">
-                          {revenue.user?.pseudo || "—"}
+                          {revenue.user?.pseudo || 
+                           (revenue.user?.first_name && revenue.user?.last_name 
+                             ? `${revenue.user.first_name} ${revenue.user.last_name}` 
+                             : "—")}
                         </span>
                       </TableCell>
                       <TableCell>
