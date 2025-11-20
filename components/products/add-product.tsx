@@ -109,7 +109,9 @@ export function AddProduct({ onProductCreated }: AddProductProps) {
   const [uploadingImages, setUploadingImages] = useState(false)
   const [variants, setVariants] = useState<Array<{ id: string; name: string; sku: string; quantity: string }>>([])
   const [cropQueue, setCropQueue] = useState<File[]>([])
+  const [aiCropQueue, setAiCropQueue] = useState<File[]>([]) // Queue for AI analysis images
   const [isCropModalOpen, setIsCropModalOpen] = useState(false)
+  const [isAiCrop, setIsAiCrop] = useState(false) // Track if current crop is for AI analysis
   const [currentCropFile, setCurrentCropFile] = useState<File | null>(null)
   const [currentCropPreview, setCurrentCropPreview] = useState<string>("")
   const [crop, setCrop] = useState({ x: 0, y: 0 })
@@ -312,7 +314,7 @@ const SKIN_TYPES = [
     return `${first}, ${second} +${selectedBenefices.length - 2}`
   }, [selectedBenefices])
 
-  const startCroppingFile = useCallback(async (file: File) => {
+  const startCroppingFile = useCallback(async (file: File, isAi: boolean = false) => {
     try {
       const preview = await readFileAsDataURL(file)
       setCurrentCropFile(file)
@@ -320,11 +322,16 @@ const SKIN_TYPES = [
       setCrop({ x: 0, y: 0 })
       setZoom(1)
       setCroppedAreaPixels(null)
+      setIsAiCrop(isAi)
       setIsCropModalOpen(true)
     } catch (error) {
       console.error('Error preparing image for crop:', error)
       toast.error("Erreur lors de la préparation de l'image pour recadrage")
-      setCropQueue(prev => prev.filter(item => item !== file))
+      if (isAi) {
+        setAiCropQueue(prev => prev.filter(item => item !== file))
+      } else {
+        setCropQueue(prev => prev.filter(item => item !== file))
+      }
     }
   }, [])
 
@@ -352,11 +359,17 @@ const SKIN_TYPES = [
   }, [matchingCategory, selectedCategoryId, selectedFormes]) // Added selectedFormes dependency to trigger when formes are set
 
   useEffect(() => {
-    if (!isCropModalOpen && cropQueue.length > 0) {
-      const nextFile = cropQueue[0]
-      startCroppingFile(nextFile)
+    if (!isCropModalOpen) {
+      // Prioritize normal crop queue, then AI crop queue
+      if (cropQueue.length > 0) {
+        const nextFile = cropQueue[0]
+        startCroppingFile(nextFile, false)
+      } else if (aiCropQueue.length > 0) {
+        const nextFile = aiCropQueue[0]
+        startCroppingFile(nextFile, true)
+      }
     }
-  }, [cropQueue, isCropModalOpen, startCroppingFile])
+  }, [cropQueue, aiCropQueue, isCropModalOpen, startCroppingFile])
 
   const fetchCurrentUserRole = async () => {
     try {
@@ -1034,8 +1047,13 @@ const SKIN_TYPES = [
   }
 
   const finishCropStep = () => {
-    setCropQueue(prev => prev.slice(1))
+    if (isAiCrop) {
+      setAiCropQueue(prev => prev.slice(1))
+    } else {
+      setCropQueue(prev => prev.slice(1))
+    }
     setIsCropModalOpen(false)
+    setIsAiCrop(false)
     setCurrentCropFile(null)
     setCurrentCropPreview("")
     setCrop({ x: 0, y: 0 })
@@ -1056,8 +1074,20 @@ const SKIN_TYPES = [
         [currentCropFile],
         { maxWidth: 1920, maxHeight: 1920, quality: 0.8, maxSizeMB: 2 }
       )
-      setImages(prev => [...prev, compressedFile])
-      toast.success('Image ajoutée sans recadrage')
+      
+      if (isAiCrop) {
+        // For AI analysis, set preview and analyze the image
+        const preview = await readFileAsDataURL(compressedFile)
+        setAiAnalysisPreview(preview)
+        setAiAnalysisImage(compressedFile)
+        await handleAIImageAnalysis(compressedFile)
+        toast.success('Image ajoutée sans recadrage, analyse en cours...')
+      } else {
+        // For normal images, add to images array
+        setImages(prev => [...prev, compressedFile])
+        toast.success('Image ajoutée sans recadrage')
+      }
+      
       finishCropStep()
     } catch (error) {
       console.error('Error keeping original image:', error)
@@ -1079,8 +1109,20 @@ const SKIN_TYPES = [
         [croppedFile],
         { maxWidth: 1920, maxHeight: 1920, quality: 0.8, maxSizeMB: 2 }
       )
-      setImages(prev => [...prev, compressedFile])
-      toast.success('Image recadrée ajoutée')
+      
+      if (isAiCrop) {
+        // For AI analysis, set preview and analyze the image
+        const preview = await readFileAsDataURL(compressedFile)
+        setAiAnalysisPreview(preview)
+        setAiAnalysisImage(compressedFile)
+        await handleAIImageAnalysis(compressedFile)
+        toast.success('Image recadrée, analyse en cours...')
+      } else {
+        // For normal images, add to images array
+        setImages(prev => [...prev, compressedFile])
+        toast.success('Image recadrée ajoutée')
+      }
+      
       finishCropStep()
     } catch (error) {
       console.error('Error cropping image:', error)
@@ -1408,19 +1450,9 @@ const SKIN_TYPES = [
       return
     }
 
-    // Compress image before analysis (same as ajout rapide)
-    const [compressedFile] = await compressImages(
-      [file],
-      { maxWidth: 1920, maxHeight: 1920, quality: 0.8, maxSizeMB: 2 }
-    )
-
-    // Set preview with compressed file
-    const preview = await readFileAsDataURL(compressedFile)
-    setAiAnalysisPreview(preview)
-    setAiAnalysisImage(compressedFile)
-
-    // Automatically analyze the compressed image (which will add it to images array)
-    await handleAIImageAnalysis(compressedFile)
+    // Add image to AI crop queue for cropping before analysis (same as ajout rapide)
+    setAiCropQueue(prev => [...prev, file])
+    toast.success('Image ajoutée pour recadrage avant analyse')
   }
 
   // Handle camera capture for AI analysis (same flow as ajout rapide)
@@ -1429,7 +1461,7 @@ const SKIN_TYPES = [
     input.type = 'file'
     input.accept = 'image/*'
     input.capture = 'environment' // Use back camera on mobile
-    input.onchange = async (e) => {
+    input.onchange = (e) => {
       const target = e.target as HTMLInputElement
       const file = target.files?.[0]
       if (!file) return
@@ -1440,19 +1472,9 @@ const SKIN_TYPES = [
         return
       }
 
-      // Compress image before analysis (same as ajout rapide)
-      const [compressedFile] = await compressImages(
-        [file],
-        { maxWidth: 1920, maxHeight: 1920, quality: 0.8, maxSizeMB: 2 }
-      )
-
-      // Set preview with compressed file
-      const preview = await readFileAsDataURL(compressedFile)
-      setAiAnalysisPreview(preview)
-      setAiAnalysisImage(compressedFile)
-
-      // Automatically analyze the compressed image (which will add it to images array)
-      await handleAIImageAnalysis(compressedFile)
+      // Add image to AI crop queue for cropping before analysis (same as ajout rapide)
+      setAiCropQueue(prev => [...prev, file])
+      toast.success('Image ajoutée pour recadrage avant analyse')
     }
     input.click()
   }
