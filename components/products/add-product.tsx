@@ -1135,6 +1135,25 @@ const SKIN_TYPES = [
   const handleAIImageAnalysis = async (file: File) => {
     try {
       setAnalyzingImage(true)
+      
+      // Add image to images array immediately so it gets saved with the product
+      // Always ensure the analyzed image is in the array for intelligent mode
+      setImages((prev) => {
+        // Check if this exact file is already in array
+        const exists = prev.some(
+          img => img.name === file.name && 
+          img.size === file.size && 
+          img.lastModified === file.lastModified &&
+          img.type === file.type
+        )
+        if (!exists) {
+          // In intelligent mode, replace existing images with the analyzed one
+          // This ensures the analyzed image is saved with the product
+          return [file]
+        }
+        return prev
+      })
+      
       const imageBase64 = await readFileAsDataURL(file)
 
       const response = await fetch('/api/ai/product-image-analysis', {
@@ -1311,8 +1330,14 @@ const SKIN_TYPES = [
           }
         }
 
-        // Handle skin types
-        if (analysis.skinTypes && Array.isArray(analysis.skinTypes) && analysis.skinTypes.length > 0) {
+        // Handle skin types - skip for shampoings (hair care products)
+        const isHairProduct = analysis.tranchePrincipale?.toLowerCase().includes('cheveux') || 
+                             analysis.form?.toLowerCase().includes('shampoing') ||
+                             analysis.form?.toLowerCase().includes('après-shampoing') ||
+                             analysis.name?.toLowerCase().includes('shampoing') ||
+                             analysis.name?.toLowerCase().includes('cheveux')
+        
+        if (!isHairProduct && analysis.skinTypes && Array.isArray(analysis.skinTypes) && analysis.skinTypes.length > 0) {
           const matchingSkinTypes: string[] = []
           analysis.skinTypes.forEach((skinType: string) => {
             const matching = SKIN_TYPES.find((st) =>
@@ -1335,6 +1360,9 @@ const SKIN_TYPES = [
               return newSkinTypes
             })
           }
+        } else if (isHairProduct) {
+          // Clear skin types for hair products
+          setSelectedSkinTypes([])
         }
 
         if (analysis.category && categories.length > 0) {
@@ -1353,7 +1381,25 @@ const SKIN_TYPES = [
           setSkuManuallyEdited(true)
         }
 
-        toast.success('Analyse terminée! Les champs détectables ont été remplis automatiquement par le système.')
+        // Ensure the analyzed image is in the images array for saving
+        if (file) {
+          setImages((prev) => {
+            // Check if this exact file is already in array
+            const exists = prev.some(
+              img => img.name === file.name && 
+              img.size === file.size && 
+              img.lastModified === file.lastModified
+            )
+            if (!exists) {
+              // In intelligent mode, replace existing images with the analyzed one
+              // This ensures the analyzed image is saved
+              return [file]
+            }
+            return prev
+          })
+        }
+
+        toast.success('Analyse terminée! Les champs détectables ont été remplis automatiquement par le système. L\'image sera sauvegardée avec le produit.')
       } else {
         toast.error('Aucune donnée extraite de l\'image par le système')
       }
@@ -1381,7 +1427,11 @@ const SKIN_TYPES = [
     setAiAnalysisPreview(preview)
     setAiAnalysisImage(file)
 
-    // Automatically analyze the image
+    // Add image to images array immediately so it gets saved with the product
+    // This ensures the analyzed image is available for saving
+    setImages([file])
+
+    // Automatically analyze the image (which will also ensure image is in array)
     await handleAIImageAnalysis(file)
   }
 
@@ -1517,7 +1567,7 @@ const SKIN_TYPES = [
         }
       }
 
-      // Upload images first
+      // Upload images first - use same flow as ajout rapide
       let imageUrls: string[] = []
       if (images.length > 0) {
         try {
@@ -1525,6 +1575,7 @@ const SKIN_TYPES = [
         } catch (error) {
           console.error('Error uploading images:', error)
           toast.error('Erreur lors du téléchargement des images')
+          setLoading(false)
           return
         }
       }
@@ -2534,34 +2585,43 @@ Description Enrichie (longue)	Découvrez le secret...`}
                     </p>
 
                     {/* Image Preview */}
-                    {aiAnalysisPreview && (
-                      <div className="relative w-full max-w-md mx-auto">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={aiAnalysisPreview}
-                          alt="Produit à analyser"
-                          className="w-full h-auto rounded-lg border border-gray-200 dark:border-gray-600"
-                        />
-                        {analyzingImage && (
-                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-lg">
-                            <div className="text-center text-white">
-                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
-                              <p className="text-sm">Analyse en cours...</p>
+                    {(aiAnalysisPreview || images.length > 0) && (
+                      <div className="space-y-2">
+                        <Label className="text-gray-700 dark:text-gray-300">Image du produit (sera sauvegardée):</Label>
+                        <div className="relative w-full max-w-md mx-auto">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={aiAnalysisPreview || (images.length > 0 ? URL.createObjectURL(images[0]) : '')}
+                            alt="Produit à analyser"
+                            className="w-full h-auto rounded-lg border border-gray-200 dark:border-gray-600"
+                          />
+                          {analyzingImage && (
+                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-lg">
+                              <div className="text-center text-white">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
+                                <p className="text-sm">Analyse en cours...</p>
+                              </div>
                             </div>
-                          </div>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute top-2 right-2 bg-white/90 dark:bg-gray-800/90 hover:bg-white dark:hover:bg-gray-800"
+                            onClick={() => {
+                              setAiAnalysisPreview("")
+                              setAiAnalysisImage(null)
+                              setImages([])
+                            }}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                        {images.length > 0 && (
+                          <p className="text-xs text-green-600 dark:text-green-400 text-center">
+                            ✓ Cette image sera sauvegardée avec le produit
+                          </p>
                         )}
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="absolute top-2 right-2"
-                          onClick={() => {
-                            setAiAnalysisPreview("")
-                            setAiAnalysisImage(null)
-                          }}
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
                       </div>
                     )}
 
