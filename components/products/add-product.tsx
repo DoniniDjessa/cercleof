@@ -327,11 +327,14 @@ const SKIN_TYPES = [
     } catch (error) {
       console.error('Error preparing image for crop:', error)
       toast.error("Erreur lors de la préparation de l'image pour recadrage")
-      if (isAi) {
-        setAiCropQueue(prev => prev.filter(item => item !== file))
-      } else {
-        setCropQueue(prev => prev.filter(item => item !== file))
-      }
+      setCropQueue(prev => prev.filter(item => item !== file))
+
+      // CROP FLOW COMMENTED - AI crop queue handling disabled
+      // if (isAi) {
+      //   setAiCropQueue(prev => prev.filter(item => item !== file))
+      // } else {
+      //   setCropQueue(prev => prev.filter(item => item !== file))
+      // }
     }
   }, [])
 
@@ -359,17 +362,23 @@ const SKIN_TYPES = [
   }, [matchingCategory, selectedCategoryId, selectedFormes]) // Added selectedFormes dependency to trigger when formes are set
 
   useEffect(() => {
-    if (!isCropModalOpen) {
-      // Prioritize normal crop queue, then AI crop queue
-      if (cropQueue.length > 0) {
-        const nextFile = cropQueue[0]
-        startCroppingFile(nextFile, false)
-      } else if (aiCropQueue.length > 0) {
-        const nextFile = aiCropQueue[0]
-        startCroppingFile(nextFile, true)
-      }
+    if (!isCropModalOpen && cropQueue.length > 0) {
+      const nextFile = cropQueue[0]
+      startCroppingFile(nextFile, false)
     }
-  }, [cropQueue, aiCropQueue, isCropModalOpen, startCroppingFile])
+    // CROP FLOW COMMENTED - AI crop queue processing disabled
+    // if (!isCropModalOpen) {
+    //   // Prioritize normal crop queue, then AI crop queue
+    //   if (cropQueue.length > 0) {
+    //     const nextFile = cropQueue[0]
+    //     startCroppingFile(nextFile, false)
+    //   } else if (aiCropQueue.length > 0) {
+    //     const nextFile = aiCropQueue[0]
+    //     startCroppingFile(nextFile, true)
+    //   }
+    // }
+  }, [cropQueue, isCropModalOpen, startCroppingFile])
+  // aiCropQueue removed from dependencies
 
   const fetchCurrentUserRole = async () => {
     try {
@@ -1047,11 +1056,7 @@ const SKIN_TYPES = [
   }
 
   const finishCropStep = () => {
-    if (isAiCrop) {
-      setAiCropQueue(prev => prev.slice(1))
-    } else {
-      setCropQueue(prev => prev.slice(1))
-    }
+    setCropQueue(prev => prev.slice(1))
     setIsCropModalOpen(false)
     setIsAiCrop(false)
     setCurrentCropFile(null)
@@ -1060,6 +1065,13 @@ const SKIN_TYPES = [
     setZoom(1)
     setCroppedAreaPixels(null)
     setProcessingCrop(false)
+
+    // CROP FLOW COMMENTED - AI crop queue handling disabled
+    // if (isAiCrop) {
+    //   setAiCropQueue(prev => prev.slice(1))
+    // } else {
+    //   setCropQueue(prev => prev.slice(1))
+    // }
   }
 
   const handleCropCancel = () => {
@@ -1074,21 +1086,25 @@ const SKIN_TYPES = [
         [currentCropFile],
         { maxWidth: 1920, maxHeight: 1920, quality: 0.8, maxSizeMB: 2 }
       )
-      
-      if (isAiCrop) {
-        // For AI analysis, set preview and analyze the image
-        const preview = await readFileAsDataURL(compressedFile)
-        setAiAnalysisPreview(preview)
-        setAiAnalysisImage(compressedFile)
-        await handleAIImageAnalysis(compressedFile)
-        toast.success('Image ajoutée sans recadrage, analyse en cours...')
-      } else {
-        // For normal images, add to images array
-        setImages(prev => [...prev, compressedFile])
-        toast.success('Image ajoutée sans recadrage')
-      }
-      
+      setImages(prev => [...prev, compressedFile])
+      toast.success('Image ajoutée sans recadrage')
       finishCropStep()
+
+      // CROP FLOW COMMENTED - AI crop logic disabled
+      // if (isAiCrop) {
+      //   // For AI analysis, set preview and analyze the image
+      //   const preview = await readFileAsDataURL(compressedFile)
+      //   setAiAnalysisPreview(preview)
+      //   setAiAnalysisImage(compressedFile)
+      //   await handleAIImageAnalysis(compressedFile)
+      //   toast.success('Image ajoutée sans recadrage, analyse en cours...')
+      // } else {
+      //   // For normal images, add to images array
+      //   setImages(prev => [...prev, compressedFile])
+      //   toast.success('Image ajoutée sans recadrage')
+      // }
+      // 
+      // finishCropStep()
     } catch (error) {
       console.error('Error keeping original image:', error)
       toast.error('Erreur lors de l\'ajout de l\'image originale')
@@ -1109,21 +1125,25 @@ const SKIN_TYPES = [
         [croppedFile],
         { maxWidth: 1920, maxHeight: 1920, quality: 0.8, maxSizeMB: 2 }
       )
-      
-      if (isAiCrop) {
-        // For AI analysis, set preview and analyze the image
-        const preview = await readFileAsDataURL(compressedFile)
-        setAiAnalysisPreview(preview)
-        setAiAnalysisImage(compressedFile)
-        await handleAIImageAnalysis(compressedFile)
-        toast.success('Image recadrée, analyse en cours...')
-      } else {
-        // For normal images, add to images array
-        setImages(prev => [...prev, compressedFile])
-        toast.success('Image recadrée ajoutée')
-      }
-      
+      setImages(prev => [...prev, compressedFile])
+      toast.success('Image recadrée ajoutée')
       finishCropStep()
+
+      // CROP FLOW COMMENTED - AI crop logic disabled
+      // if (isAiCrop) {
+      //   // For AI analysis, set preview and analyze the image
+      //   const preview = await readFileAsDataURL(compressedFile)
+      //   setAiAnalysisPreview(preview)
+      //   setAiAnalysisImage(compressedFile)
+      //   await handleAIImageAnalysis(compressedFile)
+      //   toast.success('Image recadrée, analyse en cours...')
+      // } else {
+      //   // For normal images, add to images array
+      //   setImages(prev => [...prev, compressedFile])
+      //   toast.success('Image recadrée ajoutée')
+      // }
+      // 
+      // finishCropStep()
     } catch (error) {
       console.error('Error cropping image:', error)
       toast.error('Erreur lors du recadrage de l\'image')
@@ -1450,9 +1470,24 @@ const SKIN_TYPES = [
       return
     }
 
+    // Compress image before analysis (same as ajout rapide)
+    const [compressedFile] = await compressImages(
+      [file],
+      { maxWidth: 1920, maxHeight: 1920, quality: 0.8, maxSizeMB: 2 }
+    )
+
+    // Set preview with compressed file
+    const preview = await readFileAsDataURL(compressedFile)
+    setAiAnalysisPreview(preview)
+    setAiAnalysisImage(compressedFile)
+
+    // Automatically analyze the compressed image (which will add it to images array)
+    await handleAIImageAnalysis(compressedFile)
+
+    // CROP FLOW COMMENTED - Previous flow restored
     // Add image to AI crop queue for cropping before analysis (same as ajout rapide)
-    setAiCropQueue(prev => [...prev, file])
-    toast.success('Image ajoutée pour recadrage avant analyse')
+    // setAiCropQueue(prev => [...prev, file])
+    // toast.success('Image ajoutée pour recadrage avant analyse')
   }
 
   // Handle camera capture for AI analysis (same flow as ajout rapide)
@@ -1461,7 +1496,7 @@ const SKIN_TYPES = [
     input.type = 'file'
     input.accept = 'image/*'
     input.capture = 'environment' // Use back camera on mobile
-    input.onchange = (e) => {
+    input.onchange = async (e) => {
       const target = e.target as HTMLInputElement
       const file = target.files?.[0]
       if (!file) return
@@ -1472,9 +1507,24 @@ const SKIN_TYPES = [
         return
       }
 
+      // Compress image before analysis (same as ajout rapide)
+      const [compressedFile] = await compressImages(
+        [file],
+        { maxWidth: 1920, maxHeight: 1920, quality: 0.8, maxSizeMB: 2 }
+      )
+
+      // Set preview with compressed file
+      const preview = await readFileAsDataURL(compressedFile)
+      setAiAnalysisPreview(preview)
+      setAiAnalysisImage(compressedFile)
+
+      // Automatically analyze the compressed image (which will add it to images array)
+      await handleAIImageAnalysis(compressedFile)
+
+      // CROP FLOW COMMENTED - Previous flow restored
       // Add image to AI crop queue for cropping before analysis (same as ajout rapide)
-      setAiCropQueue(prev => [...prev, file])
-      toast.success('Image ajoutée pour recadrage avant analyse')
+      // setAiCropQueue(prev => [...prev, file])
+      // toast.success('Image ajoutée pour recadrage avant analyse')
     }
     input.click()
   }
