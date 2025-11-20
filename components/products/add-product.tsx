@@ -1423,47 +1423,38 @@ const SKIN_TYPES = [
     await handleAIImageAnalysis(compressedFile)
   }
 
-  // Handle camera capture for AI analysis
-  const handleAICameraCapture = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true })
-      const video = document.createElement('video')
-      video.srcObject = stream
-      video.play()
+  // Handle camera capture for AI analysis (same flow as ajout rapide)
+  const handleAICameraCapture = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.capture = 'environment' // Use back camera on mobile
+    input.onchange = async (e) => {
+      const target = e.target as HTMLInputElement
+      const file = target.files?.[0]
+      if (!file) return
 
-      video.onloadedmetadata = () => {
-        const canvas = document.createElement('canvas')
-        canvas.width = video.videoWidth
-        canvas.height = video.videoHeight
-        const ctx = canvas.getContext('2d')
-        if (ctx) {
-          ctx.drawImage(video, 0, 0)
-          stream.getTracks().forEach((track) => track.stop())
-
-          canvas.toBlob(async (blob) => {
-            if (blob) {
-              const file = new File([blob], 'camera-capture.jpg', { type: 'image/jpeg' })
-              
-              // Compress image before analysis (same as ajout rapide)
-              const [compressedFile] = await compressImages(
-                [file],
-                { maxWidth: 1920, maxHeight: 1920, quality: 0.8, maxSizeMB: 2 }
-              )
-              
-              const preview = await readFileAsDataURL(compressedFile)
-              setAiAnalysisPreview(preview)
-              setAiAnalysisImage(compressedFile)
-              
-              // Automatically analyze the compressed image (which will add it to images array)
-              await handleAIImageAnalysis(compressedFile)
-            }
-          }, 'image/jpeg')
-        }
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast.error('Veuillez sélectionner une image')
+        return
       }
-    } catch (error) {
-      console.error('Error accessing camera:', error)
-      toast.error('Erreur d\'accès à la caméra')
+
+      // Compress image before analysis (same as ajout rapide)
+      const [compressedFile] = await compressImages(
+        [file],
+        { maxWidth: 1920, maxHeight: 1920, quality: 0.8, maxSizeMB: 2 }
+      )
+
+      // Set preview with compressed file
+      const preview = await readFileAsDataURL(compressedFile)
+      setAiAnalysisPreview(preview)
+      setAiAnalysisImage(compressedFile)
+
+      // Automatically analyze the compressed image (which will add it to images array)
+      await handleAIImageAnalysis(compressedFile)
     }
+    input.click()
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
