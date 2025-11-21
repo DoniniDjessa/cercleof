@@ -701,46 +701,52 @@ export default function POSPage() {
       margin: 0;
     }
     body {
-      font-family: 'Arial', 'Helvetica', sans-serif;
-      font-size: 13px;
-      line-height: 1.5;
-      padding: 15px 12px;
+      font-family: 'Courier New', 'Courier', monospace;
+      font-size: 12px;
+      line-height: 1.3;
+      padding: 10px 12px;
       max-width: 80mm;
       margin: 0 auto;
-      color: #1a1a1a;
+      color: #000000;
       background: #ffffff;
     }
     .header { 
       text-align: center; 
-      margin-bottom: 15px; 
-      padding-bottom: 12px; 
-      border-bottom: 2px solid #000000; 
+      margin-bottom: 8px; 
+      padding-bottom: 8px; 
+      border-bottom: 1px dashed #000000; 
+    }
+    .header .logo {
+      max-width: 60px;
+      max-height: 60px;
+      margin: 0 auto 6px;
+      display: block;
     }
     .header h1 { 
-      font-size: 20px; 
-      font-weight: 700; 
-      margin-bottom: 6px; 
+      font-size: 14px; 
+      font-weight: 600; 
+      margin-bottom: 4px; 
       text-transform: uppercase;
-      letter-spacing: 1px;
+      letter-spacing: 0.5px;
       color: #000000;
-      font-family: 'Arial Black', 'Arial', sans-serif;
+      font-family: 'Courier New', 'Courier', monospace;
     }
     .header .subtitle {
-      font-size: 11px;
+      font-size: 10px;
       color: #000000;
-      margin-bottom: 4px;
+      margin-bottom: 3px;
       font-weight: 500;
     }
     .header .date-time {
-      font-size: 10px;
+      font-size: 9px;
       color: #000000;
-      margin-top: 4px;
+      margin-top: 3px;
       font-weight: 500;
     }
     .section { 
-      margin-bottom: 12px; 
-      padding-bottom: 10px; 
-      border-bottom: 1px dashed #ddd; 
+      margin-bottom: 8px; 
+      padding-bottom: 6px; 
+      border-bottom: 1px dashed #000000; 
     }
     .section-title {
       font-weight: 600;
@@ -769,53 +775,53 @@ export default function POSPage() {
       margin-bottom: 3px;
     }
     .item-name { 
-      font-weight: 600; 
-      font-size: 13px;
-      margin-bottom: 3px; 
-      color: #1a1a1a;
+      font-weight: 500; 
+      font-size: 10px;
+      margin-bottom: 2px; 
+      color: #000000;
       flex: 1;
     }
     .item-details { 
-      font-size: 11px; 
+      font-size: 9px; 
       color: #000000;
       margin-left: 8px;
-      font-weight: 500;
+      font-weight: 400;
     }
     .item-total {
       text-align: right;
-      font-weight: 600;
-      font-size: 13px;
-      color: #1a1a1a;
+      font-weight: 500;
+      font-size: 10px;
+      color: #000000;
       min-width: 60px;
     }
     .totals { 
-      margin-top: 12px; 
-      background: #f8f9fa;
-      padding: 10px;
-      border-radius: 4px;
+      margin-top: 8px; 
+      background: #ffffff;
+      padding: 8px;
+      border-radius: 0;
     }
     .total-row { 
       display: flex; 
       justify-content: space-between; 
-      font-size: 12px; 
-      margin-bottom: 4px; 
+      font-size: 10px; 
+      margin-bottom: 3px; 
       color: #000000;
       font-weight: 500;
     }
     .total-final { 
-      font-weight: 700; 
-      font-size: 16px; 
-      margin-top: 8px; 
-      padding-top: 8px; 
-      border-top: 2px solid #000000; 
-      color: #1a1a1a;
+      font-weight: 600; 
+      font-size: 12px; 
+      margin-top: 6px; 
+      padding-top: 6px; 
+      border-top: 1px dashed #000000; 
+      color: #000000;
     }
     .footer { 
       text-align: center; 
-      margin-top: 15px; 
-      padding-top: 12px; 
-      border-top: 1px dashed #ccc; 
-      font-size: 10px; 
+      margin-top: 8px; 
+      padding-top: 8px; 
+      border-top: 1px dashed #000000; 
+      font-size: 9px; 
       color: #000000; 
       font-weight: 500;
     }

@@ -14,6 +14,7 @@ import { Edit, Trash2, ArrowLeft, Plus, X } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { ButtonLoadingSpinner } from "@/components/ui/context-loaders"
 import toast from "react-hot-toast"
+import { AddProduct } from "@/components/products/add-product"
 
 interface ProductVariant {
   id: string
@@ -69,6 +70,7 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
     quantity: ''
   })
   const [isEditingProduct, setIsEditingProduct] = useState(false)
+  const [showAddProductForm, setShowAddProductForm] = useState(false)
   const [updatingProduct, setUpdatingProduct] = useState(false)
   const [productForm, setProductForm] = useState({
     name: '',

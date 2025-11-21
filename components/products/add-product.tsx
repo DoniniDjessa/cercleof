@@ -80,9 +80,12 @@ async function cropImageFile(file: File, previewUrl: string, cropArea: Area): Pr
 
 interface AddProductProps {
   onProductCreated?: () => void
+  productId?: string // Optional: if provided, component works in edit mode
+  onCancel?: () => void // Optional: callback when canceling edit mode
 }
 
-export function AddProduct({ onProductCreated }: AddProductProps) {
+export function AddProduct({ onProductCreated, productId, onCancel }: AddProductProps) {
+  const isEditMode = !!productId
   const { user: authUser } = useAuth()
   const [loading, setLoading] = useState(false)
   const [currentUserRole, setCurrentUserRole] = useState<string>('')
@@ -338,10 +341,73 @@ const SKIN_TYPES = [
     }
   }, [])
 
+  const fetchProductForEdit = async () => {
+    if (!productId) return
+    
+    try {
+      setLoading(true)
+      const { data, error } = await supabase
+        .from('dd-products')
+        .select(`
+          *,
+          category:"dd-categories"(id, name, parent_id),
+          variants:"dd-product-variants"(id, name, sku, quantity)
+        `)
+        .eq('id', productId)
+        .single()
+
+      if (error) throw error
+      
+      if (data) {
+        // Populate form with existing product data
+        setFormData({
+          name: data.name || '',
+          description: data.description || '',
+          category: data.category_id || '',
+          brand: data.brand || '',
+          price: data.price?.toString() || '',
+          cost: data.cost?.toString() || '',
+          stock: data.stock_quantity?.toString() || '',
+          sku: data.sku || '',
+          barcode: data.barcode || '',
+          status: data.status || 'active',
+          show_on_website: data.show_to_website || false
+        })
+
+        // Set category if exists
+        if (data.category) {
+          setSelectedCategory(data.category)
+          setSelectedCategoryId(data.category.id)
+        }
+
+        // Set variants if exists
+        if (data.variants && Array.isArray(data.variants)) {
+          setVariants(data.variants.map((v: { id: string; name: string; sku?: string; quantity: number }) => ({
+            id: v.id,
+            name: v.name,
+            sku: v.sku || '',
+            quantity: v.quantity?.toString() || ''
+          })))
+        }
+
+        // TODO: Parse category cascade from product name/description to populate cascade fields
+        // This is complex and would require reverse-engineering the category cascade
+      }
+    } catch (error) {
+      console.error('Error fetching product for edit:', error)
+      toast.error('Erreur lors du chargement du produit')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
     fetchCategories()
     fetchCurrentUserRole()
-  }, [])
+    if (productId && isEditMode) {
+      fetchProductForEdit()
+    }
+  }, [productId, isEditMode])
 
   useEffect(() => {
     if (matchingCategory) {
@@ -1636,7 +1702,7 @@ const SKIN_TYPES = [
         }
       }
 
-      // Prepare product data for insertion
+      // Prepare product data for insertion or update
       const productData = {
         name: formData.name,
         description: formData.description || null,
@@ -1650,31 +1716,65 @@ const SKIN_TYPES = [
         status: formData.status,
         show_to_website: formData.show_on_website,
         images: imageUrls,
-        is_active: true,
-        created_by: currentUser.id,
-        tags: cascadeTags
+        tags: cascadeTags,
+        ...(isEditMode ? {} : { is_active: true, created_by: currentUser.id })
       }
 
-      // Insert product into dd-products table
-      const { data: insertedProducts, error } = await supabase
-        .from('dd-products')
-        .insert([productData])
-        .select()
+      let newProduct: any
 
-      if (error) {
-        console.error('Error creating product:', error)
-        toast.error('Erreur lors de la création du produit: ' + error.message)
-        return
+      if (isEditMode && productId) {
+        // Update existing product
+        const { data: updatedProducts, error } = await supabase
+          .from('dd-products')
+          .update(productData)
+          .eq('id', productId)
+          .select()
+          .single()
+
+        if (error) {
+          console.error('Error updating product:', error)
+          toast.error('Erreur lors de la mise à jour du produit: ' + error.message)
+          setLoading(false)
+          return
+        }
+
+        newProduct = updatedProducts
+      } else {
+        // Insert product into dd-products table
+        const { data: insertedProducts, error } = await supabase
+          .from('dd-products')
+          .insert([productData])
+          .select()
+
+        if (error) {
+          console.error('Error creating product:', error)
+          toast.error('Erreur lors de la création du produit: ' + error.message)
+          setLoading(false)
+          return
+        }
+
+        newProduct = insertedProducts?.[0]
+
+        if (!newProduct) {
+          toast.error('Impossible de récupérer le produit créé')
+          setLoading(false)
+          return
+        }
       }
 
-      const newProduct = insertedProducts?.[0]
-
-      if (!newProduct) {
-        toast.error('Impossible de récupérer le produit créé')
-        return
-      }
-
+      // Handle variants (for both create and update)
       if (variantValues.length > 0) {
+        if (isEditMode && productId) {
+          // Update variants: delete existing and insert new ones
+          const { error: deleteVariantsError } = await supabase
+            .from('dd-product-variants')
+            .delete()
+            .eq('product_id', productId)
+
+          if (deleteVariantsError) {
+            console.error('Error deleting old variants:', deleteVariantsError)
+          }
+        }
         const variantRows = variantValues.map(variant => ({
           product_id: newProduct.id,
           name: variant.name,
@@ -1688,40 +1788,42 @@ const SKIN_TYPES = [
 
         if (variantsError) {
           console.error('Error inserting variants:', variantsError)
-          toast.error('Produit créé mais erreur lors de l\'ajout des variantes: ' + variantsError.message)
+          toast.error((isEditMode ? 'Produit mis à jour mais ' : 'Produit créé mais ') + 'erreur lors de l\'ajout des variantes: ' + variantsError.message)
         }
       }
 
-      toast.success("Produit créé avec succès!")
+      toast.success(isEditMode ? "Produit mis à jour avec succès!" : "Produit créé avec succès!")
       
-      // Reset form
-      setFormData({
-        name: "",
-        description: "",
-        category: "",
-        brand: "",
-        price: "",
-        cost: "",
-        stock: "",
-        sku: "",
-        barcode: "",
-        status: "active",
-        show_on_website: false
-      })
-      setImages([])
-      setVariants([])
-      setSelectedDomain(cascadeDomains[0] ?? "")
-      setSelectedCategory(null)
-      setSelectedCategoryId("")
-      setSelectedTranches([])
-      setSelectedFormes([])
-      setSelectedBenefices([])
-      setSelectedSkinTypes([])
-      setSkuManuallyEdited(false)
-      setBarcodeManuallyEdited(false)
-      setSimilarProducts([])
-      setShowSimilarProducts(false)
-      setStructuredDescription("")
+      // Reset form only if not in edit mode
+      if (!isEditMode) {
+        setFormData({
+          name: "",
+          description: "",
+          category: "",
+          brand: "",
+          price: "",
+          cost: "",
+          stock: "",
+          sku: "",
+          barcode: "",
+          status: "active",
+          show_on_website: false
+        })
+        setImages([])
+        setVariants([])
+        setSelectedDomain(cascadeDomains[0] ?? "")
+        setSelectedCategory(null)
+        setSelectedCategoryId("")
+        setSelectedTranches([])
+        setSelectedFormes([])
+        setSelectedBenefices([])
+        setSelectedSkinTypes([])
+        setSkuManuallyEdited(false)
+        setBarcodeManuallyEdited(false)
+        setSimilarProducts([])
+        setShowSimilarProducts(false)
+        setStructuredDescription("")
+      }
 
       // Call the callback to refresh the products list
       if (onProductCreated) {

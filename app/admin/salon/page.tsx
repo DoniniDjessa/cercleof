@@ -81,6 +81,9 @@ export default function SalonPage() {
   const [showAssignDialog, setShowAssignDialog] = useState(false)
   const [selectedTravailleurs, setSelectedTravailleurs] = useState<string[]>([])
   const [assignmentNotes, setAssignmentNotes] = useState("")
+  // Store rating and note for each travailleur
+  const [travailleurRatings, setTravailleurRatings] = useState<Record<string, number | undefined>>({})
+  const [travailleurNotes, setTravailleurNotes] = useState<Record<string, string>>({})
   const [serviceNotes, setServiceNotes] = useState("")
   const [serviceRating, setServiceRating] = useState<number | undefined>()
   const [serviceReview, setServiceReview] = useState("")
@@ -222,11 +225,11 @@ export default function SalonPage() {
 
       if (deleteError) throw deleteError
 
-      // Create new assignments
+      // Create new assignments with rating and notes
       const assignments = selectedTravailleurs.map(travailleurId => ({
         salon_id: selectedService.id,
         travailleur_id: travailleurId,
-        notes: assignmentNotes || null
+        notes: travailleurNotes[travailleurId] || assignmentNotes || null
       }))
 
       const { error: insertError } = await supabase
@@ -235,10 +238,101 @@ export default function SalonPage() {
 
       if (insertError) throw insertError
 
+      // Update travailleurs table with ratings and update stats
+      const now = new Date()
+      for (const travailleurId of selectedTravailleurs) {
+        const rating = travailleurRatings[travailleurId]
+        if (rating !== undefined && rating !== null) {
+          try {
+            // Fetch current travailleur data
+            const { data: travailleurData, error: fetchError } = await supabase
+              .from('dd-travailleurs')
+              .select('rating_global, total_services, work_history')
+              .eq('id', travailleurId)
+              .single()
+
+            if (fetchError) {
+              console.error(`Error fetching travailleur ${travailleurId}:`, fetchError)
+              continue
+            }
+
+            const currentRating = travailleurData?.rating_global || 0
+            const currentTotalServices = travailleurData?.total_services || 0
+            const workHistory = (travailleurData?.work_history || []) as Array<{
+              date: string
+              service_id?: string
+              service_name?: string
+              rating?: number
+              notes?: string
+            }>
+
+            // Check if this service is already in work_history
+            const existingEntryIndex = workHistory.findIndex(entry => entry.service_id === selectedService.id)
+            const ratingValue = typeof rating === 'number' ? rating : parseFloat(String(rating))
+
+            if (!isNaN(ratingValue) && ratingValue >= 0 && ratingValue <= 10) {
+              let newRating = currentRating
+              let newTotalServices = currentTotalServices
+
+              if (existingEntryIndex >= 0) {
+                // Update existing entry
+                const oldRating = workHistory[existingEntryIndex].rating || 0
+                workHistory[existingEntryIndex] = {
+                  date: workHistory[existingEntryIndex].date || now.toISOString(),
+                  service_id: selectedService.id,
+                  service_name: selectedService.service_name,
+                  rating: ratingValue,
+                  notes: travailleurNotes[travailleurId] || assignmentNotes || undefined
+                }
+
+                // Recalculate global rating
+                if (currentTotalServices > 0) {
+                  const totalRating = (currentRating * currentTotalServices) - oldRating + ratingValue
+                  newRating = totalRating / currentTotalServices
+                } else {
+                  newRating = ratingValue
+                  newTotalServices = 1
+                }
+              } else {
+                // New entry
+                newTotalServices = currentTotalServices + 1
+                newRating = ((currentRating * currentTotalServices) + ratingValue) / newTotalServices
+
+                workHistory.push({
+                  date: now.toISOString(),
+                  service_id: selectedService.id,
+                  service_name: selectedService.service_name,
+                  rating: ratingValue,
+                  notes: travailleurNotes[travailleurId] || assignmentNotes || undefined
+                })
+              }
+
+              // Update travailleur
+              const { error: updateError } = await supabase
+                .from('dd-travailleurs')
+                .update({
+                  rating_global: parseFloat(newRating.toFixed(1)),
+                  total_services: newTotalServices,
+                  work_history: workHistory
+                })
+                .eq('id', travailleurId)
+
+              if (updateError) {
+                console.error(`Error updating travailleur ${travailleurId}:`, updateError)
+              }
+            }
+          } catch (error) {
+            console.error(`Error processing travailleur ${travailleurId}:`, error)
+          }
+        }
+      }
+
       toast.success('Travailleurs assignés avec succès!')
       setShowAssignDialog(false)
       setSelectedTravailleurs([])
       setAssignmentNotes("")
+      setTravailleurRatings({})
+      setTravailleurNotes({})
       fetchSalonServices()
     } catch (error) {
       console.error('Error assigning travailleurs:', error)
@@ -246,33 +340,6 @@ export default function SalonPage() {
     }
   }
 
-  const handleStartService = async (service: SalonService) => {
-    try {
-      // Update status to 'en_cours'
-      const { error } = await supabase
-        .from('dd-salon')
-        .update({ statut: 'en_cours' })
-        .eq('id', service.id)
-
-      if (error) throw error
-
-      // Start timer
-      const durationMinutes = service.service?.duration_minutes || service.duree_estimee || 60
-      setActiveTimers(prev => ({
-        ...prev,
-        [service.id]: {
-          startTime: new Date(),
-          durationMinutes
-        }
-      }))
-
-      toast.success('Service démarré!')
-      fetchSalonServices()
-    } catch (error) {
-      console.error('Error starting service:', error)
-      toast.error('Erreur lors du démarrage du service')
-    }
-  }
 
   const handleUpdateServiceStatus = async (serviceId: string, newStatus: string) => {
     try {
@@ -846,32 +913,6 @@ export default function SalonPage() {
                             >
                               <Users className="w-3 h-3 mr-1" />
                               Assigner
-                            </Button>
-                          )}
-                          {service.statut === 'en_attente' && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleStartService(service)}
-                              className="text-green-600 border-green-200 hover:bg-green-50 dark:text-green-400 dark:border-green-800 dark:hover:bg-green-900/20"
-                            >
-                              <Play className="w-3 h-3 mr-1" />
-                              Commencer
-                            </Button>
-                          )}
-                          {service.statut === 'en_cours' && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedService(service)
-                                setServiceNotes(service.notes || "")
-                                setServiceRating(service.rating)
-                                setServiceReview(service.review || "")
-                              }}
-                              className="text-purple-600 border-purple-200 hover:bg-purple-50 dark:text-purple-400 dark:border-purple-800 dark:hover:bg-purple-900/20"
-                            >
-                              Terminer
                             </Button>
                           )}
                         </div>
