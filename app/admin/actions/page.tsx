@@ -24,7 +24,6 @@ import {
   ChevronUp,
   Trash2
 } from 'lucide-react'
-import { toast } from 'react-hot-toast'
 
 interface Action {
   id: string

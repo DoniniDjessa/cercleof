@@ -15,6 +15,7 @@ import { TableLoadingState, ButtonLoadingSpinner } from '@/components/ui/context
 import { Search, Mail, Phone, User, Shield, Crown, Users, CreditCard, Briefcase } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
+import Link from 'next/link'
 
 interface User {
   id: string
@@ -1004,16 +1005,21 @@ export default function UsersManagementPage() {
                         filteredTravailleurs.map((travailleur) => (
                           <TableRow key={travailleur.id} className="border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                             <TableCell>
-                              <div>
-                                <p className="font-medium text-gray-900 dark:text-white">
-                                  {travailleur.first_name} {travailleur.last_name}
-                                </p>
-                                {travailleur.date_embauche && (
-                                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                                    Embauché le {new Date(travailleur.date_embauche).toLocaleDateString('fr-FR')}
+                              <Link 
+                                href={`/admin/travailleurs/${travailleur.id}`}
+                                className="cursor-pointer hover:underline"
+                              >
+                                <div>
+                                  <p className="font-medium text-gray-900 dark:text-white">
+                                    {travailleur.first_name} {travailleur.last_name}
                                   </p>
-                                )}
-                              </div>
+                                  {travailleur.date_embauche && (
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                      Embauché le {new Date(travailleur.date_embauche).toLocaleDateString('fr-FR')}
+                                    </p>
+                                  )}
+                                </div>
+                              </Link>
                             </TableCell>
                             <TableCell>
                               <div className="space-y-1">

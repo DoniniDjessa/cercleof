@@ -38,6 +38,7 @@ export function AddRevenue({ onRevenueCreated, revenueId, onCancel }: AddRevenue
     date: defaultDate,
     time: defaultTime,
     note: "",
+    rating: "", // Rating from 0-10 (optional)
     // Service-specific fields
     categorie: "none",
     sous_categorie: "none",
@@ -179,6 +180,7 @@ export function AddRevenue({ onRevenueCreated, revenueId, onCancel }: AddRevenue
           date: dateStr,
           time: timeStr,
           note: noteText,
+          rating: "", // Will be set from serviceDetails if exists
           ...serviceDetails,
         })
         
@@ -279,6 +281,12 @@ export function AddRevenue({ onRevenueCreated, revenueId, onCancel }: AddRevenue
         if (formData.sous_categorie && formData.sous_categorie !== 'none') serviceDetails.sous_categorie = formData.sous_categorie
         if (formData.type_employe) serviceDetails.type_employe = formData.type_employe
         if (formData.nom_employe && formData.nom_employe !== 'none') serviceDetails.nom_employe = formData.nom_employe
+        if (formData.rating && formData.rating.trim() !== '') {
+          const ratingValue = parseFloat(formData.rating)
+          if (!isNaN(ratingValue) && ratingValue >= 0 && ratingValue <= 10) {
+            serviceDetails.rating = ratingValue
+          }
+        }
         
         // If there are service details or a note, combine them
         if (Object.keys(serviceDetails).length > 0 || (formData.note && formData.note.trim() !== '')) {
@@ -347,6 +355,7 @@ export function AddRevenue({ onRevenueCreated, revenueId, onCancel }: AddRevenue
           date: now.toISOString().split('T')[0],
           time: now.toTimeString().slice(0, 5),
           note: "",
+          rating: "",
           categorie: "none",
           sous_categorie: "none",
           type_employe: "",
@@ -585,6 +594,25 @@ export function AddRevenue({ onRevenueCreated, revenueId, onCancel }: AddRevenue
                         className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
                       />
                     )}
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="rating" className="text-gray-700 dark:text-gray-300">Note (0-10) (optionnel)</Label>
+                    <Input
+                      id="rating"
+                      name="rating"
+                      type="number"
+                      min="0"
+                      max="10"
+                      step="0.1"
+                      value={formData.rating}
+                      onChange={handleChange}
+                      placeholder="0-10"
+                      className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Note globale de qualité pour le service (0 à 10)
+                    </p>
                   </div>
                 </>
               )}

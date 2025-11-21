@@ -285,16 +285,19 @@ export default function RevenuesPage() {
     revenue.user?.last_name?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
+  // Calculate stats based on filtered data
   const totalRevenues = revenues.length
   const totalRevenueAmount = revenues.reduce((sum, revenue) => sum + revenue.montant, 0)
   const averageRevenue = totalRevenues > 0 ? totalRevenueAmount / totalRevenues : 0
+  
+  // Filter by current month only for "this month" stat
+  const now = new Date()
   const thisMonthRevenues = revenues.filter(r => {
     const revenueDate = new Date(r.date)
-    const now = new Date()
     return revenueDate.getMonth() === now.getMonth() && revenueDate.getFullYear() === now.getFullYear()
   }).length
 
-  // Calculate benefits (profit) - using all expenses including finances
+  // Calculate benefits (profit) - using filtered expenses that match the date filter
   const totalExpenseAmount = expenses.reduce((sum, expense) => sum + expense.montant, 0)
   const profit = totalRevenueAmount - totalExpenseAmount
   const profitMargin = totalRevenueAmount > 0 ? (profit / totalRevenueAmount) * 100 : 0
@@ -467,7 +470,7 @@ export default function RevenuesPage() {
                 <option value="today">Aujourd'hui</option>
                 <option value="yesterday">Hier</option>
                 <option value="week">7 derniers jours</option>
-                <option value="month">30 derniers jours</option>
+                <option value="month">Ce mois</option>
                 <option value="range">Période personnalisée</option>
               </select>
               {dateFilter === 'range' && (
