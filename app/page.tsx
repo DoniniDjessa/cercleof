@@ -56,14 +56,6 @@ export default function Home() {
     }
   }
 
-  if (loading) {
-    return <AuthLoadingScreen />
-  }
-
-  if (!user) {
-    return <AuthLoadingScreen />
-  }
-
   // Redirect non-admins to POS page
   useEffect(() => {
     if (userProfile && !profileLoading) {
@@ -73,6 +65,14 @@ export default function Home() {
       }
     }
   }, [userProfile, profileLoading])
+
+  if (loading) {
+    return <AuthLoadingScreen />
+  }
+
+  if (!user) {
+    return <AuthLoadingScreen />
+  }
 
   // Show loading while checking role
   if (profileLoading || !userProfile) {

@@ -276,7 +276,14 @@ export function AddRevenue({ onRevenueCreated, revenueId, onCancel }: AddRevenue
       // Build note with service details if type is service
       let noteValue: string | null = null
       if (formData.type === 'service') {
-        const serviceDetails: any = {}
+        const serviceDetails: {
+          categorie?: string
+          sous_categorie?: string
+          type_employe?: string
+          nom_employe?: string
+          rating?: number
+          note_text?: string
+        } = {}
         if (formData.categorie && formData.categorie !== 'none') serviceDetails.categorie = formData.categorie
         if (formData.sous_categorie && formData.sous_categorie !== 'none') serviceDetails.sous_categorie = formData.sous_categorie
         if (formData.type_employe) serviceDetails.type_employe = formData.type_employe

@@ -102,21 +102,24 @@ export default function POSPage() {
   const [selectedProductCategory, setSelectedProductCategory] = useState<string>("all")
   const [selectedServiceCategory, setSelectedServiceCategory] = useState<string>("all")
   const [activeTab, setActiveTab] = useState<'products' | 'services'>('products')
-  
-  // For receptionniste, default to services tab and don't allow products tab
-  useEffect(() => {
-    if (currentUserRole === 'receptionniste' && activeTab === 'products') {
-      setActiveTab('services')
-    }
-  }, [currentUserRole, activeTab])
+  const [currentUserRole, setCurrentUserRole] = useState<string>("")
+  const [checkingRole, setCheckingRole] = useState(true)
   const [discount, setDiscount] = useState(0)
   const [discountType, setDiscountType] = useState<'percentage' | 'amount'>('percentage')
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'carte' | 'mobile_money'>('cash')
   const [loading, setLoading] = useState(false)
   const [showClientDropdown, setShowClientDropdown] = useState(false)
   const [showQuickCreateClient, setShowQuickCreateClient] = useState(false)
-  const [currentUserRole, setCurrentUserRole] = useState<string>("")
-  const [checkingRole, setCheckingRole] = useState(true)
+  
+  // For receptionniste, default to services tab and don't allow products tab
+  // For caissiere, default to products tab and don't allow services tab
+  useEffect(() => {
+    if (currentUserRole === 'receptionniste' && activeTab === 'products') {
+      setActiveTab('services')
+    } else if (currentUserRole === 'caissiere' && activeTab === 'services') {
+      setActiveTab('products')
+    }
+  }, [currentUserRole, activeTab])
   const [variantSelection, setVariantSelection] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null })
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null)
   const [variantQuantity, setVariantQuantity] = useState('1')

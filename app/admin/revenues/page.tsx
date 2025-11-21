@@ -510,9 +510,8 @@ export default function RevenuesPage() {
                   <TableRow className="border-gray-200 dark:border-gray-700">
                     <TableHead className="text-gray-700 dark:text-gray-300">Type</TableHead>
                     <TableHead className="text-gray-700 dark:text-gray-300">Montant</TableHead>
-                    <TableHead className="text-gray-700 dark:text-gray-300">Source ID</TableHead>
+                    <TableHead className="text-gray-700 dark:text-gray-300">Détails</TableHead>
                     <TableHead className="text-gray-700 dark:text-gray-300">Date</TableHead>
-                    <TableHead className="text-gray-700 dark:text-gray-300">Enregistré par</TableHead>
                     <TableHead className="text-gray-700 dark:text-gray-300">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -530,9 +529,60 @@ export default function RevenuesPage() {
                         </span>
                       </TableCell>
                       <TableCell>
-                        <span className="text-gray-900 dark:text-white">
-                          {revenue.source_id || "—"}
-                        </span>
+                        <div className="space-y-1">
+                          {revenue.type === 'service' && revenue.note ? (() => {
+                            try {
+                              const serviceDetails: {
+                                categorie?: string
+                                sous_categorie?: string
+                                type_employe?: string
+                                nom_employe?: string
+                                rating?: number
+                                note_text?: string
+                              } = JSON.parse(revenue.note)
+                              return (
+                                <>
+                                  {serviceDetails.categorie && serviceDetails.categorie !== 'none' && (
+                                    <div className="text-xs text-gray-600 dark:text-gray-400">
+                                      <span className="font-medium">Catégorie:</span> {serviceDetails.categorie}
+                                    </div>
+                                  )}
+                                  {serviceDetails.nom_employe && serviceDetails.nom_employe !== 'none' && (
+                                    <div className="text-xs text-gray-600 dark:text-gray-400">
+                                      <span className="font-medium">Employé:</span> {serviceDetails.nom_employe}
+                                    </div>
+                                  )}
+                                  {serviceDetails.rating && (
+                                    <div className="text-xs text-gray-600 dark:text-gray-400">
+                                      <span className="font-medium">Note:</span> {serviceDetails.rating}/10
+                                    </div>
+                                  )}
+                                  {serviceDetails.note_text && (
+                                    <div className="text-xs text-gray-500 dark:text-gray-500 italic truncate max-w-xs">
+                                      {serviceDetails.note_text}
+                                    </div>
+                                  )}
+                                </>
+                              )
+                            } catch {
+                              return (
+                                <span className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-xs">
+                                  {revenue.note}
+                                </span>
+                              )
+                            }
+                          })() : revenue.note ? (
+                            <span className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-xs">
+                              {revenue.note}
+                            </span>
+                          ) : revenue.source_id ? (
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              ID: {revenue.source_id.slice(0, 8)}...
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-400 dark:text-gray-500">—</span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div>
@@ -542,19 +592,10 @@ export default function RevenuesPage() {
                           <p className="text-sm text-gray-500 dark:text-gray-400">
                             {new Date(revenue.date).toLocaleTimeString('fr-FR', { 
                               hour: '2-digit', 
-                              minute: '2-digit',
-                              second: '2-digit'
+                              minute: '2-digit'
                             })}
                           </p>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-gray-900 dark:text-white">
-                          {revenue.user?.pseudo || 
-                           (revenue.user?.first_name && revenue.user?.last_name 
-                             ? `${revenue.user.first_name} ${revenue.user.last_name}` 
-                             : "—")}
-                        </span>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">

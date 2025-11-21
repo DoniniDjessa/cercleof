@@ -37,10 +37,30 @@ interface Travailleur {
   jours_travailles?: number
   heures_travailles?: number
   salaire?: number
-  salary_history?: any[]
-  payments_history?: any[]
-  work_history?: any[]
-  notes_history?: any[]
+  salary_history?: Array<{
+    date: string
+    amount: number
+    added_by?: string
+    note?: string
+  }>
+  payments_history?: Array<{
+    date: string
+    amount: number
+    added_by?: string
+    note?: string
+  }>
+  work_history?: Array<{
+    date: string
+    days: number
+    hours: number
+    added_by?: string
+    note?: string
+  }>
+  notes_history?: Array<{
+    date: string
+    note: string
+    added_by?: string
+  }>
   created_at: string
 }
 
@@ -106,8 +126,8 @@ export default function TravailleurDetailPage() {
     try {
       setSaving(true)
       
-      const updates: any = {}
-      const historyEntries: any[] = []
+      const updates: Record<string, unknown> = {}
+      const historyEntries: Array<{ type: string; date: string; [key: string]: unknown }> = []
       const now = new Date().toISOString()
 
       // Update salary
@@ -121,7 +141,7 @@ export default function TravailleurDetailPage() {
           date: now,
           amount: newSalary,
           added_by: user?.id,
-          note: editForm.note_ajout || null
+          note: editForm.note_ajout || undefined
         })
         updates.salary_history = salaryHistory
         historyEntries.push({ type: 'salary', date: now, amount: newSalary })
@@ -138,7 +158,7 @@ export default function TravailleurDetailPage() {
           days: daysToAdd,
           hours: 0,
           added_by: user?.id,
-          note: editForm.note_ajout || null
+          note: editForm.note_ajout || undefined
         })
         updates.work_history = workHistory
         historyEntries.push({ type: 'work_days', date: now, days: daysToAdd })
@@ -155,7 +175,7 @@ export default function TravailleurDetailPage() {
           days: 0,
           hours: hoursToAdd,
           added_by: user?.id,
-          note: editForm.note_ajout || null
+          note: editForm.note_ajout || undefined
         })
         updates.work_history = workHistory
         historyEntries.push({ type: 'work_hours', date: now, hours: hoursToAdd })
@@ -171,7 +191,7 @@ export default function TravailleurDetailPage() {
           date: now,
           amount: amountToAdd,
           added_by: user?.id,
-          note: editForm.note_ajout || null
+          note: editForm.note_ajout || undefined
         })
         updates.payments_history = paymentsHistory
         historyEntries.push({ type: 'payment', date: now, amount: amountToAdd })
@@ -550,7 +570,7 @@ export default function TravailleurDetailPage() {
                 <div>
                   <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Historique des Salaires</h4>
                   <div className="space-y-2">
-                    {travailleur.salary_history.slice(-5).reverse().map((entry: any, idx: number) => (
+                    {travailleur.salary_history.slice(-5).reverse().map((entry, idx: number) => (
                       <div key={idx} className="text-xs text-gray-600 dark:text-gray-400 p-2 bg-gray-50 dark:bg-gray-700 rounded">
                         {new Date(entry.date).toLocaleDateString('fr-FR')}: {entry.amount.toFixed(0)}f
                         {entry.note && ` - ${entry.note}`}
@@ -565,7 +585,7 @@ export default function TravailleurDetailPage() {
                 <div>
                   <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Historique des Paiements</h4>
                   <div className="space-y-2">
-                    {travailleur.payments_history.slice(-5).reverse().map((entry: any, idx: number) => (
+                    {travailleur.payments_history.slice(-5).reverse().map((entry, idx: number) => (
                       <div key={idx} className="text-xs text-gray-600 dark:text-gray-400 p-2 bg-gray-50 dark:bg-gray-700 rounded">
                         {new Date(entry.date).toLocaleDateString('fr-FR')}: +{entry.amount.toFixed(0)}f
                         {entry.note && ` - ${entry.note}`}
@@ -580,7 +600,7 @@ export default function TravailleurDetailPage() {
                 <div>
                   <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Historique du Travail</h4>
                   <div className="space-y-2">
-                    {travailleur.work_history.slice(-5).reverse().map((entry: any, idx: number) => (
+                    {travailleur.work_history.slice(-5).reverse().map((entry, idx: number) => (
                       <div key={idx} className="text-xs text-gray-600 dark:text-gray-400 p-2 bg-gray-50 dark:bg-gray-700 rounded">
                         {new Date(entry.date).toLocaleDateString('fr-FR')}: 
                         {entry.days > 0 && ` +${entry.days} jours`}
@@ -597,7 +617,7 @@ export default function TravailleurDetailPage() {
                 <div>
                   <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Notes</h4>
                   <div className="space-y-2">
-                    {travailleur.notes_history.slice(-5).reverse().map((entry: any, idx: number) => (
+                    {travailleur.notes_history.slice(-5).reverse().map((entry, idx: number) => (
                       <div key={idx} className="text-xs text-gray-600 dark:text-gray-400 p-2 bg-gray-50 dark:bg-gray-700 rounded">
                         <span className="font-medium">{new Date(entry.date).toLocaleDateString('fr-FR')}:</span> {entry.note}
                       </div>

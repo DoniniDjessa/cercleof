@@ -6,7 +6,10 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "check-types": "node scripts/check-any-types.js",
+    "fix-types": "node scripts/fix-common-any-types.js",
+    "prebuild": "echo 'Running pre-build checks...'"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

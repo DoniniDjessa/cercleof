@@ -40,25 +40,6 @@ export default function AIAssistantPage() {
   const [loading, setLoading] = useState(false)
   const [roleChecked, setRoleChecked] = useState(false)
 
-  // Early return if user is not admin
-  if (roleChecked && userRole && !['admin', 'superadmin', 'manager'].includes(userRole.toLowerCase())) {
-    return (
-      <div className="p-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Accès restreint</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>Cette fonctionnalité est réservée aux administrateurs.</p>
-            <Button onClick={() => router.push('/admin/pos')} className="mt-4">
-              Retour au Point de Vente
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
   // Flow 1: Product Recommendation
   const [recommendationQuery, setRecommendationQuery] = useState('')
   const [recommendedProduct, setRecommendedProduct] = useState<Product | null>(null)
@@ -84,6 +65,22 @@ export default function AIAssistantPage() {
   // Flow 4: Voice Navigation
   const [isListening, setIsListening] = useState(false)
   const [voiceTranscript, setVoiceTranscript] = useState('')
+
+  // Flow 3: Business Query - additional state
+  const [vocalResponseEnabled, setVocalResponseEnabled] = useState(false)
+
+  // Flow 4: Voice Navigation - additional state
+  const [recognition, setRecognition] = useState<{
+    start: () => void
+    stop: () => void
+    lang: string
+    continuous: boolean
+    interimResults: boolean
+    onstart: (() => void) | null
+    onresult: ((event: { results: Array<Array<{ transcript: string }>> }) => void) | null
+    onerror: ((event: { error: string }) => void) | null
+    onend: (() => void) | null
+  } | null>(null)
 
   const fetchUserRole = useCallback(async () => {
     if (!user?.id) return
@@ -126,6 +123,25 @@ export default function AIAssistantPage() {
       router.push('/admin/pos')
     }
   }, [userRole, router])
+
+  // Early return if user is not admin (after all hooks are defined)
+  if (roleChecked && userRole && !['admin', 'superadmin', 'manager'].includes(userRole.toLowerCase())) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Accès restreint</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p>Cette fonctionnalité est réservée aux administrateurs.</p>
+            <Button onClick={() => router.push('/admin/pos')} className="mt-4">
+              Retour au Point de Vente
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   // Flow 1: Product Recommendation
   const handleProductRecommendation = async () => {
@@ -203,9 +219,6 @@ export default function AIAssistantPage() {
       setLoading(false)
     }
   }
-
-  // Flow 3: Business Query
-  const [vocalResponseEnabled, setVocalResponseEnabled] = useState(false)
 
   useEffect(() => {
     // Fetch vocal response setting
@@ -489,9 +502,6 @@ export default function AIAssistantPage() {
       setIsListeningBusiness(false)
     }
   }, [currentFlow, userRole, handleBusinessQuery]) // Include handleBusinessQuery
-
-  // Flow 4: Voice Navigation
-  const [recognition, setRecognition] = useState<any>(null)
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
