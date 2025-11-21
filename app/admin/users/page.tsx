@@ -153,6 +153,8 @@ export default function UsersManagementPage() {
         return 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
       case 'caissiere':
         return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+      case 'receptionniste':
+        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
       default:
         return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
     }
@@ -182,6 +184,8 @@ export default function UsersManagementPage() {
         return <Briefcase className="w-4 h-4" />
       case 'caissiere':
         return <CreditCard className="w-4 h-4" />
+      case 'receptionniste':
+        return <User className="w-4 h-4" />
       default:
         return <User className="w-4 h-4" />
     }
@@ -193,6 +197,7 @@ export default function UsersManagementPage() {
       const { data, error } = await supabase
         .from('dd-users')
         .select('*')
+        .neq('role', 'superadmin') // Exclude superadmins - they should never appear in the list
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -617,6 +622,7 @@ export default function UsersManagementPage() {
                   >
                     <option value="employe">Employé</option>
                     <option value="caissiere">Caissière</option>
+                    <option value="receptionniste">Réceptionniste</option>
                     <option value="manager">Manager</option>
                     <option value="admin">Admin</option>
                     <option value="superadmin">Super Admin</option>
@@ -776,7 +782,7 @@ export default function UsersManagementPage() {
                 <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Staff</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">{users.filter((u) => u.role === 'employe' || u.role === 'caissiere' || u.role === 'manager').length}</div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-white">{users.filter((u) => u.role === 'employe' || u.role === 'caissiere' || u.role === 'receptionniste' || u.role === 'manager').length}</div>
               </CardContent>
             </Card>
           </div>

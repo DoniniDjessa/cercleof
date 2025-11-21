@@ -124,6 +124,8 @@ export default function ProductsPage() {
 
   // Check if user can manage products (admin, manager, superadmin)
   const canManageProducts = currentUserRole === 'admin' || currentUserRole === 'manager' || currentUserRole === 'superadmin'
+  // Receptionniste can only read products, not manage them
+  const isReceptionniste = currentUserRole === 'receptionniste'
 
   const fetchProducts = async () => {
     try {
@@ -162,29 +164,29 @@ export default function ProductsPage() {
         setAllProducts(data || [])
       } else {
         // Use server-side pagination when no filters
-        const from = (currentPage - 1) * itemsPerPage
-        const to = from + itemsPerPage - 1
+      const from = (currentPage - 1) * itemsPerPage
+      const to = from + itemsPerPage - 1
 
-        const { data, error, count } = await supabase
-          .from('dd-products')
-          .select(`
-            *,
-            variants:"dd-product-variants"(
-              id,
-              product_id,
-              name,
-              sku,
-              quantity
-            )
-          `, { count: 'exact' })
-          .order('created_at', { ascending: false })
-          .range(from, to)
+      const { data, error, count } = await supabase
+        .from('dd-products')
+        .select(`
+          *,
+          variants:"dd-product-variants"(
+            id,
+            product_id,
+            name,
+            sku,
+            quantity
+          )
+        `, { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(from, to)
 
-        if (error) throw error
-        
-        setProducts(data || [])
+      if (error) throw error
+      
+      setProducts(data || [])
         setAllProducts([]) // Clear allProducts when not filtering
-        setTotalPages(Math.ceil((count || 0) / itemsPerPage))
+      setTotalPages(Math.ceil((count || 0) / itemsPerPage))
       }
     } catch (error) {
       console.error('Error fetching products:', error)
@@ -510,7 +512,8 @@ export default function ProductsPage() {
       {/* Only show products list when not in create mode */}
       {!showCreateForm && (
         <>
-          {/* Stats */}
+          {/* Stats - Hidden for receptionniste */}
+          {!isReceptionniste && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
               <CardHeader className="pb-3">
@@ -551,6 +554,7 @@ export default function ProductsPage() {
               </CardContent>
             </Card>
           </div>
+          )}
 
           {/* Search */}
           <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
@@ -657,7 +661,7 @@ export default function ProductsPage() {
                             }`}>
                               {product.stock_quantity}
                             </span>
-                            {canManageProducts && (
+                            {canManageProducts && !isReceptionniste && (
                               <Button
                                 size="sm"
                                 variant="ghost"
@@ -692,7 +696,7 @@ export default function ProductsPage() {
                                 <Eye className="w-4 h-4" />
                               </Button>
                             </Link>
-                            {canManageProducts && (
+                            {canManageProducts && !isReceptionniste && (
                               <Button 
                                 size="sm" 
                                 variant="ghost" 

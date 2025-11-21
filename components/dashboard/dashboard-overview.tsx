@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { supabase } from '@/lib/supabase'
 import { 
@@ -266,49 +267,55 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
       </div>
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Clients</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data.totalClients}</p>
+        <Link href="/admin/clients">
+          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-purple-300 dark:hover:border-purple-600">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Clients</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{data.totalClients}</p>
+                </div>
+                <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                  <Users className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                </div>
               </div>
-              <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                <Users className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Ventes</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data.totalSales}</p>
+        <Link href="/admin/sales">
+          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-purple-300 dark:hover:border-purple-600">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Ventes</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{data.totalSales}</p>
+                </div>
+                <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                  <ShoppingCart className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                </div>
               </div>
-              <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                <ShoppingCart className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Revenus</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {formatCurrency(data.totalRevenue)}
-                </p>
+        <Link href="/admin/revenues">
+          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-purple-300 dark:hover:border-purple-600">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Revenus</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {formatCurrency(data.totalRevenue)}
+                  </p>
+                </div>
+                <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                  <DollarSign className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                </div>
               </div>
-              <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                <DollarSign className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
 
         <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
           <CardContent className="p-5">
@@ -393,54 +400,67 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
             <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Vue d'ensemble</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                  <Package className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Produits</p>
-                  <p className="text-sm font-bold text-gray-900 dark:text-white">{data.totalProducts}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                  <Scissors className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Services</p>
-                  <p className="text-sm font-bold text-gray-900 dark:text-white">{data.totalServices}</p>
+            <Link href="/admin/products">
+              <div className="flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 p-2 rounded-lg transition-colors cursor-pointer">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                    <Package className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Produits</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">{data.totalProducts}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                  <Calendar className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Rendez-vous</p>
-                  <p className="text-sm font-bold text-gray-900 dark:text-white">{data.totalAppointments}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                  <Truck className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Livraisons</p>
-                  <p className="text-sm font-bold text-gray-900 dark:text-white">{data.totalDeliveries}</p>
+            </Link>
+            <Link href="/admin/services">
+              <div className="flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 p-2 rounded-lg transition-colors cursor-pointer">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                    <Scissors className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Services</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">{data.totalServices}</p>
+                  </div>
                 </div>
               </div>
-            </div>
+            </Link>
+            <Link href="/admin/appointments">
+              <div className="flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 p-2 rounded-lg transition-colors cursor-pointer">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                    <Calendar className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Rendez-vous</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">{data.totalAppointments}</p>
+                  </div>
+                </div>
+              </div>
+            </Link>
+            <Link href="/admin/deliveries">
+              <div className="flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 p-2 rounded-lg transition-colors cursor-pointer">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                    <Truck className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Livraisons</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">{data.totalDeliveries}</p>
+                  </div>
+                </div>
+              </div>
+            </Link>
           </CardContent>
         </Card>
 
         {/* Top Products */}
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Top Produits</CardTitle>
-          </CardHeader>
+        <Link href="/admin/products">
+          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-purple-300 dark:hover:border-purple-600">
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Top Produits</CardTitle>
+            </CardHeader>
           <CardContent>
             <div className="space-y-3">
               {data.topProducts.length > 0 ? (
@@ -462,13 +482,15 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
               )}
             </div>
           </CardContent>
-        </Card>
+          </Card>
+        </Link>
 
         {/* Top Services */}
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Top Services</CardTitle>
-          </CardHeader>
+        <Link href="/admin/services">
+          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-purple-300 dark:hover:border-purple-600">
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Top Services</CardTitle>
+            </CardHeader>
           <CardContent>
             <div className="space-y-3">
               {data.topServices.length > 0 ? (
@@ -490,13 +512,15 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
               )}
             </div>
           </CardContent>
-        </Card>
+          </Card>
+        </Link>
 
         {/* Top Clients */}
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Top Clients</CardTitle>
-          </CardHeader>
+        <Link href="/admin/clients">
+          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-purple-300 dark:hover:border-purple-600">
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Top Clients</CardTitle>
+            </CardHeader>
           <CardContent>
             <div className="space-y-3">
               {data.topClients.length > 0 ? (
@@ -518,7 +542,8 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
               )}
             </div>
           </CardContent>
-        </Card>
+          </Card>
+        </Link>
       </div>
     </div>
   )

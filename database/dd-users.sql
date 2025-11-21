@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS "dd-users" (
   first_name VARCHAR(100) NOT NULL,
   last_name VARCHAR(100) NOT NULL,
   phone VARCHAR(20),
-  role VARCHAR(20) NOT NULL CHECK (role IN ('superadmin', 'admin', 'manager', 'caissiere', 'employe')),
+  role VARCHAR(20) NOT NULL CHECK (role IN ('superadmin', 'admin', 'manager', 'caissiere', 'receptionniste', 'employe')),
   is_active BOOLEAN DEFAULT true,
   hire_date DATE,
   salary DECIMAL(10,2),

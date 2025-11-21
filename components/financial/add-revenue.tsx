@@ -38,7 +38,34 @@ export function AddRevenue({ onRevenueCreated, revenueId, onCancel }: AddRevenue
     date: defaultDate,
     time: defaultTime,
     note: "",
+    // Service-specific fields
+    categorie: "none",
+    sous_categorie: "none",
+    type_employe: "",
+    nom_employe: "none",
   })
+
+  // Service categories and employees
+  const [serviceCategories, setServiceCategories] = useState<Array<{id: string, name: string, parent_id: string | null}>>([])
+  const [subcategories, setSubcategories] = useState<Array<{id: string, name: string, parent_id: string | null}>>([])
+  const [employees, setEmployees] = useState<Array<{id: string, first_name: string, last_name: string}>>([])
+  const [employeeInputMode, setEmployeeInputMode] = useState<'select' | 'text'>('select')
+
+  // Fetch service categories and employees
+  useEffect(() => {
+    fetchServiceCategories()
+    fetchEmployees()
+  }, [])
+
+  // Fetch subcategories when category changes
+  useEffect(() => {
+    if (formData.categorie && formData.categorie !== 'none') {
+      fetchSubcategories(formData.categorie)
+    } else {
+      setSubcategories([])
+      setFormData(prev => ({ ...prev, sous_categorie: "none" }))
+    }
+  }, [formData.categorie])
 
   // Fetch revenue data if in edit mode
   useEffect(() => {
@@ -46,6 +73,54 @@ export function AddRevenue({ onRevenueCreated, revenueId, onCancel }: AddRevenue
       fetchRevenueData()
     }
   }, [revenueId])
+
+  const fetchServiceCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('dd-categories')
+        .select('id, name, parent_id')
+        .eq('type', 'service')
+        .eq('is_active', true)
+        .is('parent_id', null) // Only parent categories
+        .order('name')
+
+      if (error) throw error
+      setServiceCategories(data || [])
+    } catch (error) {
+      console.error('Error fetching service categories:', error)
+    }
+  }
+
+  const fetchSubcategories = async (parentId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('dd-categories')
+        .select('id, name, parent_id')
+        .eq('type', 'service')
+        .eq('is_active', true)
+        .eq('parent_id', parentId)
+        .order('name')
+
+      if (error) throw error
+      setSubcategories(data || [])
+    } catch (error) {
+      console.error('Error fetching subcategories:', error)
+    }
+  }
+
+  const fetchEmployees = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('dd-travailleurs')
+        .select('id, first_name, last_name')
+        .order('first_name')
+
+      if (error) throw error
+      setEmployees(data || [])
+    } catch (error) {
+      console.error('Error fetching travailleurs:', error)
+    }
+  }
 
   const fetchRevenueData = async () => {
     if (!revenueId) return
@@ -65,14 +140,52 @@ export function AddRevenue({ onRevenueCreated, revenueId, onCancel }: AddRevenue
         const dateStr = revenueDate.toISOString().split('T')[0]
         const timeStr = revenueDate.toTimeString().slice(0, 5)
         
+        // Parse service details from note if it's a JSON string
+        let serviceDetails = {
+          categorie: "none",
+          sous_categorie: "none",
+          type_employe: "",
+          nom_employe: "none",
+        }
+        let noteText = ""
+        
+        if (data.type === 'service' && data.note) {
+          try {
+            const parsed = JSON.parse(data.note)
+            if (parsed.categorie || parsed.sous_categorie || parsed.type_employe || parsed.nom_employe) {
+              serviceDetails = {
+                categorie: parsed.categorie || "none",
+                sous_categorie: parsed.sous_categorie || "none",
+                type_employe: parsed.type_employe || "",
+                nom_employe: parsed.nom_employe || "none",
+              }
+              // Extract note_text if it exists
+              if (parsed.note_text) {
+                noteText = parsed.note_text
+              }
+            }
+          } catch (e) {
+            // Note is not JSON, keep it as is
+            noteText = data.note || ""
+          }
+        } else {
+          noteText = data.note || ""
+        }
+        
         setFormData({
           type: data.type || "",
           source_id: data.source_id || "",
           montant: data.montant || 0,
           date: dateStr,
           time: timeStr,
-          note: data.note || "",
+          note: noteText,
+          ...serviceDetails,
         })
+        
+        // Fetch subcategories if category is set
+        if (serviceDetails.categorie && serviceDetails.categorie !== 'none') {
+          fetchSubcategories(serviceDetails.categorie)
+        }
       }
     } catch (error) {
       console.error('Error fetching revenue:', error)
@@ -158,12 +271,33 @@ export function AddRevenue({ onRevenueCreated, revenueId, onCancel }: AddRevenue
       const dateTimeStr = `${formData.date}T${formData.time}:00`
       const dateTime = new Date(dateTimeStr)
 
+      // Build note with service details if type is service
+      let noteValue: string | null = null
+      if (formData.type === 'service') {
+        const serviceDetails: any = {}
+        if (formData.categorie && formData.categorie !== 'none') serviceDetails.categorie = formData.categorie
+        if (formData.sous_categorie && formData.sous_categorie !== 'none') serviceDetails.sous_categorie = formData.sous_categorie
+        if (formData.type_employe) serviceDetails.type_employe = formData.type_employe
+        if (formData.nom_employe && formData.nom_employe !== 'none') serviceDetails.nom_employe = formData.nom_employe
+        
+        // If there are service details or a note, combine them
+        if (Object.keys(serviceDetails).length > 0 || (formData.note && formData.note.trim() !== '')) {
+          if (formData.note && formData.note.trim() !== '') {
+            serviceDetails.note_text = formData.note.trim()
+          }
+          noteValue = JSON.stringify(serviceDetails)
+        }
+      } else {
+        // For non-service types, just use the note as is
+        noteValue = formData.note && formData.note.trim() !== '' ? formData.note.trim() : null
+      }
+
       const revenueData = {
         type: formData.type,
         source_id: sourceIdValue,
         montant: montantValue,
         date: dateTime.toISOString(),
-        note: formData.note && formData.note.trim() !== '' ? formData.note.trim() : null,
+        note: noteValue,
         ...(isEditMode ? {} : { enregistre_par: currentUser.id }) // Don't update enregistre_par on edit
       }
 
@@ -213,7 +347,12 @@ export function AddRevenue({ onRevenueCreated, revenueId, onCancel }: AddRevenue
           date: now.toISOString().split('T')[0],
           time: now.toTimeString().slice(0, 5),
           note: "",
+          categorie: "none",
+          sous_categorie: "none",
+          type_employe: "",
+          nom_employe: "none",
         })
+        setEmployeeInputMode('select')
 
         // Navigate back to revenues list
         window.history.replaceState({}, '', '/admin/revenues')
@@ -348,6 +487,107 @@ export function AddRevenue({ onRevenueCreated, revenueId, onCancel }: AddRevenue
                   />
                 </div>
               </div>
+
+              {/* Service-specific fields - only show when type is "service" */}
+              {formData.type === 'service' && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="categorie" className="text-gray-700 dark:text-gray-300">Catégorie (optionnel)</Label>
+                    <Select
+                      value={formData.categorie}
+                      onValueChange={(value) => handleSelectChange('categorie', value)}
+                    >
+                      <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
+                        <SelectValue placeholder="Sélectionnez une catégorie" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Aucune</SelectItem>
+                        {serviceCategories.map((cat) => (
+                          <SelectItem key={cat.id} value={cat.id}>
+                            {cat.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {formData.categorie && formData.categorie !== 'none' && subcategories.length > 0 && (
+                    <div className="space-y-2">
+                      <Label htmlFor="sous_categorie" className="text-gray-700 dark:text-gray-300">Sous-catégorie (optionnel)</Label>
+                      <Select
+                        value={formData.sous_categorie}
+                        onValueChange={(value) => handleSelectChange('sous_categorie', value)}
+                      >
+                        <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
+                          <SelectValue placeholder="Sélectionnez une sous-catégorie" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Aucune</SelectItem>
+                          {subcategories.map((subcat) => (
+                            <SelectItem key={subcat.id} value={subcat.id}>
+                              {subcat.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="type_employe" className="text-gray-700 dark:text-gray-300">Type d'employé (optionnel)</Label>
+                    <Input
+                      id="type_employe"
+                      name="type_employe"
+                      value={formData.type_employe}
+                      onChange={handleChange}
+                      placeholder="Ex: Coiffeuse, Esthéticienne..."
+                      className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="nom_employe" className="text-gray-700 dark:text-gray-300">Nom employé (optionnel)</Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setEmployeeInputMode(employeeInputMode === 'select' ? 'text' : 'select')}
+                        className="text-xs h-6 px-2"
+                      >
+                        {employeeInputMode === 'select' ? 'Taper manuellement' : 'Sélectionner'}
+                      </Button>
+                    </div>
+                    {employeeInputMode === 'select' ? (
+                      <Select
+                        value={formData.nom_employe}
+                        onValueChange={(value) => handleSelectChange('nom_employe', value)}
+                      >
+                        <SelectTrigger className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600">
+                          <SelectValue placeholder="Sélectionnez un employé" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Aucun</SelectItem>
+                          {employees.map((emp) => (
+                            <SelectItem key={emp.id} value={`${emp.first_name} ${emp.last_name}`}>
+                              {emp.first_name} {emp.last_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        id="nom_employe"
+                        name="nom_employe"
+                        value={formData.nom_employe}
+                        onChange={handleChange}
+                        placeholder="Tapez le nom de l'employé"
+                        className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                      />
+                    )}
+                  </div>
+                </>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="note" className="text-gray-700 dark:text-gray-300">Notes</Label>

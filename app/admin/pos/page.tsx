@@ -102,6 +102,13 @@ export default function POSPage() {
   const [selectedProductCategory, setSelectedProductCategory] = useState<string>("all")
   const [selectedServiceCategory, setSelectedServiceCategory] = useState<string>("all")
   const [activeTab, setActiveTab] = useState<'products' | 'services'>('products')
+  
+  // For receptionniste, default to services tab and don't allow products tab
+  useEffect(() => {
+    if (currentUserRole === 'receptionniste' && activeTab === 'products') {
+      setActiveTab('services')
+    }
+  }, [currentUserRole, activeTab])
   const [discount, setDiscount] = useState(0)
   const [discountType, setDiscountType] = useState<'percentage' | 'amount'>('percentage')
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'carte' | 'mobile_money'>('cash')
@@ -300,9 +307,14 @@ export default function POSPage() {
   // Check if user can manage discounts (admin, manager, superadmin)
   const canManageDiscounts = currentUserRole === 'admin' || currentUserRole === 'manager' || currentUserRole === 'superadmin'
   
-  // Check if user can edit prices in cart (caissiere and admins only)
+  // Check if user can edit prices in cart (caissiere and admins only, NOT receptionniste)
   // Price edits only affect the current cart/sale, NOT the database product price
   const canEditPrices = currentUserRole === 'admin' || currentUserRole === 'caissiere' || currentUserRole === 'superadmin'
+  
+  // Check if user is receptionniste (has more restrictions than caissiere)
+  const isReceptionniste = currentUserRole === 'receptionniste'
+  // Check if user is caissiere (works in boutique, shouldn't see services)
+  const isCaissiere = currentUserRole === 'caissiere'
 
   const fetchDailySales = async () => {
     try {
@@ -1902,22 +1914,26 @@ export default function POSPage() {
           <Card className="bg-white dark:bg-gray-800">
             <CardHeader>
               <div className="flex gap-2 mb-4">
-                <Button
-                  variant={activeTab === 'products' ? 'default' : 'outline'}
-                  onClick={() => setActiveTab('products')}
-                  className="flex items-center gap-2"
-                >
-                  <Package className="w-4 h-4" />
-                  Produits
-                </Button>
-                <Button
-                  variant={activeTab === 'services' ? 'default' : 'outline'}
-                  onClick={() => setActiveTab('services')}
-                  className="flex items-center gap-2"
-                >
-                  <Scissors className="w-4 h-4" />
-                  Services
-                </Button>
+                {!isReceptionniste && (
+                  <Button
+                    variant={activeTab === 'products' ? 'default' : 'outline'}
+                    onClick={() => setActiveTab('products')}
+                    className="flex items-center gap-2"
+                  >
+                    <Package className="w-4 h-4" />
+                    Produits
+                  </Button>
+                )}
+                {!isCaissiere && (
+                  <Button
+                    variant={activeTab === 'services' ? 'default' : 'outline'}
+                    onClick={() => setActiveTab('services')}
+                    className="flex items-center gap-2"
+                  >
+                    <Scissors className="w-4 h-4" />
+                    Services
+                  </Button>
+                )}
               </div>
               {/* Category Filter */}
               <div className="flex gap-2 flex-wrap">
