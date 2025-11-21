@@ -38,7 +38,6 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
       setUserProfile(null)
       setLoading(false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
   // Debug: Log when userProfile changes

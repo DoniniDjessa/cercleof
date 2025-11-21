@@ -92,7 +92,6 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       setUserProfile(null)
       setUserRole('')
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
   const toggleExpanded = (itemName: string) => {

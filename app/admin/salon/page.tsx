@@ -351,9 +351,26 @@ export default function SalonPage() {
           timePrefix = serviceDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + ' ' + serviceDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
         }
 
+        // Get travailleurs assigned to this service
+        const travailleurs = serviceDetails.travailleurs || []
+        
+        // Get service rating (fetch updated service data)
+        const { data: updatedService } = await supabase
+          .from('dd-salon')
+          .select('rating')
+          .eq('id', serviceId)
+          .single()
+        
+        const serviceRating = updatedService?.rating
+
+        // Update travailleurs statistics if rating exists (use the helper function)
+        if (serviceRating !== undefined && serviceRating !== null && travailleurs.length > 0) {
+          await updateTravailleurStats(serviceId, serviceRating, serviceDetails.service_name)
+        }
+
         // Get travailleur name (first one if multiple)
-        const travailleur = serviceDetails.travailleurs && serviceDetails.travailleurs.length > 0
-          ? serviceDetails.travailleurs[0].travailleur
+        const travailleur = travailleurs.length > 0 && travailleurs[0].travailleur
+          ? travailleurs[0].travailleur
           : null
         const travailleurName = travailleur ? `${travailleur.first_name} ${travailleur.last_name}` : 'travailleur'
         const userDisplayName = currentUser.pseudo || currentUser.email
@@ -424,6 +441,123 @@ export default function SalonPage() {
     }
   }
 
+  const updateTravailleurStats = async (serviceId: string, serviceRating: number | undefined, serviceName: string) => {
+    if (!serviceRating) return
+
+    try {
+      // Fetch service details with travailleurs
+      const { data: serviceData } = await supabase
+        .from('dd-salon')
+        .select(`
+          *,
+          travailleurs:dd-salon-travailleurs(
+            *,
+            travailleur:dd-travailleurs(id, first_name, last_name)
+          )
+        `)
+        .eq('id', serviceId)
+        .single()
+
+      if (!serviceData) return
+
+      const serviceDataTyped = serviceData as any
+      const travailleurs = serviceDataTyped.travailleurs || []
+      if (travailleurs.length === 0) return
+
+      const now = new Date()
+      const serviceNotes = serviceDataTyped.notes || undefined
+
+      for (const st of travailleurs) {
+        const travailleurId = st.travailleur_id || st.travailleur?.id
+        if (!travailleurId) continue
+
+        try {
+          // Fetch current travailleur data
+          const { data: travailleurData, error: fetchError } = await supabase
+            .from('dd-travailleurs')
+            .select('rating_global, total_services, work_history')
+            .eq('id', travailleurId)
+            .single()
+
+          if (fetchError) {
+            console.error(`Error fetching travailleur ${travailleurId}:`, fetchError)
+            continue
+          }
+
+          const currentRating = travailleurData?.rating_global || 0
+          const currentTotalServices = travailleurData?.total_services || 0
+          const workHistory = (travailleurData?.work_history || []) as Array<{
+            date: string
+            service_id?: string
+            service_name?: string
+            rating?: number
+            notes?: string
+          }>
+
+          // Check if this service is already in work_history
+          const existingEntryIndex = workHistory.findIndex(entry => entry.service_id === serviceId)
+          const ratingValue = typeof serviceRating === 'number' ? serviceRating : parseFloat(String(serviceRating))
+
+          if (!isNaN(ratingValue) && ratingValue >= 0 && ratingValue <= 10) {
+            let newRating = currentRating
+            let newTotalServices = currentTotalServices
+
+            if (existingEntryIndex >= 0) {
+              // Update existing entry - need to recalculate rating
+              const oldRating = workHistory[existingEntryIndex].rating || 0
+              workHistory[existingEntryIndex] = {
+                date: workHistory[existingEntryIndex].date || now.toISOString(),
+                service_id: serviceId,
+                service_name: serviceName,
+                rating: ratingValue,
+                notes: serviceNotes
+              }
+
+              // Recalculate global rating: subtract old rating, add new rating
+              if (currentTotalServices > 0) {
+                const totalRating = (currentRating * currentTotalServices) - oldRating + ratingValue
+                newRating = totalRating / currentTotalServices
+              } else {
+                newRating = ratingValue
+                newTotalServices = 1
+              }
+            } else {
+              // New entry - add to history and update stats
+              newTotalServices = currentTotalServices + 1
+              newRating = ((currentRating * currentTotalServices) + ratingValue) / newTotalServices
+
+              workHistory.push({
+                date: now.toISOString(),
+                service_id: serviceId,
+                service_name: serviceName,
+                rating: ratingValue,
+                notes: serviceNotes
+              })
+            }
+
+            // Update travailleur
+            const { error: updateError } = await supabase
+              .from('dd-travailleurs')
+              .update({
+                rating_global: parseFloat(newRating.toFixed(1)),
+                total_services: newTotalServices,
+                work_history: workHistory
+              })
+              .eq('id', travailleurId)
+
+            if (updateError) {
+              console.error(`Error updating travailleur ${travailleurId}:`, updateError)
+            }
+          }
+        } catch (error) {
+          console.error(`Error processing travailleur ${travailleurId}:`, error)
+        }
+      }
+    } catch (error) {
+      console.error('Error updating travailleur stats:', error)
+    }
+  }
+
   const handleUpdateService = async () => {
     if (!selectedService) return
 
@@ -432,7 +566,10 @@ export default function SalonPage() {
         notes: serviceNotes || null
       }
 
-      if (serviceRating) {
+      const oldRating = selectedService.rating
+      const newRating = serviceRating
+
+      if (serviceRating !== undefined) {
         updateData.rating = serviceRating
       }
 
@@ -446,6 +583,11 @@ export default function SalonPage() {
         .eq('id', selectedService.id)
 
       if (error) throw error
+
+      // Update travailleur stats if rating changed and service is already completed
+      if (selectedService.statut === 'termine' && newRating !== undefined && newRating !== oldRating) {
+        await updateTravailleurStats(selectedService.id, newRating, selectedService.service_name)
+      }
 
       toast.success('Service mis à jour avec succès!')
       setSelectedService(null)
@@ -878,20 +1020,28 @@ export default function SalonPage() {
               </div>
 
               <div>
-                <Label className="text-gray-700 dark:text-gray-300">Note (1-5)</Label>
-                <div className="flex gap-2 mt-2">
-                  {[1, 2, 3, 4, 5].map((rating) => (
-                    <Button
-                      key={rating}
-                      variant={serviceRating === rating ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setServiceRating(rating)}
-                      className="w-10 h-10 p-0"
-                    >
-                      <Star className={`w-4 h-4 ${serviceRating === rating ? 'fill-current' : ''}`} />
-                    </Button>
-                  ))}
-                </div>
+                <Label className="text-gray-700 dark:text-gray-300">Note (0-10, optionnel)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="10"
+                  step="0.1"
+                  value={serviceRating ?? ''}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    if (value === '') {
+                      setServiceRating(undefined)
+                    } else {
+                      const numValue = parseFloat(value)
+                      if (!isNaN(numValue) && numValue >= 0 && numValue <= 10) {
+                        setServiceRating(numValue)
+                      }
+                    }
+                  }}
+                  placeholder="Ex: 8.5"
+                  className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 max-w-xs"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Note de 0 à 10 pour évaluer la qualité du service</p>
               </div>
 
               <div>

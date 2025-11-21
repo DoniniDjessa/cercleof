@@ -163,7 +163,6 @@ export default function ActionsPage() {
     if (isAdmin) {
       fetchActions()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUserRole, currentPage, filterType])
 
   const getTypeColor = (type: string) => {
