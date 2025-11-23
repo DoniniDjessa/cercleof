@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { AnimatedButton } from "@/components/ui/animated-button"
 import { TableLoadingState } from "@/components/ui/table-loading-state"
-import { Search, Eye, Trash2, Package, Clock, DollarSign, Users, Scissors, Edit } from "lucide-react"
+import { Search, Eye, Trash2, Package, Clock, DollarSign, Users, Scissors, Edit, Pencil, Check, X } from "lucide-react"
 import { AddService } from "@/components/services/add-service"
 import { supabase } from "@/lib/supabase"
 import toast from "react-hot-toast"
@@ -57,6 +57,9 @@ export default function ServicesPage() {
   const [totalPages, setTotalPages] = useState(1)
   const itemsPerPage = 20
   const [currentUserRole, setCurrentUserRole] = useState<string>('')
+  const [editingPriceId, setEditingPriceId] = useState<string | null>(null)
+  const [editingPriceValue, setEditingPriceValue] = useState<string>('')
+  const [updatingPrice, setUpdatingPrice] = useState(false)
 
   useEffect(() => {
     const action = searchParams.get('action')
@@ -101,6 +104,8 @@ export default function ServicesPage() {
 
   // Check if user can manage services (admin, manager, superadmin)
   const canManageServices = currentUserRole === 'admin' || currentUserRole === 'manager' || currentUserRole === 'superadmin'
+  // Check if user can edit prices (admin, manager, superadmin, caissière)
+  const canEditPrice = canManageServices || currentUserRole === 'caissière'
 
   const fetchServices = async () => {
     try {
@@ -126,6 +131,53 @@ export default function ServicesPage() {
       toast.error('Erreur lors du chargement des services')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const startEditingPrice = (service: Service) => {
+    if (!canEditPrice) {
+      toast.error('Vous n&apos;avez pas la permission de modifier les prix')
+      return
+    }
+    setEditingPriceId(service.id)
+    setEditingPriceValue(String(service.price || service.prix_base || 0))
+  }
+
+  const cancelEditingPrice = () => {
+    setEditingPriceId(null)
+    setEditingPriceValue('')
+  }
+
+  const updateServicePrice = async (serviceId: string) => {
+    if (!canEditPrice) {
+      toast.error('Vous n&apos;avez pas la permission de modifier les prix')
+      return
+    }
+
+    const newPrice = parseFloat(editingPriceValue)
+    if (isNaN(newPrice) || newPrice < 0) {
+      toast.error('Veuillez entrer un prix valide')
+      return
+    }
+
+    try {
+      setUpdatingPrice(true)
+      const { error } = await supabase
+        .from('dd-services')
+        .update({ price: newPrice })
+        .eq('id', serviceId)
+
+      if (error) throw error
+
+      toast.success('Prix mis à jour avec succès')
+      setEditingPriceId(null)
+      setEditingPriceValue('')
+      fetchServices()
+    } catch (error: any) {
+      console.error('Error updating service price:', error)
+      toast.error('Erreur lors de la mise à jour du prix')
+    } finally {
+      setUpdatingPrice(false)
     }
   }
 
@@ -293,97 +345,152 @@ export default function ServicesPage() {
       </Card>
 
       {/* Services Table */}
-      <Card className="bg-white dark:bg-gray-800 ">
-        <CardHeader>
-          <CardTitle className="text-gray-900 dark:text-white">Liste des Services</CardTitle>
+      <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
+        <CardHeader className="pb-4 border-b border-gray-200 dark:border-gray-700">
+          <CardTitle className="text-xl font-semibold text-gray-900 dark:text-white">Liste des Services</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {loading ? (
-            <TableLoadingState />
+            <div className="p-6">
+              <TableLoadingState />
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="">
-                    <TableHead className="text-gray-700 dark:text-gray-300">Image</TableHead>
-                    <TableHead className="text-gray-700 dark:text-gray-300">Nom</TableHead>
-                    <TableHead className="text-gray-700 dark:text-gray-300">Catégorie</TableHead>
-                    <TableHead className="text-gray-700 dark:text-gray-300">Prix</TableHead>
-                    <TableHead className="text-gray-700 dark:text-gray-300">Durée</TableHead>
-                    <TableHead className="text-gray-700 dark:text-gray-300">Type Employé</TableHead>
-                    <TableHead className="text-gray-700 dark:text-gray-300">Commission</TableHead>
-                    <TableHead className="text-gray-700 dark:text-gray-300">Statut</TableHead>
-                    <TableHead className="text-gray-700 dark:text-gray-300">Actions</TableHead>
+                  <TableRow className="bg-gray-50 dark:bg-gray-900/50 hover:bg-gray-50 dark:hover:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
+                    <TableHead className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider py-3 px-4">Image</TableHead>
+                    <TableHead className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider py-3 px-4">Nom</TableHead>
+                    <TableHead className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider py-3 px-4">Catégorie</TableHead>
+                    <TableHead className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider py-3 px-4">Prix</TableHead>
+                    <TableHead className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider py-3 px-4">Durée</TableHead>
+                    <TableHead className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider py-3 px-4">Type Employé</TableHead>
+                    <TableHead className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider py-3 px-4">Statut</TableHead>
+                    <TableHead className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider py-3 px-4 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredServices.map((service) => (
-                    <TableRow key={service.id} className=" hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                      <TableCell>
+                  {filteredServices.map((service, index) => (
+                    <TableRow 
+                      key={service.id} 
+                      className="border-b border-gray-100 dark:border-gray-800/50 hover:bg-gradient-to-r hover:from-gray-50 hover:to-transparent dark:hover:from-gray-700/30 dark:hover:to-transparent transition-all duration-200 group"
+                    >
+                      <TableCell className="py-3 px-4">
                         {(service.images && service.images.length > 0) || service.photo ? (
-                          <Image
-                            src={(service.images && service.images[0]) || service.photo || ''}
-                            alt={service.name || service.nom || 'Service'}
-                            width={40}
-                            height={40}
-                            className="w-10 h-10 rounded-sm object-cover"
-                          />
+                          <div className="relative w-10 h-10 rounded-sm overflow-hidden ring-1 ring-gray-200 dark:ring-gray-700 group-hover:ring-pink-300 dark:group-hover:ring-pink-600 transition-all duration-200">
+                            <Image
+                              src={(service.images && service.images[0]) || service.photo || ''}
+                              alt={service.name || service.nom || 'Service'}
+                              width={40}
+                              height={40}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
                         ) : (
-                          <div className="w-10 h-10 rounded-sm bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-                            <Scissors className="w-5 h-5 text-gray-400" />
+                          <div className="w-10 h-10 rounded-sm bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center ring-1 ring-gray-200 dark:ring-gray-700 group-hover:ring-pink-300 dark:group-hover:ring-pink-600 transition-all duration-200">
+                            <Scissors className="w-5 h-5 text-gray-400 dark:text-gray-500" />
                           </div>
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="py-3 px-4">
                         <div>
-                          <p className="font-medium text-gray-900 dark:text-white">{service.name || service.nom}</p>
+                          <p className="font-medium text-gray-900 dark:text-white text-xs group-hover:text-pink-600 dark:group-hover:text-pink-400 transition-colors">
+                            {service.name || service.nom}
+                          </p>
                           {service.description && (
-                            <p className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-xs">
+                            <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate max-w-xs mt-0.5">
                               {service.description}
                             </p>
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <span className="text-gray-900 dark:text-white">
+                      <TableCell className="py-3 px-4">
+                        <span className="text-[10px] text-gray-900 dark:text-white">
                           {service.category?.name || 'Non catégorisé'}
                         </span>
                       </TableCell>
-                      <TableCell>
-                        <span className="font-medium text-gray-900 dark:text-white">
-                          {(service.price || service.prix_base || 0).toFixed(0)}f
-                        </span>
+                      <TableCell className="py-3 px-4">
+                        {editingPriceId === service.id ? (
+                          <div className="flex items-center gap-1.5">
+                            <Input
+                              type="number"
+                              value={editingPriceValue}
+                              onChange={(e) => setEditingPriceValue(e.target.value)}
+                              className="w-20 h-7 text-[10px] font-medium border-2 focus:border-pink-500 dark:focus:border-pink-400"
+                              disabled={updatingPrice}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  updateServicePrice(service.id)
+                                } else if (e.key === 'Escape') {
+                                  cancelEditingPrice()
+                                }
+                              }}
+                              autoFocus
+                            />
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => updateServicePrice(service.id)}
+                              disabled={updatingPrice}
+                              className="h-6 w-6 p-0 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+                              title="Enregistrer"
+                            >
+                              <Check className="w-3 h-3 text-green-600 dark:text-green-400" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={cancelEditingPrice}
+                              disabled={updatingPrice}
+                              className="h-6 w-6 p-0 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                              title="Annuler"
+                            >
+                              <X className="w-3 h-3 text-red-600 dark:text-red-400" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => startEditingPrice(service)}
+                              className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 hover:bg-pink-50 dark:hover:bg-pink-900/20 transition-all duration-200"
+                              title="Modifier le prix"
+                            >
+                              <Pencil className="w-3 h-3 text-pink-600 dark:text-pink-400" />
+                            </Button>
+                            <span className="font-medium text-gray-900 dark:text-white text-[10px]">
+                              {(service.price || service.prix_base || 0).toFixed(0)}f
+                            </span>
+                          </div>
+                        )}
                       </TableCell>
-                      <TableCell>
-                        <span className="text-gray-900 dark:text-white">
+                      <TableCell className="py-3 px-4">
+                        <span className="text-[10px] text-gray-900 dark:text-white">
                           {service.duration_minutes || service.duration || service.duree || 0} min
                         </span>
                       </TableCell>
-                      <TableCell>
-                        <span className="text-gray-900 dark:text-white">
+                      <TableCell className="py-3 px-4">
+                        <span className="text-[10px] text-gray-900 dark:text-white">
                           {getEmployeeTypeText(service.employee_type || service.employe_type || '')}
                         </span>
                       </TableCell>
-                      <TableCell>
-                        <span className="text-gray-900 dark:text-white">
-                          {(service.commission_rate || service.commission_employe || 0)}%
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={getStatusColor(service.is_active ?? service.actif ?? false)}>
+                      <TableCell className="py-3 px-4">
+                        <Badge 
+                          className={`${getStatusColor(service.is_active ?? service.actif ?? false)} font-normal text-[10px] px-2 py-0.5`}
+                        >
                           {getStatusText(service.is_active ?? service.actif ?? false)}
                         </Badge>
                       </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
+                      <TableCell className="py-3 px-4">
+                        <div className="flex items-center justify-end gap-1">
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
                             onClick={() => {
-                              // Navigate to service details
-                              window.location.href = `/admin/services/${service.id}`
+                              router.push(`/admin/services/${service.id}`)
                             }}
-                            className="text-blue-600 border-blue-200 hover:bg-blue-50 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-900/20"
+                            className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200 rounded-lg"
                             title="Voir les détails"
                           >
                             <Eye className="w-4 h-4" />
@@ -391,21 +498,21 @@ export default function ServicesPage() {
                           {canManageServices && (
                             <>
                               <Button
-                                variant="outline"
+                                variant="ghost"
                                 size="sm"
                                 onClick={() => {
                                   router.push(`/admin/services?action=edit&id=${service.id}`)
                                 }}
-                                className="text-green-600 border-green-200 hover:bg-green-50 dark:text-green-400 dark:border-green-800 dark:hover:bg-green-900/20"
+                                className="h-8 w-8 p-0 text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 transition-all duration-200 rounded-lg"
                                 title="Modifier le service"
                               >
                                 <Edit className="w-4 h-4" />
                               </Button>
                               <Button
-                                variant="outline"
+                                variant="ghost"
                                 size="sm"
                                 onClick={() => deleteService(service.id)}
-                                className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
+                                className="h-8 w-8 p-0 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200 rounded-lg"
                                 title="Supprimer le service"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -416,6 +523,17 @@ export default function ServicesPage() {
                       </TableCell>
                     </TableRow>
                   ))}
+                  {filteredServices.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={8} className="py-12 px-6 text-center">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Scissors className="w-12 h-12 text-gray-300 dark:text-gray-600" />
+                          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Aucun service trouvé</p>
+                          <p className="text-xs text-gray-400 dark:text-gray-500">Essayez de modifier votre recherche</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </div>
