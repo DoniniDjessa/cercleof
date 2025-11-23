@@ -78,7 +78,7 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
         supabase.from('dd-users').select('id').eq('is_active', true),
         supabase.from('dd-clients').select('id').eq('is_active', true),
         supabase.from('dd-ventes').select('total_net, date, type').eq('status', 'paye').gte('date', startDate.toISOString()),
-        supabase.from('dd-revenues').select('montant, date').gte('date', startDate.toISOString()),
+        supabase.from('dd-revenues').select('montant, date, source_id').gte('date', startDate.toISOString()),
         supabase.from('dd-products').select('id, name').eq('is_active', true),
         supabase.from('dd-services').select('id, name').eq('is_active', true),
         supabase.from('dd-rdv').select('id').gte('date_rdv', startDate.toISOString()),
@@ -104,25 +104,42 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
       const deliveries = deliveriesResult.data
       const salesItems = salesItemsResult.data
 
-      // Calculate totals
-      const totalRevenue = (revenues?.reduce((sum, r) => sum + (r.montant || 0), 0) || 0) + 
-                          (sales?.reduce((sum, s) => sum + (s.total_net || 0), 0) || 0)
+      // Calculate totals - only count manual revenues (without source_id) + POS sales
+      // Revenues with source_id are duplicates and should not be counted
+      const manualRevenuesOnly = revenues?.filter((r: any) => !r.source_id) || []
+      const manualRevenuesAmount = manualRevenuesOnly.reduce((sum: number, r: any) => sum + (r.montant || 0), 0)
+      const posSalesAmount = sales?.reduce((sum: number, s: any) => sum + (s.total_net || 0), 0) || 0
+      const totalRevenue = manualRevenuesAmount + posSalesAmount
       
-      // Calculate growth (simplified)
+      // Calculate growth (comparing current period vs previous period)
       const previousStartDate = new Date()
       previousStartDate.setMonth(previousStartDate.getMonth() - 12)
-      const { data: prevSales } = await supabase
-        .from('dd-ventes')
-        .select('total_net')
-        .eq('status', 'paye')
-        .gte('date', previousStartDate.toISOString())
-        .lt('date', startDate.toISOString())
       
-      const prevSalesTotal = prevSales?.reduce((sum, s) => sum + (s.total_net || 0), 0) || 0
-      const currentSalesTotal = sales?.reduce((sum, s) => sum + (s.total_net || 0), 0) || 0
-      const salesGrowth = prevSalesTotal ? ((currentSalesTotal - prevSalesTotal) / prevSalesTotal) * 100 : 0
+      // Fetch previous period data
+      const [prevRevenuesResult, prevSalesResult] = await Promise.all([
+        supabase.from('dd-revenues')
+          .select('montant, source_id')
+          .gte('date', previousStartDate.toISOString())
+          .lt('date', startDate.toISOString()),
+        supabase.from('dd-ventes')
+          .select('total_net')
+          .eq('status', 'paye')
+          .gte('date', previousStartDate.toISOString())
+          .lt('date', startDate.toISOString())
+      ])
+      
+      const prevManualRevenues = (prevRevenuesResult.data || []).filter((r: any) => !r.source_id)
+      const prevManualRevenuesAmount = prevManualRevenues.reduce((sum: number, r: any) => sum + (r.montant || 0), 0)
+      const prevSalesAmount = (prevSalesResult.data || []).reduce((sum: number, s: any) => sum + (s.total_net || 0), 0)
+      const prevPeriodTotal = prevManualRevenuesAmount + prevSalesAmount
+      
+      const revenueGrowth = prevPeriodTotal ? ((totalRevenue - prevPeriodTotal) / prevPeriodTotal) * 100 : 0
+      
+      // Sales growth (just for sales, not manual revenues)
+      const currentSalesTotal = posSalesAmount
+      const salesGrowth = prevSalesAmount ? ((currentSalesTotal - prevSalesAmount) / prevSalesAmount) * 100 : 0
 
-      // Revenue by month
+      // Revenue by month - only count manual revenues (without source_id) + POS sales
       const revenueByMonth: { [key: string]: { revenue: number; sales: number } } = {}
       sales?.forEach(sale => {
         const month = new Date(sale.date).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })
@@ -131,7 +148,8 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
         }
         revenueByMonth[month].sales += sale.total_net || 0
       })
-      revenues?.forEach(rev => {
+      // Only include manual revenues (without source_id) in monthly revenue
+      manualRevenuesOnly.forEach((rev: any) => {
         const month = new Date(rev.date).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })
         if (!revenueByMonth[month]) {
           revenueByMonth[month] = { revenue: 0, sales: 0 }
@@ -202,7 +220,7 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
         totalServices: services?.length || 0,
         totalAppointments: appointments?.length || 0,
         totalDeliveries: deliveries?.length || 0,
-        revenueGrowth: salesGrowth,
+        revenueGrowth,
         salesGrowth,
         revenueByMonth: Object.entries(revenueByMonth).map(([month, data]) => ({
           month,
@@ -280,26 +298,45 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
           break
           
         case 'revenue':
-          const [revenuesData, salesForRevenue] = await Promise.all([
-            supabase.from('dd-revenues').select('id, montant, date, description').gte('date', startDate.toISOString()).order('date', { ascending: false }),
-            supabase.from('dd-ventes').select('id, date, total_net').eq('status', 'paye').gte('date', startDate.toISOString()).order('date', { ascending: false })
+          const [revenuesResult, salesForRevenue] = await Promise.all([
+            supabase.from('dd-revenues').select('id, montant, date, description, source_id').gte('date', startDate.toISOString()).order('date', { ascending: false }),
+            supabase.from('dd-ventes').select('id, date, total_net, client_id, client:dd-clients(first_name, last_name)').eq('status', 'paye').gte('date', startDate.toISOString()).order('date', { ascending: false })
           ])
           
-          const saleIds = (salesForRevenue.data || []).map((s: any) => s.id)
+          if (revenuesResult.error) {
+            console.error('Error fetching revenues:', revenuesResult.error)
+          }
+          if (salesForRevenue.error) {
+            console.error('Error fetching sales:', salesForRevenue.error)
+          }
+          
+          const revenuesData = revenuesResult.data || []
+          const salesDataForRevenue = salesForRevenue.data || []
+          
+          // Filter to only include manual revenues (without source_id)
+          const manualRevenuesForModal = revenuesData.filter((r: any) => !r.source_id)
+          
+          const saleIds = salesDataForRevenue.map((s: any) => s.id)
           
           // Fetch sale items with totals to properly categorize and split mixed sales
           let saleItemsWithTotals: Array<{ vente_id: string; product_id?: string; service_id?: string; total: number }> = []
           if (saleIds.length > 0) {
-            const { data: items } = await supabase
+            const { data: items, error: itemsError } = await supabase
               .from('dd-ventes-items')
-              .select('vente_id, product_id, service_id, total')
+              .select('vente_id, product_id, service_id, total, product:dd-products(name), service:dd-services(name)')
               .in('vente_id', saleIds)
-              .gte('created_at', startDate.toISOString())
+            
+            if (itemsError) {
+              console.error('Error fetching sale items:', itemsError)
+            }
+            
             saleItemsWithTotals = (items || []).map((item: any) => ({
               vente_id: item.vente_id,
               product_id: item.product_id,
               service_id: item.service_id,
-              total: typeof item.total === 'number' ? item.total : parseFloat(String(item.total)) || 0
+              total: typeof item.total === 'number' ? item.total : parseFloat(String(item.total)) || 0,
+              product: item.product,
+              service: item.service
             }))
           }
           
@@ -307,7 +344,7 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
           let produitsVendusAmount = 0
           let servicesAmount = 0
           
-          (salesForRevenue.data || []).forEach((sale: any) => {
+          salesDataForRevenue.forEach((sale: any) => {
             const items = saleItemsWithTotals.filter((item) => item.vente_id === sale.id)
             
             if (items.length === 0) {
@@ -318,8 +355,14 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
             
             const productItems = items.filter((item) => item.product_id && !item.service_id)
             const serviceItems = items.filter((item) => item.service_id && !item.product_id)
-            const productItemsTotal = productItems.reduce((sum, item) => sum + item.total, 0)
-            const serviceItemsTotal = serviceItems.reduce((sum, item) => sum + item.total, 0)
+            const productItemsTotal = productItems.reduce((sum: number, item: any) => {
+              const itemTotal = typeof item.total === 'number' ? item.total : parseFloat(String(item.total)) || 0
+              return sum + itemTotal
+            }, 0)
+            const serviceItemsTotal = serviceItems.reduce((sum: number, item: any) => {
+              const itemTotal = typeof item.total === 'number' ? item.total : parseFloat(String(item.total)) || 0
+              return sum + itemTotal
+            }, 0)
             const itemsTotal = productItemsTotal + serviceItemsTotal
             
             if (productItems.length > 0 && serviceItems.length === 0) {
@@ -347,10 +390,41 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
             }
           })
           
-          const revenusManuelsAmount = (revenuesData.data || []).reduce((sum: number, r: any) => sum + (r.montant || 0), 0)
+          const revenusManuelsAmount = manualRevenuesForModal.reduce((sum: number, r: any) => sum + (r.montant || 0), 0)
           
           // Calculate actual total to verify
           const calculatedTotal = produitsVendusAmount + servicesAmount + revenusManuelsAmount
+          
+          // Prepare sales for display with items info
+          const salesForDisplay = salesDataForRevenue.slice(0, 10).map((sale: any) => {
+            const items = saleItemsWithTotals.filter((item) => item.vente_id === sale.id)
+            const productItems = items.filter((item) => item.product_id && !item.service_id)
+            const serviceItems = items.filter((item) => item.service_id && !item.product_id)
+            
+            let type = 'Produit'
+            let description = 'Vente POS'
+            if (serviceItems.length > 0 && productItems.length === 0) {
+              type = 'Service'
+            } else if (serviceItems.length > 0 && productItems.length > 0) {
+              type = 'Mixte'
+            }
+            
+            if (items.length > 0) {
+              const itemNames = items.map((item: any) => {
+                if (item.product) return item.product.name
+                if (item.service) return item.service.name
+                return null
+              }).filter(Boolean)
+              description = itemNames.join(', ') || 'Vente POS'
+            }
+            
+            return {
+              ...sale,
+              type,
+              description,
+              items
+            }
+          })
           
           setModalDetails({
             title: 'Détails des Revenus',
@@ -360,8 +434,8 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
               services: servicesAmount,
               revenusManuels: revenusManuelsAmount
             },
-            revenues: revenuesData.data?.slice(0, 10) || [],
-            sales: salesForRevenue.data?.slice(0, 10) || []
+            revenues: manualRevenuesForModal.slice(0, 10),
+            sales: salesForDisplay
           })
           break
           
@@ -824,7 +898,7 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
                       <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
                         <p className="text-sm text-gray-600 dark:text-gray-400">Revenus totaux (6 derniers mois)</p>
                         <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-                          {formatCurrency(modalDetails.total)}
+                          {formatCurrency(modalDetails.total || 0)}
                         </p>
                       </div>
                       {modalDetails.breakdown && (
@@ -850,17 +924,17 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
                         </div>
                       )}
                       <div>
-                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Derniers revenus enregistrés</h3>
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Derniers revenus manuels</h3>
                         <div className="space-y-2">
                           {modalDetails.revenues && modalDetails.revenues.length > 0 ? (
                             modalDetails.revenues.map((revenue: any) => (
                               <div key={revenue.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                                 <div>
                                   <p className="font-medium text-gray-900 dark:text-white">
-                                    {revenue.description || 'Revenu'}
+                                    {revenue.description || 'Revenu manuel'}
                                   </p>
                                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                                    {new Date(revenue.date).toLocaleDateString('fr-FR')}
+                                    {new Date(revenue.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                                   </p>
                                 </div>
                                 <p className="text-sm font-bold text-purple-600 dark:text-purple-400">
@@ -869,7 +943,31 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
                               </div>
                             ))
                           ) : (
-                            <p className="text-sm text-gray-500 dark:text-gray-400">Aucun revenu enregistré</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Aucun revenu manuel enregistré</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Dernières ventes POS</h3>
+                        <div className="space-y-2">
+                          {modalDetails.sales && modalDetails.sales.length > 0 ? (
+                            modalDetails.sales.map((sale: any) => (
+                              <div key={sale.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                                <div>
+                                  <p className="font-medium text-gray-900 dark:text-white">
+                                    {sale.description || (sale.client ? `${sale.client.first_name || ''} ${sale.client.last_name || ''}`.trim() : 'Client anonyme')}
+                                  </p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    {new Date(sale.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })} • {sale.type || 'POS'}
+                                  </p>
+                                </div>
+                                <p className="text-sm font-bold text-purple-600 dark:text-purple-400">
+                                  {formatCurrency(sale.total_net || 0)}
+                                </p>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Aucune vente POS trouvée</p>
                           )}
                         </div>
                       </div>
