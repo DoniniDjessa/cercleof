@@ -280,27 +280,6 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           href: '/admin/salon',
         },
         {
-          name: 'Ventes',
-          icon: ShoppingCart,
-          children: [
-            {
-              name: 'Nouvelle Vente',
-              href: '/admin/sales/create',
-              icon: Plus,
-            },
-            {
-              name: 'Liste Ventes',
-              href: '/admin/sales',
-              icon: List,
-            },
-            {
-              name: 'Détails Vente',
-              href: '/admin/sales/details',
-              icon: Eye,
-            },
-          ]
-        },
-        {
           name: 'Rendez-vous',
           icon: Calendar,
           children: [

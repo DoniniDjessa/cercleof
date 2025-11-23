@@ -313,6 +313,7 @@ export function AddRevenue({ onRevenueCreated, revenueId, onCancel }: AddRevenue
         montant: montantValue,
         date: dateTime.toISOString(),
         note: noteValue,
+        manual: true, // All revenues created via "Nouveau Revenu" form are manual
         ...(isEditMode ? {} : { enregistre_par: currentUser.id }) // Don't update enregistre_par on edit
       }
 

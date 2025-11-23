@@ -704,7 +704,7 @@ export default function POSPage() {
       font-family: 'Courier New', 'Courier', monospace;
       font-size: 12px;
       line-height: 1.3;
-      padding: 10px 12px;
+      padding: 10px 12px 30px 12px;
       max-width: 80mm;
       margin: 0 auto;
       color: #000000;
@@ -843,6 +843,7 @@ export default function POSPage() {
 </head>
 <body>
   <div class="header">
+    <img src="/cbmin.png" alt="Logo" class="logo" />
     <h1>THE CERCLE OF BEAUTY</h1>
     <p class="subtitle">Institut de Beauté</p>
     <p class="date-time">${escapeHtml(formatDate)} • ${escapeHtml(formatTime)}</p>
@@ -2687,6 +2688,10 @@ export default function POSPage() {
               <div className="bg-white dark:bg-gray-900 border-2 border-gray-300 dark:border-gray-600 rounded p-4 font-mono text-xs">
                 {/* Header */}
                 <div className="text-center mb-4 border-b border-dashed border-gray-400 dark:border-gray-500 pb-3">
+                  <div className="flex justify-center mb-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/cbmin.png" alt="Logo" className="h-12 w-12 object-contain" />
+                  </div>
                   <p className="font-bold text-sm mb-1">THE CERCLE OF BEAUTY</p>
                   <p className="text-[10px] text-gray-600 dark:text-gray-400">Institut de Beauté</p>
                   <p className="text-[10px] text-gray-600 dark:text-gray-400 mt-1">
@@ -2770,7 +2775,7 @@ export default function POSPage() {
                 </div>
 
                 {/* Footer */}
-                <div className="text-center text-[10px] text-gray-600 dark:text-gray-400 mt-4 pt-3 border-t border-dashed border-gray-400 dark:border-gray-500">
+                <div className="text-center text-[10px] text-gray-600 dark:text-gray-400 mt-4 pt-3 border-t border-dashed border-gray-400 dark:border-gray-500 mb-8">
                   <p>Merci de votre visite!</p>
                   <p className="mt-1">Vendu par: {receiptData.user}</p>
                 </div>

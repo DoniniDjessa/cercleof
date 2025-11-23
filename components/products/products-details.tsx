@@ -117,6 +117,11 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
 
   // Check if user can manage products (admin, manager, superadmin)
   const canManageProducts = currentUserRole === 'admin' || currentUserRole === 'manager' || currentUserRole === 'superadmin'
+  // Check if user is caissière (cashier) - can edit price, images, and show_to_website
+  const isCashier = currentUserRole === 'caissière' || currentUserRole === 'caissiere'
+  // Check if user can edit limited fields (caissière) or all fields (admin/manager)
+  const canEditLimitedFields = isCashier || canManageProducts
+  const canEditAllFields = canManageProducts
 
   const fetchProduct = async () => {
     try {
@@ -495,10 +500,13 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
     e.preventDefault()
     if (!product) return
 
-    const trimmedName = productForm.name.trim()
-    if (!trimmedName) {
-      toast.error('Le nom du produit est obligatoire.')
-      return
+    // Only validate name if not caissière
+    if (!isCashier) {
+      const trimmedName = productForm.name.trim()
+      if (!trimmedName) {
+        toast.error('Le nom du produit est obligatoire.')
+        return
+      }
     }
 
     const priceNumber = parseFloat(productForm.price || '0')
@@ -509,26 +517,36 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
       return
     }
 
-    if (isNaN(costNumber) || costNumber < 0) {
+    // Only validate cost if not caissière
+    if (!isCashier && (isNaN(costNumber) || costNumber < 0)) {
       toast.error('Veuillez saisir un coût valide (0 ou plus).')
       return
     }
 
     try {
       setUpdatingProduct(true)
+      
+      // Build update object based on user permissions
+      const updateData: any = {
+        price: priceNumber,
+        show_to_website: productForm.show_to_website
+      }
+      
+      // Only update these fields if user has full permissions (not just caissière)
+      if (!isCashier) {
+        const trimmedName = productForm.name.trim()
+        updateData.name = trimmedName
+        updateData.description = productForm.description.trim() || null
+        updateData.brand = productForm.brand.trim() || null
+        updateData.sku = productForm.sku.trim() || null
+        updateData.barcode = productForm.barcode.trim() || null
+        updateData.cost = costNumber
+        updateData.status = productForm.status
+      }
+      
       const { data, error } = await supabase
         .from('dd-products')
-        .update({
-          name: trimmedName,
-          description: productForm.description.trim() || null,
-          brand: productForm.brand.trim() || null,
-          sku: productForm.sku.trim() || null,
-          barcode: productForm.barcode.trim() || null,
-          price: priceNumber,
-          cost: costNumber,
-          status: productForm.status,
-          show_to_website: productForm.show_to_website
-        })
+        .update(updateData)
         .eq('id', product.id)
         .select(`
           *,
@@ -639,10 +657,12 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
           <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-gray-900 dark:text-white">Images du Produit</CardTitle>
-              <Button size="sm" className="gap-2" onClick={() => setImageDialogOpen(true)}>
-                <Plus className="w-4 h-4" />
-                Ajouter
-              </Button>
+              {canEditLimitedFields && (
+                <Button size="sm" className="gap-2" onClick={() => setImageDialogOpen(true)}>
+                  <Plus className="w-4 h-4" />
+                  Ajouter
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
               {product.images && product.images.length > 0 ? (
@@ -663,9 +683,11 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     Aucune image n&apos;est encore associée à ce produit.
                   </p>
-                  <Button size="sm" onClick={() => setImageDialogOpen(true)}>
-                    Ajouter des images
-                  </Button>
+                  {canEditLimitedFields && (
+                    <Button size="sm" onClick={() => setImageDialogOpen(true)}>
+                      Ajouter des images
+                    </Button>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -681,81 +703,86 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
             <CardContent className="space-y-4">
               {isEditingProduct ? (
                 <form className="space-y-4" onSubmit={handleProductFormSubmit}>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="product-name">Nom *</Label>
-                      <Input
-                        id="product-name"
-                        name="name"
-                        value={productForm.name}
-                        onChange={handleProductInputChange}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Statut</Label>
-                      <Select value={productForm.status} onValueChange={handleProductSelectChange}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Statut" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="active">Actif</SelectItem>
-                          <SelectItem value="draft">Brouillon</SelectItem>
-                          <SelectItem value="archived">Archivé</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="product-brand">Marque</Label>
-                      <Input
-                        id="product-brand"
-                        name="brand"
-                        value={productForm.brand}
-                        onChange={handleProductInputChange}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="product-sku">SKU</Label>
-                      <Input
-                        id="product-sku"
-                        name="sku"
-                        value={productForm.sku}
-                        onChange={handleProductInputChange}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="product-barcode">Code-barres</Label>
-                      <Input
-                        id="product-barcode"
-                        name="barcode"
-                        value={productForm.barcode}
-                        onChange={handleProductInputChange}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Afficher sur le site web</Label>
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="product-show-site"
-                          checked={productForm.show_to_website}
-                          onCheckedChange={(checked) => handleProductCheckboxChange(Boolean(checked))}
-                        />
-                        <Label htmlFor="product-show-site" className="text-sm text-gray-700 dark:text-gray-300">
-                          Oui, afficher ce produit sur le site web
-                        </Label>
+                  {!isCashier && (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="product-name">Nom *</Label>
+                          <Input
+                            id="product-name"
+                            name="name"
+                            value={productForm.name}
+                            onChange={handleProductInputChange}
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Statut</Label>
+                          <Select value={productForm.status} onValueChange={handleProductSelectChange}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Statut" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="active">Actif</SelectItem>
+                              <SelectItem value="draft">Brouillon</SelectItem>
+                              <SelectItem value="archived">Archivé</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="product-brand">Marque</Label>
+                          <Input
+                            id="product-brand"
+                            name="brand"
+                            value={productForm.brand}
+                            onChange={handleProductInputChange}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="product-sku">SKU</Label>
+                          <Input
+                            id="product-sku"
+                            name="sku"
+                            value={productForm.sku}
+                            onChange={handleProductInputChange}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="product-barcode">Code-barres</Label>
+                          <Input
+                            id="product-barcode"
+                            name="barcode"
+                            value={productForm.barcode}
+                            onChange={handleProductInputChange}
+                          />
+                        </div>
                       </div>
-                    </div>
-                  </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="product-description">Description</Label>
+                        <Textarea
+                          id="product-description"
+                          name="description"
+                          value={productForm.description}
+                          onChange={handleProductInputChange}
+                          rows={4}
+                        />
+                      </div>
+                    </>
+                  )}
 
                   <div className="space-y-2">
-                    <Label htmlFor="product-description">Description</Label>
-                    <Textarea
-                      id="product-description"
-                      name="description"
-                      value={productForm.description}
-                      onChange={handleProductInputChange}
-                      rows={4}
-                    />
+                    <Label>Afficher sur le site web</Label>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="product-show-site"
+                        checked={productForm.show_to_website}
+                        onCheckedChange={(checked) => handleProductCheckboxChange(Boolean(checked))}
+                      />
+                      <Label htmlFor="product-show-site" className="text-sm text-gray-700 dark:text-gray-300">
+                        Oui, afficher ce produit sur le site web
+                      </Label>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -772,19 +799,21 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
                         required
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="product-cost">Coût *</Label>
-                      <Input
-                        id="product-cost"
-                        name="cost"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={productForm.cost}
-                        onChange={handleProductInputChange}
-                        required
-                      />
-                    </div>
+                    {!isCashier && (
+                      <div className="space-y-2">
+                        <Label htmlFor="product-cost">Coût *</Label>
+                        <Input
+                          id="product-cost"
+                          name="cost"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={productForm.cost}
+                          onChange={handleProductInputChange}
+                          required
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex justify-end gap-2 pt-2">
@@ -995,7 +1024,7 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
               <CardTitle className="text-gray-900 dark:text-white">Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {canManageProducts && (
+              {canEditLimitedFields && (
                 <>
                   {isEditingProduct ? (
                     <Button
@@ -1012,18 +1041,20 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
                       onClick={() => setIsEditingProduct(true)}
                     >
                       <Edit className="w-4 h-4" />
-                      Modifier le Produit
+                      {isCashier ? 'Modifier Prix/Image/Web' : 'Modifier le Produit'}
                     </Button>
                   )}
-                  <Button 
-                    variant="destructive" 
-                    className="w-full gap-2"
-                    onClick={deleteProduct}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Supprimer le Produit
-                  </Button>
                 </>
+              )}
+              {canManageProducts && (
+                <Button 
+                  variant="destructive" 
+                  className="w-full gap-2"
+                  onClick={deleteProduct}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Supprimer le Produit
+                </Button>
               )}
             </CardContent>
           </Card>

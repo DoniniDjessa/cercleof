@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
 import { 
   Users, 
@@ -15,7 +16,8 @@ import {
   Package,
   Scissors,
   Truck,
-  CreditCard
+  CreditCard,
+  X
 } from 'lucide-react'
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import Image from 'next/image'
@@ -47,6 +49,9 @@ const COLORS = ['#9333ea', '#a855f7', '#c084fc', '#d8b4fe', '#e9d5ff']
 export function DashboardOverview({ userRole }: DashboardOverviewProps) {
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [selectedModal, setSelectedModal] = useState<'clients' | 'sales' | 'revenue' | 'growth' | null>(null)
+  const [modalDetails, setModalDetails] = useState<any>(null)
+  const [loadingModal, setLoadingModal] = useState(false)
 
   useEffect(() => {
     fetchDashboardData()
@@ -232,6 +237,171 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
     }).format(amount) + 'f'
   }
 
+  const fetchModalDetails = async (type: 'clients' | 'sales' | 'revenue' | 'growth') => {
+    try {
+      setLoadingModal(true)
+      setSelectedModal(type)
+      
+      const startDate = new Date()
+      startDate.setMonth(startDate.getMonth() - 6)
+      
+      switch (type) {
+        case 'clients':
+          const { data: clientsData } = await supabase
+            .from('dd-clients')
+            .select('id, first_name, last_name, email, phone, created_at, total_spent, last_visit_date')
+            .eq('is_active', true)
+            .order('created_at', { ascending: false })
+            .limit(10)
+          
+          setModalDetails({
+            title: 'Détails des Clients',
+            total: data?.totalClients || 0,
+            items: clientsData || []
+          })
+          break
+          
+        case 'sales':
+          const { data: salesData } = await supabase
+            .from('dd-ventes')
+            .select('id, date, total_net, type, status')
+            .eq('status', 'paye')
+            .gte('date', startDate.toISOString())
+            .order('date', { ascending: false })
+            .limit(10)
+          
+          const salesTotal = (salesData || []).reduce((sum: number, s: any) => sum + (s.total_net || 0), 0)
+          setModalDetails({
+            title: 'Détails des Ventes',
+            total: data?.totalSales || 0,
+            totalAmount: salesTotal,
+            items: salesData || []
+          })
+          break
+          
+        case 'revenue':
+          const [revenuesData, salesForRevenue] = await Promise.all([
+            supabase.from('dd-revenues').select('id, montant, date, description').gte('date', startDate.toISOString()).order('date', { ascending: false }),
+            supabase.from('dd-ventes').select('id, date, total_net').eq('status', 'paye').gte('date', startDate.toISOString()).order('date', { ascending: false })
+          ])
+          
+          const saleIds = (salesForRevenue.data || []).map((s: any) => s.id)
+          
+          // Fetch sale items with totals to properly categorize and split mixed sales
+          let saleItemsWithTotals: Array<{ vente_id: string; product_id?: string; service_id?: string; total: number }> = []
+          if (saleIds.length > 0) {
+            const { data: items } = await supabase
+              .from('dd-ventes-items')
+              .select('vente_id, product_id, service_id, total')
+              .in('vente_id', saleIds)
+              .gte('created_at', startDate.toISOString())
+            saleItemsWithTotals = (items || []).map((item: any) => ({
+              vente_id: item.vente_id,
+              product_id: item.product_id,
+              service_id: item.service_id,
+              total: typeof item.total === 'number' ? item.total : parseFloat(String(item.total)) || 0
+            }))
+          }
+          
+          // Categorize sales with proper splitting for mixed sales
+          let produitsVendusAmount = 0
+          let servicesAmount = 0
+          
+          (salesForRevenue.data || []).forEach((sale: any) => {
+            const items = saleItemsWithTotals.filter((item) => item.vente_id === sale.id)
+            
+            if (items.length === 0) {
+              // Sale with no items - count as products
+              produitsVendusAmount += sale.total_net || 0
+              return
+            }
+            
+            const productItems = items.filter((item) => item.product_id && !item.service_id)
+            const serviceItems = items.filter((item) => item.service_id && !item.product_id)
+            const productItemsTotal = productItems.reduce((sum, item) => sum + item.total, 0)
+            const serviceItemsTotal = serviceItems.reduce((sum, item) => sum + item.total, 0)
+            const itemsTotal = productItemsTotal + serviceItemsTotal
+            
+            if (productItems.length > 0 && serviceItems.length === 0) {
+              // Pure product sale
+              produitsVendusAmount += sale.total_net || 0
+            } else if (serviceItems.length > 0 && productItems.length === 0) {
+              // Pure service sale
+              servicesAmount += sale.total_net || 0
+            } else if (productItems.length > 0 && serviceItems.length > 0) {
+              // Mixed sale - split based on item totals proportion
+              if (itemsTotal > 0) {
+                const productRatio = productItemsTotal / itemsTotal
+                const serviceRatio = serviceItemsTotal / itemsTotal
+                produitsVendusAmount += (sale.total_net || 0) * productRatio
+                servicesAmount += (sale.total_net || 0) * serviceRatio
+              } else {
+                // Fallback: split 50/50 if no item totals
+                const halfAmount = (sale.total_net || 0) / 2
+                produitsVendusAmount += halfAmount
+                servicesAmount += halfAmount
+              }
+            } else {
+              // Unknown - count as products
+              produitsVendusAmount += sale.total_net || 0
+            }
+          })
+          
+          const revenusManuelsAmount = (revenuesData.data || []).reduce((sum: number, r: any) => sum + (r.montant || 0), 0)
+          
+          // Calculate actual total to verify
+          const calculatedTotal = produitsVendusAmount + servicesAmount + revenusManuelsAmount
+          
+          setModalDetails({
+            title: 'Détails des Revenus',
+            total: data?.totalRevenue || calculatedTotal,
+            breakdown: {
+              produitsVendus: produitsVendusAmount,
+              services: servicesAmount,
+              revenusManuels: revenusManuelsAmount
+            },
+            revenues: revenuesData.data?.slice(0, 10) || [],
+            sales: salesForRevenue.data?.slice(0, 10) || []
+          })
+          break
+          
+        case 'growth':
+          const prevStartDate = new Date()
+          prevStartDate.setMonth(prevStartDate.getMonth() - 12)
+          const currentStartDate = new Date()
+          currentStartDate.setMonth(currentStartDate.getMonth() - 6)
+          
+          const [prevPeriod, currentPeriod] = await Promise.all([
+            supabase.from('dd-ventes').select('total_net, date').eq('status', 'paye').gte('date', prevStartDate.toISOString()).lt('date', currentStartDate.toISOString()),
+            supabase.from('dd-ventes').select('total_net, date').eq('status', 'paye').gte('date', currentStartDate.toISOString())
+          ])
+          
+          const prevTotal = prevPeriod.data?.reduce((sum, s) => sum + (s.total_net || 0), 0) || 0
+          const currentTotal = currentPeriod.data?.reduce((sum, s) => sum + (s.total_net || 0), 0) || 0
+          const growth = prevTotal ? ((currentTotal - prevTotal) / prevTotal) * 100 : 0
+          
+          setModalDetails({
+            title: 'Détails de la Croissance',
+            growth: data?.revenueGrowth || 0,
+            prevPeriodTotal: prevTotal,
+            currentPeriodTotal: currentTotal,
+            prevPeriodCount: prevPeriod.data?.length || 0,
+            currentPeriodCount: currentPeriod.data?.length || 0
+          })
+          break
+      }
+    } catch (error) {
+      console.error('Error fetching modal details:', error)
+    } finally {
+      setLoadingModal(false)
+    }
+  }
+  
+  const closeModal = () => {
+    setSelectedModal(null)
+    setModalDetails(null)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -267,57 +437,63 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
       </div>
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Link href="/admin/clients">
-          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-purple-300 dark:hover:border-purple-600">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Clients</p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{data.totalClients}</p>
-                </div>
-                <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                  <Users className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                </div>
+        <Card 
+          className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-purple-300 dark:hover:border-purple-600"
+          onClick={() => fetchModalDetails('clients')}
+        >
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Clients</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data.totalClients}</p>
               </div>
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link href="/admin/sales">
-          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-purple-300 dark:hover:border-purple-600">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Ventes</p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{data.totalSales}</p>
-                </div>
-                <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                  <ShoppingCart className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                </div>
+              <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                <Users className="w-5 h-5 text-purple-600 dark:text-purple-400" />
               </div>
-            </CardContent>
-          </Card>
-        </Link>
+            </div>
+          </CardContent>
+        </Card>
 
-        <Link href="/admin/revenues">
-          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-purple-300 dark:hover:border-purple-600">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Revenus</p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {formatCurrency(data.totalRevenue)}
-                  </p>
-                </div>
-                <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                  <DollarSign className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                </div>
+        <Card 
+          className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-purple-300 dark:hover:border-purple-600"
+          onClick={() => fetchModalDetails('sales')}
+        >
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Ventes</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data.totalSales}</p>
               </div>
-            </CardContent>
-          </Card>
-        </Link>
+              <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                <ShoppingCart className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
+        <Card 
+          className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-purple-300 dark:hover:border-purple-600"
+          onClick={() => fetchModalDetails('revenue')}
+        >
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Revenus</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {formatCurrency(data.totalRevenue)}
+                </p>
+              </div>
+              <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                <DollarSign className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-purple-300 dark:hover:border-purple-600"
+          onClick={() => fetchModalDetails('growth')}
+        >
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <div>
@@ -545,6 +721,222 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
           </Card>
         </Link>
       </div>
+
+      {/* Summary Modals */}
+      {selectedModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={closeModal}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white">{modalDetails?.title || 'Détails'}</h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={closeModal}
+                className="h-8 w-8"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="p-6">
+              {loadingModal ? (
+                <div className="flex items-center justify-center h-32">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
+                </div>
+              ) : modalDetails && (
+                <div className="space-y-4">
+                  {selectedModal === 'clients' && (
+                    <>
+                      <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
+                        <p className="text-sm text-gray-600 dark:text-gray-400">Total de clients</p>
+                        <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{modalDetails.total}</p>
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Derniers clients ajoutés</h3>
+                        <div className="space-y-2">
+                          {modalDetails.items.length > 0 ? (
+                            modalDetails.items.map((client: any) => (
+                              <div key={client.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                                <div>
+                                  <p className="font-medium text-gray-900 dark:text-white">{client.first_name} {client.last_name}</p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    {client.email || client.phone || 'Pas de contact'}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-xs font-medium text-purple-600 dark:text-purple-400">
+                                    {client.total_spent ? formatCurrency(client.total_spent) : '0f'}
+                                  </p>
+                                  <p className="text-[10px] text-gray-500 dark:text-gray-400">
+                                    {client.last_visit_date ? new Date(client.last_visit_date).toLocaleDateString('fr-FR') : 'Jamais'}
+                                  </p>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Aucun client trouvé</p>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {selectedModal === 'sales' && (
+                    <>
+                      <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
+                        <p className="text-sm text-gray-600 dark:text-gray-400">Total de ventes (6 derniers mois)</p>
+                        <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{modalDetails.total}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          Montant total: {formatCurrency(modalDetails.totalAmount || 0)}
+                        </p>
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Dernières ventes</h3>
+                        <div className="space-y-2">
+                          {modalDetails.items.length > 0 ? (
+                            modalDetails.items.map((sale: any) => (
+                              <div key={sale.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                                <div>
+                                  <p className="font-medium text-gray-900 dark:text-white">
+                                    {sale.client ? `${sale.client.first_name} ${sale.client.last_name}` : 'Client anonyme'}
+                                  </p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    {new Date(sale.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-sm font-bold text-purple-600 dark:text-purple-400">
+                                    {formatCurrency(sale.total_net || 0)}
+                                  </p>
+                                  <p className="text-[10px] text-gray-500 dark:text-gray-400 capitalize">{sale.type || 'N/A'}</p>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Aucune vente trouvée</p>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {selectedModal === 'revenue' && (
+                    <>
+                      <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
+                        <p className="text-sm text-gray-600 dark:text-gray-400">Revenus totaux (6 derniers mois)</p>
+                        <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                          {formatCurrency(modalDetails.total)}
+                        </p>
+                      </div>
+                      {modalDetails.breakdown && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-200 dark:border-green-800">
+                            <p className="text-xs text-gray-600 dark:text-gray-400">Produits Vendus</p>
+                            <p className="text-lg font-bold text-green-600 dark:text-green-400">
+                              {formatCurrency(modalDetails.breakdown.produitsVendus || 0)}
+                            </p>
+                          </div>
+                          <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <p className="text-xs text-gray-600 dark:text-gray-400">Services</p>
+                            <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                              {formatCurrency(modalDetails.breakdown.services || 0)}
+                            </p>
+                          </div>
+                          <div className="bg-orange-50 dark:bg-orange-900/20 p-3 rounded-lg border border-orange-200 dark:border-orange-800">
+                            <p className="text-xs text-gray-600 dark:text-gray-400">Revenus Manuels</p>
+                            <p className="text-lg font-bold text-orange-600 dark:text-orange-400">
+                              {formatCurrency(modalDetails.breakdown.revenusManuels || 0)}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Derniers revenus enregistrés</h3>
+                        <div className="space-y-2">
+                          {modalDetails.revenues && modalDetails.revenues.length > 0 ? (
+                            modalDetails.revenues.map((revenue: any) => (
+                              <div key={revenue.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                                <div>
+                                  <p className="font-medium text-gray-900 dark:text-white">
+                                    {revenue.description || 'Revenu'}
+                                  </p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    {new Date(revenue.date).toLocaleDateString('fr-FR')}
+                                  </p>
+                                </div>
+                                <p className="text-sm font-bold text-purple-600 dark:text-purple-400">
+                                  {formatCurrency(revenue.montant || 0)}
+                                </p>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Aucun revenu enregistré</p>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {selectedModal === 'growth' && (
+                    <>
+                      <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
+                        <p className="text-sm text-gray-600 dark:text-gray-400">Croissance des revenus</p>
+                        <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                          {modalDetails.growth >= 0 ? '+' : ''}{modalDetails.growth.toFixed(1)}%
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">Période précédente (6-12 mois)</p>
+                          <p className="text-lg font-bold text-gray-900 dark:text-white">
+                            {formatCurrency(modalDetails.prevPeriodTotal || 0)}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {modalDetails.prevPeriodCount || 0} ventes
+                          </p>
+                        </div>
+                        <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">Période actuelle (6 derniers mois)</p>
+                          <p className="text-lg font-bold text-gray-900 dark:text-white">
+                            {formatCurrency(modalDetails.currentPeriodTotal || 0)}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {modalDetails.currentPeriodCount || 0} ventes
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <p className="text-sm text-gray-700 dark:text-gray-300">
+                          {modalDetails.growth >= 0 ? (
+                            <>La croissance est <span className="font-bold text-green-600 dark:text-green-400">positive</span> avec une augmentation de {modalDetails.growth.toFixed(1)}% par rapport à la période précédente.</>
+                          ) : (
+                            <>La croissance est <span className="font-bold text-red-600 dark:text-red-400">négative</span> avec une baisse de {Math.abs(modalDetails.growth).toFixed(1)}% par rapport à la période précédente.</>
+                          )}
+                        </p>
+                      </div>
+                    </>
+                  )}
+                  
+                  <div className="flex justify-end mt-6">
+                    <Button variant="outline" onClick={closeModal}>
+                      Fermer
+                    </Button>
+                    <Link href={
+                      selectedModal === 'clients' ? '/admin/clients' :
+                      selectedModal === 'sales' ? '/admin/sales' :
+                      selectedModal === 'revenue' ? '/admin/revenues' :
+                      '/admin'
+                    } className="ml-2">
+                      <Button>
+                        Voir tout
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
