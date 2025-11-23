@@ -84,14 +84,29 @@ export default function RevenueDetailsPage() {
       // First, try to fetch from dd-revenues (manual revenue)
       const { data: manualRevenue, error: manualError } = await supabase
         .from('dd-revenues')
-        .select(`
-          *,
-          user:dd-users!enregistre_par(id, pseudo, first_name, last_name)
-        `)
+        .select('*')
         .eq('id', id)
         .single()
 
       if (manualRevenue && !manualError) {
+        // Fetch user data separately if enregistre_par exists
+        let userData: { id: string; pseudo?: string; first_name?: string; last_name?: string } | undefined = undefined
+        if (manualRevenue.enregistre_par) {
+          const { data: user } = await supabase
+            .from('dd-users')
+            .select('id, pseudo, first_name, last_name')
+            .eq('id', manualRevenue.enregistre_par)
+            .single()
+          if (user) {
+            userData = {
+              id: user.id,
+              pseudo: user.pseudo,
+              first_name: user.first_name,
+              last_name: user.last_name
+            }
+          }
+        }
+        
         // This is a manual revenue
         setRevenue({
           id: manualRevenue.id,
@@ -104,7 +119,7 @@ export default function RevenueDetailsPage() {
           revenue_source: 'manual',
           created_at: manualRevenue.created_at,
           enregistre_par: manualRevenue.enregistre_par,
-          user: manualRevenue.user
+          user: userData
         })
         setLoading(false)
         return
@@ -113,14 +128,29 @@ export default function RevenueDetailsPage() {
       // If not found in dd-revenues, try dd-ventes (POS sale)
       const { data: sale, error: saleError } = await supabase
         .from('dd-ventes')
-        .select(`
-          *,
-          client:dd-clients(id, first_name, last_name, phone, email)
-        `)
+        .select('*')
         .eq('id', id)
         .single()
 
       if (sale && !saleError) {
+        // Fetch client data separately if client_id exists
+        let clientData: { id: string; first_name: string; last_name: string; phone?: string; email?: string } | undefined = undefined
+        if (sale.client_id) {
+          const { data: client } = await supabase
+            .from('dd-clients')
+            .select('id, first_name, last_name, phone, email')
+            .eq('id', sale.client_id)
+            .single()
+          if (client) {
+            clientData = {
+              id: client.id,
+              first_name: client.first_name || '',
+              last_name: client.last_name || '',
+              phone: client.phone,
+              email: client.email
+            }
+          }
+        }
         // Fetch sale items with products/services
         const { data: saleItems, error: itemsError } = await supabase
           .from('dd-ventes-items')
@@ -156,7 +186,7 @@ export default function RevenueDetailsPage() {
             total_net: sale.total_net || 0,
             methode_paiement: sale.methode_paiement || '',
             status: sale.status || '',
-            client: sale.client,
+            client: clientData,
             items: items.map((item: any) => ({
               id: item.id,
               product_id: item.product_id,
