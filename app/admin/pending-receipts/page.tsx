@@ -406,7 +406,7 @@ export default function PendingReceiptsPage() {
       text-align: center; 
       margin-bottom: 8px; 
       padding-bottom: 8px; 
-      border-bottom: 1px dashed #9ca3af; 
+      border-bottom: 2px dashed #9ca3af; 
     }
     .header .logo {
       max-width: 60px;
@@ -473,7 +473,7 @@ export default function PendingReceiptsPage() {
       margin-left: 10px; 
     }
     .totals { 
-      border-top: 1px dashed #9ca3af; 
+      border-top: 2px dashed #9ca3af; 
       padding-top: 10px; 
       margin-top: 10px; 
     }
@@ -492,9 +492,9 @@ export default function PendingReceiptsPage() {
     }
     .footer { 
       text-align: center; 
-      border-top: 1px dashed #9ca3af; 
+      border-top: 2px dashed #9ca3af; 
       padding-top: 10px; 
-      padding-bottom: 20px; 
+      padding-bottom: 40px; 
       margin-top: 15px; 
       font-size: 10px; 
     }
@@ -804,7 +804,7 @@ export default function PendingReceiptsPage() {
                       <p>Envoyé par: {receipt.sender.first_name} {receipt.sender.last_name}</p>
                     </div>
 
-                    <div className="text-center mt-4 mb-5 pb-4 text-[10px] text-gray-600 dark:text-gray-400">
+                    <div className="text-center mt-4 mb-8 pb-8 text-[10px] text-gray-600 dark:text-gray-400">
                       <p className="font-bold">Merci de votre visite!</p>
                       <p>THE CERCLE OF BEAUTY - Institut de Beauté</p>
                     </div>
