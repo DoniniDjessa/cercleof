@@ -541,9 +541,9 @@ export default function PendingReceiptsPage() {
           <div class="item-row">
             <div style="flex: 1;">
               <div class="item-name">${escapeHtml(item.product?.name || item.service?.name || 'Article')}</div>
-              <div class="item-details">${item.quantite} × ${item.prix_unitaire.toFixed(0)}f</div>
+              <div class="item-details">${item.quantite} × ${item.prix_unitaire.toFixed(0)} FCFA</div>
             </div>
-            <div class="item-total">${item.total.toFixed(0)}f</div>
+            <div class="item-total">${item.total.toFixed(0)} FCFA</div>
           </div>
         </div>
       `).join('')}
@@ -552,7 +552,7 @@ export default function PendingReceiptsPage() {
     <div class="totals">
       <div class="total-row total-final">
         <span>TOTAL</span>
-        <span>${sale.total_net.toFixed(0)}f</span>
+        <span>${sale.total_net.toFixed(0)} FCFA</span>
       </div>
     </div>
     
@@ -663,7 +663,7 @@ export default function PendingReceiptsPage() {
                     <TableCell className="text-gray-600 dark:text-gray-400">
                       <div className="flex items-center gap-1">
                         <DollarSign className="w-4 h-4" />
-                        <span className="font-semibold">{receipt.sale.total_net.toFixed(0)}f</span>
+                        <span className="font-semibold">{receipt.sale.total_net.toFixed(0)} FCFA</span>
                       </div>
                     </TableCell>
                     <TableCell className="text-gray-600 dark:text-gray-400">
@@ -781,10 +781,10 @@ export default function PendingReceiptsPage() {
                             <div className="flex-1">
                               <p className="font-semibold">{item.product?.name || item.service?.name || 'Article'}</p>
                               <p className="text-[10px] text-gray-600 dark:text-gray-400">
-                                {item.quantite} × {item.prix_unitaire.toFixed(0)}f
+                                {item.quantite} × {item.prix_unitaire.toFixed(0)} FCFA
                               </p>
                             </div>
-                            <div className="font-semibold">{item.total.toFixed(0)}f</div>
+                            <div className="font-semibold">{item.total.toFixed(0)} FCFA</div>
                           </div>
                         </div>
                       ))}
@@ -794,7 +794,7 @@ export default function PendingReceiptsPage() {
                     <div className="border-t border-dashed border-gray-400 dark:border-gray-500 pt-2">
                       <div className="flex justify-between font-bold text-sm">
                         <span>TOTAL</span>
-                        <span>{receipt.sale.total_net.toFixed(0)}f</span>
+                        <span>{receipt.sale.total_net.toFixed(0)} FCFA</span>
                       </div>
                     </div>
 

@@ -306,7 +306,7 @@ export default function ServicesPage() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Prix Moyen</p>
-                <p className="text-base font-bold text-gray-900 dark:text-white">{averagePrice.toFixed(0)}f</p>
+                <p className="text-base font-bold text-gray-900 dark:text-white">{averagePrice.toFixed(0)} FCFA</p>
               </div>
             </div>
           </CardContent>
@@ -460,7 +460,7 @@ export default function ServicesPage() {
                               <Pencil className="w-3 h-3 text-pink-600 dark:text-pink-400" />
                             </Button>
                             <span className="font-medium text-gray-900 dark:text-white text-[10px]">
-                              {(service.price || service.prix_base || 0).toFixed(0)}f
+                              {(service.price || service.prix_base || 0).toFixed(0)} FCFA
                             </span>
                           </div>
                         )}

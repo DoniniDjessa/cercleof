@@ -302,8 +302,22 @@ export default function RevenuesPage() {
           description: r.description || null
         }))
 
+      // Get deleted POS sale IDs from dd-revenues
+      const { data: deletedPosSales } = await supabase
+        .from('dd-revenues')
+        .select('source_id')
+        .eq('type', 'deleted_pos_sale')
+        .not('source_id', 'is', null)
+
+      const deletedPosSaleIds = new Set(
+        (deletedPosSales || []).map(r => r.source_id)
+      )
+
       // Transform sales into revenue entries - display POS sales from dd-ventes table
-      const transformedSales: Revenue[] = (salesData || []).map((sale: any) => {
+      // Exclude POS sales that have been marked as deleted
+      const transformedSales: Revenue[] = (salesData || [])
+        .filter((sale: any) => !deletedPosSaleIds.has(sale.id))
+        .map((sale: any) => {
         const items = saleItemsByVente[sale.id] || []
         
         // Check if sale has products, services, or both
@@ -430,12 +444,51 @@ export default function RevenuesPage() {
     }
 
     try {
-      const { error } = await supabase
-        .from('dd-revenues')
-        .delete()
-        .eq('id', revenueId)
+      // Find the revenue to determine if it's a POS sale or manual revenue
+      const revenue = allFilteredRevenues.find(r => r.id === revenueId)
+      
+      if (!revenue) {
+        toast.error('Revenu introuvable')
+        return
+      }
 
-      if (error) throw error
+      if (revenue.revenue_source === 'manual') {
+        // For manual revenues, delete from dd-revenues table
+        const { error } = await supabase
+          .from('dd-revenues')
+          .delete()
+          .eq('id', revenueId)
+
+        if (error) throw error
+      } else {
+        // For POS sales, create a "deleted" record in dd-revenues to prevent reappearing
+        // First get the dd-users ID from the auth user ID
+        const { data: userData, error: userError } = await supabase
+          .from('dd-users')
+          .select('id')
+          .eq('auth_user_id', user?.id)
+          .single()
+
+        if (userError || !userData) {
+          console.error('Error fetching user data:', userError)
+          toast.error('Erreur lors de la récupération des données utilisateur')
+          return
+        }
+
+        const { error } = await supabase
+          .from('dd-revenues')
+          .insert({
+            source_id: revenueId, // Reference to the POS sale ID
+            type: 'deleted_pos_sale',
+            montant: 0,
+            date: new Date().toISOString(),
+            note: `Vente POS supprimée: ${revenue.type}`,
+            enregistre_par: userData.id, // Use dd-users.id instead of auth user id
+            manual: false
+          })
+
+        if (error) throw error
+      }
 
       toast.success('Revenu supprimé avec succès!')
       fetchRevenues()
@@ -597,19 +650,19 @@ export default function RevenuesPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Revenus</p>
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400">{totalRevenueAmount.toFixed(0)}f</p>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">{totalRevenueAmount.toFixed(0)} FCFA</p>
             </div>
             <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Dépenses</p>
-              <p className="text-2xl font-bold text-red-600 dark:text-red-400">{totalExpenseAmount.toFixed(0)}f</p>
+              <p className="text-2xl font-bold text-red-600 dark:text-red-400">{totalExpenseAmount.toFixed(0)} FCFA</p>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Dépenses normales: {normalExpenseAmount.toFixed(0)}f | Finances: {financeExpenseAmount.toFixed(0)}f
+                Dépenses normales: {normalExpenseAmount.toFixed(0)} FCFA | Finances: {financeExpenseAmount.toFixed(0)} FCFA
               </p>
             </div>
             <div className={`bg-white dark:bg-gray-800 rounded-lg p-4 border ${profit >= 0 ? 'border-green-200 dark:border-green-800' : 'border-red-200 dark:border-red-800'}`}>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Bénéfice Net</p>
               <p className={`text-2xl font-bold ${profit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                {profit.toFixed(0)}f
+                {profit.toFixed(0)} FCFA
               </p>
             </div>
             <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
@@ -646,7 +699,7 @@ export default function RevenuesPage() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Montant Total</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalRevenueAmount.toFixed(0)}f</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalRevenueAmount.toFixed(0)} FCFA</p>
               </div>
             </div>
           </CardContent>
@@ -674,7 +727,7 @@ export default function RevenuesPage() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Moyenne</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{averageRevenue.toFixed(0)}f</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{averageRevenue.toFixed(0)} FCFA</p>
               </div>
             </div>
           </CardContent>
@@ -842,7 +895,7 @@ export default function RevenuesPage() {
                       </TableCell>
                       <TableCell>
                         <span className="font-medium text-gray-900 dark:text-white">
-                          {revenue.montant.toFixed(0)}f
+                          {revenue.montant.toFixed(0)} FCFA
                         </span>
                       </TableCell>
                       <TableCell>
@@ -989,16 +1042,14 @@ export default function RevenuesPage() {
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
-                          {revenue.revenue_source === 'manual' && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => deleteRevenue(revenue.id)}
-                              className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => deleteRevenue(revenue.id)}
+                            className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>

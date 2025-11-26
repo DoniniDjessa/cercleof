@@ -668,7 +668,7 @@ export default function ProductsPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-base font-bold text-gray-900 dark:text-white">
-                  {allProducts.reduce((total, product) => total + (product.price * product.stock_quantity), 0).toFixed(0)}f
+                  {allProducts.reduce((total, product) => total + (product.price * product.stock_quantity), 0).toFixed(0)} FCFA
                 </div>
               </CardContent>
             </Card>

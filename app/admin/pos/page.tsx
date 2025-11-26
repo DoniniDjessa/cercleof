@@ -912,9 +912,9 @@ export default function POSPage() {
         <div class="item-row">
           <div style="flex: 1;">
             <div class="item-name">${escapeHtml(item.name)}</div>
-            <div class="item-details">${item.quantity} × ${item.price.toFixed(0)}f</div>
+            <div class="item-details">${item.quantity} × ${item.price.toFixed(0)} FCFA</div>
           </div>
-          <div class="item-total">${item.total.toFixed(0)}f</div>
+          <div class="item-total">${item.total.toFixed(0)} FCFA</div>
         </div>
       </div>
     `).join('')}
@@ -922,23 +922,23 @@ export default function POSPage() {
   <div class="totals">
     <div class="total-row">
       <span>Sous-total</span>
-      <span>${receiptData.subtotal.toFixed(0)}f</span>
+      <span>${receiptData.subtotal.toFixed(0)} FCFA</span>
     </div>
     ${receiptData.discount > 0 ? `
       <div class="total-row" style="color: #000000;">
         <span>Réduction</span>
-        <span>-${receiptData.discount.toFixed(0)}f</span>
+        <span>-${receiptData.discount.toFixed(0)} FCFA</span>
       </div>
     ` : ''}
     ${receiptData.giftCardAmount > 0 ? `
       <div class="total-row" style="color: #000000;">
         <span>Carte Cadeau</span>
-        <span>-${receiptData.giftCardAmount.toFixed(0)}f</span>
+        <span>-${receiptData.giftCardAmount.toFixed(0)} FCFA</span>
       </div>
     ` : ''}
     <div class="total-row total-final">
       <span>TOTAL</span>
-      <span>${receiptData.total.toFixed(0)}f</span>
+      <span>${receiptData.total.toFixed(0)} FCFA</span>
     </div>
   </div>
   <div class="section">
@@ -1062,7 +1062,7 @@ export default function POSPage() {
       const discountAmount = calculateDiscountAmount()
       const totalAfterDiscount = subtotal - discountAmount
       setGiftCardAmount(Math.min(giftCard.current_balance, totalAfterDiscount))
-      toast.success(`Carte cadeau "${giftCard.code}" appliquée! Solde: ${giftCard.current_balance.toFixed(0)}f`)
+      toast.success(`Carte cadeau "${giftCard.code}" appliquée! Solde: ${giftCard.current_balance.toFixed(0)} FCFA`)
     } catch (error) {
       console.error('Error applying gift card:', error)
       setGiftCardError("Erreur lors de l'application de la carte cadeau")
@@ -1475,8 +1475,8 @@ export default function POSPage() {
             cible_table: 'dd-ventes',
             cible_id: sale.id,
             description: serviceItems.length === 1 
-              ? `${timePrefix}: ${selectedClient ? `${selectedClient.first_name} ${selectedClient.last_name} a acheté ${serviceNames}` : `${userDisplayName} a vendu ${serviceNames}`}, montant ${total.toFixed(0)}f vendu par ${userDisplayName}`
-              : `${timePrefix}: ${selectedClient ? `${selectedClient.first_name} ${selectedClient.last_name} a acheté ${serviceNames}` : `${userDisplayName} a vendu ${serviceNames}`}, montant ${total.toFixed(0)}f vendu par ${userDisplayName}`
+              ? `${timePrefix}: ${selectedClient ? `${selectedClient.first_name} ${selectedClient.last_name} a acheté ${serviceNames}` : `${userDisplayName} a vendu ${serviceNames}`}, montant ${total.toFixed(0)} FCFA vendu par ${userDisplayName}`
+              : `${timePrefix}: ${selectedClient ? `${selectedClient.first_name} ${selectedClient.last_name} a acheté ${serviceNames}` : `${userDisplayName} a vendu ${serviceNames}`}, montant ${total.toFixed(0)} FCFA vendu par ${userDisplayName}`
           }])
         
         if (saleActionError) {
@@ -1485,13 +1485,13 @@ export default function POSPage() {
       } else if (productItems.length > 0) {
         // Products or mixed
         if (selectedClient) {
-          actionDescription = `${timePrefix}: ${selectedClient.first_name} ${selectedClient.last_name} a acheté ${productNames}${serviceNames ? ' et ' + serviceNames : ''}, montant ${total.toFixed(0)}f vendu par ${userDisplayName}`
+          actionDescription = `${timePrefix}: ${selectedClient.first_name} ${selectedClient.last_name} a acheté ${productNames}${serviceNames ? ' et ' + serviceNames : ''}, montant ${total.toFixed(0)} FCFA vendu par ${userDisplayName}`
         } else {
-          actionDescription = `${timePrefix}: ${userDisplayName} a vendu ${productNames}${serviceNames ? ' et ' + serviceNames : ''}, montant ${total.toFixed(0)}f`
+          actionDescription = `${timePrefix}: ${userDisplayName} a vendu ${productNames}${serviceNames ? ' et ' + serviceNames : ''}, montant ${total.toFixed(0)} FCFA`
         }
       } else {
         // Fallback
-        actionDescription = `${timePrefix}: Vente effectuée: ${total.toFixed(0)}f - ${cart.length} article(s) - vendu par ${userDisplayName}`
+        actionDescription = `${timePrefix}: Vente effectuée: ${total.toFixed(0)} FCFA - ${cart.length} article(s) - vendu par ${userDisplayName}`
       }
 
       // Create action entry (audit trail) - only if not already created for services
@@ -1517,7 +1517,7 @@ export default function POSPage() {
           .from('dd-notifications')
           .insert([{
             type: 'vente',
-            message: `${timePrefix}: ${selectedClient.first_name} ${selectedClient.last_name} a acheté ${productNames}${serviceNames ? ' et ' + serviceNames : ''}, montant ${total.toFixed(0)}f vendu par ${userDisplayName}`,
+            message: `${timePrefix}: ${selectedClient.first_name} ${selectedClient.last_name} a acheté ${productNames}${serviceNames ? ' et ' + serviceNames : ''}, montant ${total.toFixed(0)} FCFA vendu par ${userDisplayName}`,
             cible_type: 'client',
             cible_id: selectedClient.id,
             created_by: currentUser.id
@@ -1648,7 +1648,7 @@ export default function POSPage() {
       // Show receipt
       setShowReceipt(true)
       
-      toast.success(`Vente effectuée avec succès! Total: ${total.toFixed(0)}f`)
+      toast.success(`Vente effectuée avec succès! Total: ${total.toFixed(0)} FCFA`)
       
       // Refresh daily sales if modal is open
       if (showDailySalesModal) {
