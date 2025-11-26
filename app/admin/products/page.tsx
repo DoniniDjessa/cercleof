@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { AnimatedButton } from '@/components/ui/animated-button'
 import { TableLoadingState, ButtonLoadingSpinner } from '@/components/ui/context-loaders'
-import { Search, Eye, Trash2, Package, DollarSign, TrendingUp, Plus, X, Image as ImageIcon } from 'lucide-react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Search, Eye, Trash2, Package, DollarSign, TrendingUp, Plus, X, Image as ImageIcon, ArrowRightLeft } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
@@ -46,11 +47,25 @@ interface Product {
   variants?: ProductVariant[]
 }
 
+interface Transfer {
+  id: string
+  vente_id: string
+  product_name: string
+  quantity: number
+  date: string
+  client_name?: string
+  user_name?: string
+  status: string
+  total: number
+}
+
 export default function ProductsPage() {
   const { user: authUser } = useAuth()
   const searchParams = useSearchParams()
   const [products, setProducts] = useState<Product[]>([])
+  const [transfers, setTransfers] = useState<Transfer[]>([])
   const [loading, setLoading] = useState(true)
+  const [transfersLoading, setTransfersLoading] = useState(false)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
@@ -64,6 +79,7 @@ export default function ProductsPage() {
   const [stockQuantity, setStockQuantity] = useState('')
   const [selectedVariantId, setSelectedVariantId] = useState<string>('global')
   const [increasingStock, setIncreasingStock] = useState(false)
+  const [activeTab, setActiveTab] = useState('products')
   const [lowStockFilter, setLowStockFilter] = useState(false)
   const [missingImagesFilter, setMissingImagesFilter] = useState(false)
 
@@ -101,6 +117,12 @@ export default function ProductsPage() {
     setCurrentPage(1)
   }, [searchTerm, lowStockFilter, missingImagesFilter])
 
+  useEffect(() => {
+    if (activeTab === 'transfers') {
+      fetchTransfers()
+    }
+  }, [activeTab])
+
   const fetchCurrentUserRole = async () => {
     try {
       const { data, error } = await supabase
@@ -126,6 +148,62 @@ export default function ProductsPage() {
   const canManageProducts = currentUserRole === 'admin' || currentUserRole === 'manager' || currentUserRole === 'superadmin'
   // Receptionniste can only read products, not manage them
   const isReceptionniste = currentUserRole === 'receptionniste'
+
+  const fetchTransfers = async () => {
+    try {
+      setTransfersLoading(true)
+      
+      // Fetch product transfers from POS to salon
+      // This queries dd-ventes-items for products that were sold via POS
+      const { data: transfersData, error } = await supabase
+        .from('dd-ventes-items')
+        .select(`
+          id,
+          vente_id,
+          quantite,
+          prix_unitaire,
+          total,
+          created_at,
+          product:dd-products!product_id(name),
+          vente:dd-ventes!vente_id(
+            id,
+            date,
+            status,
+            client:dd-clients(first_name, last_name),
+            user:dd-users!user_id(first_name, last_name)
+          )
+        `)
+        .not('product_id', 'is', null) // Only product sales, not services
+        .order('created_at', { ascending: false })
+        .limit(100)
+
+      if (error) {
+        console.error('Error fetching transfers:', error)
+        toast.error('Erreur lors du chargement des transferts')
+        return
+      }
+
+      // Transform the data
+      const transformedTransfers: Transfer[] = (transfersData || []).map((item: any) => ({
+        id: item.id,
+        vente_id: item.vente_id,
+        product_name: item.product?.name || 'Produit inconnu',
+        quantity: item.quantite || 0,
+        date: item.created_at,
+        client_name: item.vente?.client ? `${item.vente.client.first_name} ${item.vente.client.last_name}` : 'Client inconnu',
+        user_name: item.vente?.user ? `${item.vente.user.first_name} ${item.vente.user.last_name}` : 'Utilisateur inconnu',
+        status: item.vente?.status || 'inconnu',
+        total: item.total || 0
+      }))
+
+      setTransfers(transformedTransfers)
+    } catch (error) {
+      console.error('Error fetching transfers:', error)
+      toast.error('Erreur lors du chargement des transferts')
+    } finally {
+      setTransfersLoading(false)
+    }
+  }
 
   const fetchProducts = async () => {
     try {
@@ -491,9 +569,9 @@ export default function ProductsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-sm font-bold text-foreground dark:text-white">Produits</h1>
-          <p className="text-muted-foreground dark:text-gray-400">Gérez votre inventaire de produits.</p>
+          <p className="text-muted-foreground dark:text-gray-400">Gérez votre inventaire de produits et transferts.</p>
         </div>
-        {canManageProducts && (
+        {canManageProducts && activeTab === 'products' && (
           <AnimatedButton onClick={() => {
             setShowCreateForm(!showCreateForm)
             if (showCreateForm) {
@@ -506,11 +584,26 @@ export default function ProductsPage() {
         )}
       </div>
 
-      {/* Create Product Form */}
-      {showCreateForm && <AddProduct onProductCreated={fetchProducts} />}
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="products" className="flex items-center gap-2">
+            <Package className="w-4 h-4" />
+            Produits
+          </TabsTrigger>
+          <TabsTrigger value="transfers" className="flex items-center gap-2">
+            <ArrowRightLeft className="w-4 h-4" />
+            Transferts POS → Salon
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Only show products list when not in create mode */}
-      {!showCreateForm && (
+        <TabsContent value="products" className="space-y-4">
+
+        {/* Create Product Form */}
+        {showCreateForm && <AddProduct onProductCreated={fetchProducts} />}
+
+        {/* Only show products list when not in create mode */}
+        {!showCreateForm && (
         <>
           {/* Stats - Hidden for receptionniste */}
           {!isReceptionniste && (
@@ -761,8 +854,95 @@ export default function ProductsPage() {
               </div>
             </div>
           )}
-        </>
-      )}
+          </>
+        )}
+        </TabsContent>
+
+        <TabsContent value="transfers" className="space-y-4">
+          {/* Transfers Table */}
+          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <CardHeader>
+              <CardTitle className="text-gray-900 dark:text-white">Historique des Transferts POS → Salon</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {transfersLoading ? (
+                <TableLoadingState />
+              ) : (
+                <div className="space-y-4">
+                  {transfers.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-gray-200 dark:border-gray-700">
+                          <TableHead className="text-gray-900 dark:text-white">Produit</TableHead>
+                          <TableHead className="text-gray-900 dark:text-white">Quantité</TableHead>
+                          <TableHead className="text-gray-900 dark:text-white">Total</TableHead>
+                          <TableHead className="text-gray-900 dark:text-white">Client</TableHead>
+                          <TableHead className="text-gray-900 dark:text-white">Caissier</TableHead>
+                          <TableHead className="text-gray-900 dark:text-white">Date</TableHead>
+                          <TableHead className="text-gray-900 dark:text-white">Statut</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {transfers.map((transfer) => (
+                          <TableRow key={transfer.id} className="border-gray-200 dark:border-gray-700">
+                            <TableCell className="text-gray-900 dark:text-white font-medium">
+                              {transfer.product_name}
+                            </TableCell>
+                            <TableCell className="text-gray-600 dark:text-gray-400">
+                              {transfer.quantity}
+                            </TableCell>
+                            <TableCell className="text-gray-600 dark:text-gray-400">
+                              <div className="flex items-center gap-1">
+                                <DollarSign className="w-4 h-4 text-muted-foreground dark:text-gray-400" />
+                                <span>{transfer.total.toFixed(0)}f</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-gray-600 dark:text-gray-400">
+                              {transfer.client_name}
+                            </TableCell>
+                            <TableCell className="text-gray-600 dark:text-gray-400">
+                              {transfer.user_name}
+                            </TableCell>
+                            <TableCell className="text-gray-600 dark:text-gray-400">
+                              {new Date(transfer.date).toLocaleDateString('fr-FR')}
+                            </TableCell>
+                            <TableCell>
+                              <Badge 
+                                className={`${
+                                  transfer.status === 'paye' 
+                                    ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                                    : transfer.status === 'annule'
+                                    ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+                                    : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
+                                }`}
+                              >
+                                {transfer.status === 'paye' ? 'Payé' : 
+                                 transfer.status === 'annule' ? 'Annulé' : 
+                                 transfer.status === 'en_attente' ? 'En attente' : 
+                                 transfer.status}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <div className="text-center py-8">
+                      <ArrowRightLeft className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500 dark:text-gray-400">
+                        Aucun transfert de produit trouvé
+                      </p>
+                      <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
+                        Les produits vendus via POS apparaîtront ici
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Stock Increase Dialog */}
       {stockIncreaseDialog.open && stockIncreaseDialog.product && (

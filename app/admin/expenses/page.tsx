@@ -43,6 +43,18 @@ export default function ExpensesPage() {
   const searchParams = useSearchParams()
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Check if user has admin access
+  const isAdmin = Boolean(authUser?.role && ['admin', 'superadmin'].includes(authUser.role))
+  
+  // Redirect non-admin users
+  useEffect(() => {
+    if (authUser && !isAdmin) {
+      toast.error('Accès refusé. Seuls les administrateurs peuvent accéder aux dépenses.')
+      router.push('/admin')
+      return
+    }
+  }, [authUser, isAdmin, router])
   const [searchTerm, setSearchTerm] = useState("")
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
@@ -51,7 +63,6 @@ export default function ExpensesPage() {
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: '', end: '' })
   const [activeTab, setActiveTab] = useState<'main' | 'finances'>('main')
   const [currentUserRole, setCurrentUserRole] = useState<string>('')
-  const [isAdmin, setIsAdmin] = useState(false)
   const itemsPerPage = 20
 
   // Finance expense categories (admin only)
@@ -93,7 +104,6 @@ export default function ExpensesPage() {
 
       const role = data?.role || ''
       setCurrentUserRole(role)
-      setIsAdmin(['admin', 'superadmin', 'manager'].includes(role.toLowerCase()))
     } catch (error) {
       console.error('Error fetching user role:', error)
     }

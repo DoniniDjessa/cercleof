@@ -51,7 +51,14 @@ export function AddExpense({ onExpenseCreated, expenseType = 'main', isAdmin = f
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
+    
+    // Handle numeric fields properly
+    if (name === 'montant') {
+      const numericValue = value === '' ? 0 : parseFloat(value) || 0
+      setFormData((prev) => ({ ...prev, [name]: numericValue }))
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }))
+    }
   }
 
   const handleSelectChange = (name: string, value: string) => {
