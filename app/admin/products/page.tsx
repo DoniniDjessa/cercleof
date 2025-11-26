@@ -49,14 +49,13 @@ interface Product {
 
 interface Transfer {
   id: string
-  vente_id: string
   product_name: string
   quantity: number
   date: string
-  client_name?: string
-  user_name?: string
-  status: string
-  total: number
+  taken_by_name: string
+  target_location: string
+  reason: string
+  person_who_took: string
 }
 
 export default function ProductsPage() {
@@ -153,27 +152,24 @@ export default function ProductsPage() {
     try {
       setTransfersLoading(true)
       
-      // Fetch product transfers from POS to salon
-      // This queries dd-ventes-items for products that were sold via POS
+      // Fetch actual product transfers from inventory movements
+      // These are transfers made via the POS transfer button to salon, proprietaire, or autre
       const { data: transfersData, error } = await supabase
-        .from('dd-ventes-items')
+        .from('dd-inventory_movements')
         .select(`
           id,
-          vente_id,
-          quantite,
-          prix_unitaire,
-          total,
+          product_id,
+          quantity,
+          movement_type,
+          reason,
+          target_location,
+          taken_by,
           created_at,
-          product:dd-products!product_id(name),
-          vente:dd-ventes!vente_id(
-            id,
-            date,
-            status,
-            client:dd-clients(first_name, last_name),
-            user:dd-users!user_id(first_name, last_name)
-          )
+          product:dd-products!product_id(name, sku),
+          user:dd-users!taken_by(first_name, last_name, pseudo)
         `)
-        .not('product_id', 'is', null) // Only product sales, not services
+        .eq('movement_type', 'out')
+        .eq('reference_type', 'transfer')
         .order('created_at', { ascending: false })
         .limit(100)
 
@@ -184,17 +180,37 @@ export default function ProductsPage() {
       }
 
       // Transform the data
-      const transformedTransfers: Transfer[] = (transfersData || []).map((item: any) => ({
-        id: item.id,
-        vente_id: item.vente_id,
-        product_name: item.product?.name || 'Produit inconnu',
-        quantity: item.quantite || 0,
-        date: item.created_at,
-        client_name: item.vente?.client ? `${item.vente.client.first_name} ${item.vente.client.last_name}` : 'Client inconnu',
-        user_name: item.vente?.user ? `${item.vente.user.first_name} ${item.vente.user.last_name}` : 'Utilisateur inconnu',
-        status: item.vente?.status || 'inconnu',
-        total: item.total || 0
-      }))
+      const transformedTransfers: Transfer[] = (transfersData || []).map((item: any) => {
+        // Parse the reason to extract person and actual reason
+        const reasonParts = item.reason?.split('\n') || []
+        const takenByLine = reasonParts.find((line: string) => line.startsWith('Pris par:'))
+        const destinationLine = reasonParts.find((line: string) => line.startsWith('Destination:'))
+        const reasonLine = reasonParts.find((line: string) => line.startsWith('Raison:'))
+        
+        const takenByPerson = takenByLine?.replace('Pris par:', '').trim() || 'N/A'
+        const actualReason = reasonLine?.replace('Raison:', '').trim() || 'N/A'
+        
+        // Get target location display name
+        const getTargetLocationDisplay = (location: string) => {
+          switch (location) {
+            case 'salon': return 'Salon'
+            case 'owner': return 'Propriétaire'
+            case 'other': return 'Autre'
+            default: return location || 'N/A'
+          }
+        }
+        
+        return {
+          id: item.id,
+          product_name: item.product?.name || 'Produit inconnu',
+          quantity: Math.abs(item.quantity || 0), // Make sure it's positive for display
+          date: item.created_at,
+          taken_by_name: item.user ? `${item.user.first_name} ${item.user.last_name}` : 'Utilisateur inconnu',
+          target_location: getTargetLocationDisplay(item.target_location),
+          reason: actualReason,
+          person_who_took: takenByPerson
+        }
+      })
 
       setTransfers(transformedTransfers)
     } catch (error) {
@@ -593,7 +609,7 @@ export default function ProductsPage() {
           </TabsTrigger>
           <TabsTrigger value="transfers" className="flex items-center gap-2">
             <ArrowRightLeft className="w-4 h-4" />
-            Transferts POS → Salon
+            Historique Transferts
           </TabsTrigger>
         </TabsList>
 
@@ -607,7 +623,7 @@ export default function ProductsPage() {
         <>
           {/* Stats - Hidden for receptionniste */}
           {!isReceptionniste && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Total Produits</CardTitle>
@@ -643,6 +659,16 @@ export default function ProductsPage() {
               <CardContent>
                 <div className="text-base font-bold text-gray-900 dark:text-white">
                   {statsProducts.filter((p) => p.show_to_website).length}
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Valeur Totale</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-base font-bold text-gray-900 dark:text-white">
+                  {allProducts.reduce((total, product) => total + (product.price * product.stock_quantity), 0).toFixed(0)}f
                 </div>
               </CardContent>
             </Card>
@@ -862,7 +888,7 @@ export default function ProductsPage() {
           {/* Transfers Table */}
           <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <CardHeader>
-              <CardTitle className="text-gray-900 dark:text-white">Historique des Transferts POS → Salon</CardTitle>
+              <CardTitle className="text-gray-900 dark:text-white">Historique des Transferts de Produits</CardTitle>
             </CardHeader>
             <CardContent>
               {transfersLoading ? (
@@ -875,11 +901,11 @@ export default function ProductsPage() {
                         <TableRow className="border-gray-200 dark:border-gray-700">
                           <TableHead className="text-gray-900 dark:text-white">Produit</TableHead>
                           <TableHead className="text-gray-900 dark:text-white">Quantité</TableHead>
-                          <TableHead className="text-gray-900 dark:text-white">Total</TableHead>
-                          <TableHead className="text-gray-900 dark:text-white">Client</TableHead>
-                          <TableHead className="text-gray-900 dark:text-white">Caissier</TableHead>
+                          <TableHead className="text-gray-900 dark:text-white">Destination</TableHead>
+                          <TableHead className="text-gray-900 dark:text-white">Pris par</TableHead>
+                          <TableHead className="text-gray-900 dark:text-white">Enregistré par</TableHead>
+                          <TableHead className="text-gray-900 dark:text-white">Raison</TableHead>
                           <TableHead className="text-gray-900 dark:text-white">Date</TableHead>
-                          <TableHead className="text-gray-900 dark:text-white">Statut</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -892,35 +918,35 @@ export default function ProductsPage() {
                               {transfer.quantity}
                             </TableCell>
                             <TableCell className="text-gray-600 dark:text-gray-400">
-                              <div className="flex items-center gap-1">
-                                <DollarSign className="w-4 h-4 text-muted-foreground dark:text-gray-400" />
-                                <span>{transfer.total.toFixed(0)}f</span>
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-gray-600 dark:text-gray-400">
-                              {transfer.client_name}
-                            </TableCell>
-                            <TableCell className="text-gray-600 dark:text-gray-400">
-                              {transfer.user_name}
-                            </TableCell>
-                            <TableCell className="text-gray-600 dark:text-gray-400">
-                              {new Date(transfer.date).toLocaleDateString('fr-FR')}
-                            </TableCell>
-                            <TableCell>
                               <Badge 
                                 className={`${
-                                  transfer.status === 'paye' 
-                                    ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                                    : transfer.status === 'annule'
-                                    ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
-                                    : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
+                                  transfer.target_location === 'Salon' 
+                                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
+                                    : transfer.target_location === 'Propriétaire'
+                                    ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400'
+                                    : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
                                 }`}
                               >
-                                {transfer.status === 'paye' ? 'Payé' : 
-                                 transfer.status === 'annule' ? 'Annulé' : 
-                                 transfer.status === 'en_attente' ? 'En attente' : 
-                                 transfer.status}
+                                {transfer.target_location}
                               </Badge>
+                            </TableCell>
+                            <TableCell className="text-gray-600 dark:text-gray-400">
+                              {transfer.person_who_took}
+                            </TableCell>
+                            <TableCell className="text-gray-600 dark:text-gray-400">
+                              {transfer.taken_by_name}
+                            </TableCell>
+                            <TableCell className="text-gray-600 dark:text-gray-400">
+                              <span className="text-xs">{transfer.reason}</span>
+                            </TableCell>
+                            <TableCell className="text-gray-600 dark:text-gray-400">
+                              {new Date(transfer.date).toLocaleDateString('fr-FR', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -933,7 +959,7 @@ export default function ProductsPage() {
                         Aucun transfert de produit trouvé
                       </p>
                       <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
-                        Les produits vendus via POS apparaîtront ici
+                        Les produits transférés via le bouton "Transfert" du POS apparaîtront ici
                       </p>
                     </div>
                   )}
