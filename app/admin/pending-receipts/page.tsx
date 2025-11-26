@@ -406,13 +406,14 @@ export default function PendingReceiptsPage() {
       text-align: center; 
       margin-bottom: 8px; 
       padding-bottom: 8px; 
-      border-bottom: 1px dashed #e5e7eb; 
+      border-bottom: 1px dashed #9ca3af; 
     }
     .header .logo {
       max-width: 60px;
       max-height: 60px;
       margin: 0 auto 6px;
       display: block;
+      filter: contrast(1.2) brightness(0.8);
     }
     .header h1 { 
       font-size: 14px; 
@@ -472,7 +473,7 @@ export default function PendingReceiptsPage() {
       margin-left: 10px; 
     }
     .totals { 
-      border-top: 1px dashed #e5e7eb; 
+      border-top: 1px dashed #9ca3af; 
       padding-top: 10px; 
       margin-top: 10px; 
     }
@@ -491,8 +492,9 @@ export default function PendingReceiptsPage() {
     }
     .footer { 
       text-align: center; 
-      border-top: 1px dashed #e5e7eb; 
+      border-top: 1px dashed #9ca3af; 
       padding-top: 10px; 
+      padding-bottom: 20px; 
       margin-top: 15px; 
       font-size: 10px; 
     }
@@ -740,7 +742,7 @@ export default function PendingReceiptsPage() {
                     <div className="text-center mb-4 border-b border-dashed border-gray-400 dark:border-gray-500 pb-3">
                       <div className="flex justify-center mb-2">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src="/cbmin.png" alt="Logo" className="h-12 w-12 object-contain" />
+                        <img src="/cbmin.png" alt="Logo" className="h-12 w-12 object-contain" style={{filter: 'contrast(1.2) brightness(0.8)'}} />
                       </div>
                       <p className="font-bold text-sm mb-1">THE CERCLE OF BEAUTY</p>
                       <p className="text-[10px] text-gray-600 dark:text-gray-400">Institut de Beauté</p>
@@ -802,7 +804,7 @@ export default function PendingReceiptsPage() {
                       <p>Envoyé par: {receipt.sender.first_name} {receipt.sender.last_name}</p>
                     </div>
 
-                    <div className="text-center mt-4 text-[10px] text-gray-600 dark:text-gray-400">
+                    <div className="text-center mt-4 mb-5 pb-4 text-[10px] text-gray-600 dark:text-gray-400">
                       <p className="font-bold">Merci de votre visite!</p>
                       <p>THE CERCLE OF BEAUTY - Institut de Beauté</p>
                     </div>
