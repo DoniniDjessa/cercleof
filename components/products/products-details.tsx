@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Edit, Trash2, ArrowLeft, Plus, X } from "lucide-react"
+import { Edit, Trash2, ArrowLeft, Plus, X, Camera, ImageIcon } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { ButtonLoadingSpinner } from "@/components/ui/context-loaders"
 import toast from "react-hot-toast"
@@ -86,6 +86,8 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
   const [imageDialogOpen, setImageDialogOpen] = useState(false)
   const [imageFiles, setImageFiles] = useState<File[]>([])
   const [isUploadingImages, setIsUploadingImages] = useState(false)
+  const [replaceMode, setReplaceMode] = useState(false)
+  const [imageToReplace, setImageToReplace] = useState<string | null>(null)
 
   useEffect(() => {
     if (productId) {
@@ -333,6 +335,59 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
     setImageFiles(validFiles)
   }
 
+  const handleCameraCapture = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.capture = 'environment' // Use back camera on mobile
+    input.onchange = (e) => {
+      const target = e.target as HTMLInputElement
+      const file = target.files?.[0]
+      if (file) {
+        setImageFiles([file])
+      }
+    }
+    input.click()
+  }
+
+  const openImageDialog = (replaceImage?: string) => {
+    if (replaceImage) {
+      setReplaceMode(true)
+      setImageToReplace(replaceImage)
+    } else {
+      setReplaceMode(false)
+      setImageToReplace(null)
+    }
+    setImageFiles([])
+    setImageDialogOpen(true)
+  }
+
+  const closeImageDialog = () => {
+    setImageDialogOpen(false)
+    setReplaceMode(false)
+    setImageToReplace(null)
+    setImageFiles([])
+  }
+
+  const deleteImageFromStorage = async (imageUrl: string) => {
+    try {
+      // Extract the file path from the public URL
+      const urlParts = imageUrl.split('/storage/v1/object/public/cb-bucket/')
+      if (urlParts.length > 1) {
+        const filePath = urlParts[1]
+        const { error } = await supabase.storage
+          .from('cb-bucket')
+          .remove([filePath])
+        
+        if (error) {
+          console.error('Error deleting image from storage:', error)
+        }
+      }
+    } catch (error) {
+      console.error('Error parsing image URL for deletion:', error)
+    }
+  }
+
   const handleUploadImages = async () => {
     if (!product || imageFiles.length === 0) {
       toast.error('Veuillez sélectionner au moins une image.')
@@ -364,7 +419,32 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
         uploadedUrls.push(publicUrl)
       }
 
-      const updatedImages = [...(product.images || []), ...uploadedUrls]
+      let updatedImages: string[]
+
+      if (replaceMode && imageToReplace) {
+        // Replace mode: replace the specific image and delete the old one
+        await deleteImageFromStorage(imageToReplace)
+        
+        const currentImages = product.images || []
+        const imageIndex = currentImages.indexOf(imageToReplace)
+        
+        if (imageIndex !== -1) {
+          // Replace the image at the same position
+          updatedImages = [...currentImages]
+          updatedImages[imageIndex] = uploadedUrls[0] // Use the first uploaded image
+          
+          // If there are more uploaded images, add them to the end
+          if (uploadedUrls.length > 1) {
+            updatedImages.push(...uploadedUrls.slice(1))
+          }
+        } else {
+          // If image not found, just add new images
+          updatedImages = [...currentImages, ...uploadedUrls]
+        }
+      } else {
+        // Add mode: add new images to existing ones
+        updatedImages = [...(product.images || []), ...uploadedUrls]
+      }
 
       const { error: updateError } = await supabase
         .from('dd-products')
@@ -374,9 +454,8 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
       if (updateError) throw updateError
 
       setProduct({ ...product, images: updatedImages })
-      toast.success('Images ajoutées avec succès !')
-      setImageFiles([])
-      setImageDialogOpen(false)
+      toast.success(replaceMode ? 'Image remplacée avec succès !' : 'Images ajoutées avec succès !')
+      closeImageDialog()
     } catch (err) {
       console.error('Error uploading images:', err)
       toast.error('Erreur lors du téléchargement des images.')
@@ -658,10 +737,10 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-gray-900 dark:text-white">Images du Produit</CardTitle>
               {canEditLimitedFields && (
-                <Button size="sm" className="gap-2" onClick={() => setImageDialogOpen(true)}>
-                  <Plus className="w-4 h-4" />
-                  Ajouter
-                </Button>
+              <Button size="sm" className="gap-2" onClick={() => openImageDialog()}>
+                <Plus className="w-4 h-4" />
+                Ajouter
+              </Button>
               )}
             </CardHeader>
             <CardContent>
@@ -675,6 +754,19 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
                         alt={`${product.name} - Image ${index + 1}`}
                         className="w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
                       />
+                      {canEditLimitedFields && (
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg flex items-center justify-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => openImageDialog(image)}
+                            className="bg-white/90 hover:bg-white text-gray-900 text-xs px-2 py-1 h-auto"
+                          >
+                            <Camera className="w-3 h-3 mr-1" />
+                            Remplacer
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -684,7 +776,7 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
                     Aucune image n&apos;est encore associée à ce produit.
                   </p>
                   {canEditLimitedFields && (
-                    <Button size="sm" onClick={() => setImageDialogOpen(true)}>
+                    <Button size="sm" onClick={() => openImageDialog()}>
                       Ajouter des images
                     </Button>
                   )}
@@ -1244,15 +1336,12 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
           <Card className="w-full max-w-lg bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-gray-900 dark:text-white">
-                Ajouter des images au produit
+                {replaceMode ? 'Remplacer l\'image' : 'Ajouter des images au produit'}
               </CardTitle>
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => {
-                  setImageDialogOpen(false)
-                  setImageFiles([])
-                }}
+                onClick={closeImageDialog}
                 className="h-8 w-8 text-gray-600 dark:text-gray-400"
               >
                 <X className="h-4 w-4" />
@@ -1291,10 +1380,7 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
               <div className="flex justify-end gap-2">
                 <Button
                   variant="outline"
-                  onClick={() => {
-                    setImageDialogOpen(false)
-                    setImageFiles([])
-                  }}
+                  onClick={closeImageDialog}
                   className="border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300"
                   disabled={isUploadingImages}
                 >
@@ -1305,7 +1391,7 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
                   disabled={imageFiles.length === 0 || isUploadingImages}
                   className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
-                  {isUploadingImages ? <ButtonLoadingSpinner /> : 'Téléverser'}
+                  {isUploadingImages ? <ButtonLoadingSpinner /> : (replaceMode ? 'Remplacer' : 'Téléverser')}
                 </Button>
               </div>
             </CardContent>

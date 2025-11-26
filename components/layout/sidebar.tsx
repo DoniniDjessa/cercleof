@@ -54,7 +54,8 @@ import {
   MessageSquare,
   Camera,
   BarChart,
-  Mic
+  Mic,
+  Receipt
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -84,15 +85,39 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const [userRole, setUserRole] = useState<string>('')
   const [userProfile, setUserProfile] = useState<{ pseudo?: string; email?: string } | null>(null)
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
+  const [pendingReceiptsCount, setPendingReceiptsCount] = useState<number>(0)
 
   useEffect(() => {
     if (user) {
       fetchUserProfile()
+      fetchPendingReceiptsCount()
     } else {
       setUserProfile(null)
       setUserRole('')
+      setPendingReceiptsCount(0)
     }
   }, [user])
+
+  const fetchPendingReceiptsCount = async () => {
+    if (!user?.id) return
+
+    try {
+      const supabase = createClient()
+      const { count, error } = await supabase
+        .from('dd-pending_receipts')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_read', false)
+
+      if (error) {
+        console.error('Error fetching pending receipts count:', error)
+        return
+      }
+
+      setPendingReceiptsCount(count || 0)
+    } catch (error) {
+      console.error('Exception fetching pending receipts count:', error)
+    }
+  }
 
   const toggleExpanded = (itemName: string) => {
     const newExpanded = new Set(expandedItems)
@@ -273,6 +298,12 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           name: 'Point de Vente',
           icon: ShoppingCart,
           href: '/admin/pos',
+        },
+        {
+          name: 'Reçus en Attente',
+          icon: Receipt,
+          href: '/admin/pending-receipts',
+          badge: pendingReceiptsCount > 0 ? pendingReceiptsCount.toString() : undefined,
         },
         {
           name: 'Salon',

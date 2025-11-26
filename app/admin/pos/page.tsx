@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, Plus, Minus, Trash2, CreditCard, ShoppingCart, User, Package, Scissors, DollarSign, Percent, Truck, Check, UserPlus, Eye, EyeOff, TrendingUp, X, Download, Printer, MessageCircle } from "lucide-react"
+import { Search, Plus, Minus, Trash2, CreditCard, ShoppingCart, User, Package, Scissors, DollarSign, Percent, Truck, Check, UserPlus, Eye, EyeOff, TrendingUp, X, Download, Printer, MessageCircle, Send } from "lucide-react"
 import html2canvas from "html2canvas"
 import { supabase } from "@/lib/supabase"
 import { QuickCreateClient } from "@/components/clients/quick-create-client"
@@ -127,6 +127,7 @@ export default function POSPage() {
   const [editingPriceValue, setEditingPriceValue] = useState<string>('')
   const [whatsappPhone, setWhatsappPhone] = useState<string>('')
   const [sendingWhatsapp, setSendingWhatsapp] = useState(false)
+  const [sendingReceipt, setSendingReceipt] = useState(false)
 
   // Product transfer (inventory movement) states
   const [showTransferModal, setShowTransferModal] = useState(false)
@@ -662,6 +663,49 @@ export default function POSPage() {
   const handlePriceCancel = () => {
     setEditingPriceItemId(null)
     setEditingPriceValue('')
+  }
+
+  const sendReceiptToPending = async () => {
+    if (!receiptData?.sale?.id || !authUser?.id) {
+      toast.error('Impossible d\'envoyer le reçu')
+      return
+    }
+
+    setSendingReceipt(true)
+    
+    try {
+      // First, get the user ID from dd-users table using the auth user ID
+      const { data: userData, error: userError } = await supabase
+        .from('dd-users')
+        .select('id')
+        .eq('auth_user_id', authUser.id)
+        .single()
+
+      if (userError || !userData) {
+        console.error('Error fetching user data:', userError)
+        toast.error('Erreur: utilisateur non trouvé')
+        return
+      }
+
+      const { error } = await supabase
+        .from('dd-pending_receipts')
+        .insert([{
+          sale_id: receiptData.sale.id,
+          sent_by: userData.id, // Use the dd-users table ID, not auth ID
+          sent_to: null, // Send to all receptionists
+          is_read: false
+        }])
+
+      if (error) throw error
+
+      toast.success('Reçu envoyé aux réceptionnistes!')
+      setShowReceipt(false)
+    } catch (error) {
+      console.error('Error sending receipt:', error)
+      toast.error('Erreur lors de l\'envoi du reçu')
+    } finally {
+      setSendingReceipt(false)
+    }
   }
   
   // Helper function to generate receipt HTML
@@ -2674,14 +2718,29 @@ export default function POSPage() {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-sm mx-4 max-h-[90vh] overflow-y-auto">
             <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
               <h2 className="text-lg font-bold text-gray-900 dark:text-white">Reçu de Vente</h2>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowReceipt(false)}
-                className="h-8 w-8"
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center gap-2">
+                {/* Floating Send Button - Only for Admins */}
+                {(currentUserRole === 'admin' || currentUserRole === 'superadmin' || currentUserRole === 'manager') && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={sendReceiptToPending}
+                    disabled={sendingReceipt}
+                    className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1 h-8"
+                  >
+                    <Send className="w-3 h-3 mr-1" />
+                    {sendingReceipt ? 'Envoi...' : 'Envoyer'}
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowReceipt(false)}
+                  className="h-8 w-8"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
             <div className="p-4">
               {/* Receipt Content */}
@@ -2756,14 +2815,14 @@ export default function POSPage() {
                       <span>-{receiptData.giftCardAmount.toFixed(0)}f</span>
                     </div>
                   )}
-                  <div className="flex justify-between font-bold text-sm border-t border-dashed border-gray-400 dark:border-gray-500 pt-2 mt-2">
+                  <div className="flex justify-between font-bold text-sm border-t border-dashed border-gray-200 dark:border-gray-700 pt-2 mt-2">
                     <span>TOTAL:</span>
                     <span>{receiptData.total.toFixed(0)}f</span>
                   </div>
                 </div>
 
                 {/* Payment Method */}
-                <div className="mb-3 text-[10px] border-b border-dashed border-gray-400 dark:border-gray-500 pb-2">
+                <div className="mb-3 text-[10px] border-b border-dashed border-gray-200 dark:border-gray-700 pb-2">
                   <p>
                     Paiement: {
                       receiptData.paymentMethod === 'cash' ? 'Espèces' :
@@ -2775,7 +2834,7 @@ export default function POSPage() {
                 </div>
 
                 {/* Footer */}
-                <div className="text-center text-[10px] text-gray-600 dark:text-gray-400 mt-4 pt-3 border-t border-dashed border-gray-400 dark:border-gray-500 mb-8">
+                <div className="text-center text-[10px] text-gray-600 dark:text-gray-400 mt-4 pt-3 border-t border-dashed border-gray-200 dark:border-gray-700 mb-8">
                   <p>Merci de votre visite!</p>
                   <p className="mt-1">Vendu par: {receiptData.user}</p>
                 </div>

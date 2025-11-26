@@ -70,12 +70,16 @@ interface Travailleur {
   is_active: boolean
 }
 
+const ITEMS_PER_PAGE = 30
+
 export default function SalonPage() {
   const { user: authUser } = useAuth()
   const [salonServices, setSalonServices] = useState<SalonService[]>([])
   const [travailleurs, setTravailleurs] = useState<Travailleur[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
   const [selectedService, setSelectedService] = useState<SalonService | null>(null)
   const [showAssignDialog, setShowAssignDialog] = useState(false)
   const [selectedTravailleurs, setSelectedTravailleurs] = useState<string[]>([])
@@ -87,9 +91,9 @@ export default function SalonPage() {
 
   useEffect(() => {
     fetchCurrentUserRole()
-    fetchSalonServices()
+    fetchSalonServices(currentPage)
     fetchTravailleurs()
-  }, [authUser])
+  }, [authUser, currentPage])
 
 
   const fetchCurrentUserRole = async () => {
@@ -118,9 +122,22 @@ export default function SalonPage() {
     }
   }
 
-  const fetchSalonServices = async () => {
+  const fetchSalonServices = async (page = 1) => {
     try {
       setLoading(true)
+      
+      // First get the total count
+      const { count, error: countError } = await supabase
+        .from('dd-salon')
+        .select('*', { count: 'exact', head: true })
+
+      if (countError) throw countError
+      setTotalCount(count || 0)
+
+      // Then get the paginated data
+      const from = (page - 1) * ITEMS_PER_PAGE
+      const to = from + ITEMS_PER_PAGE - 1
+
       const { data, error } = await supabase
         .from('dd-salon')
         .select(`
@@ -137,6 +154,7 @@ export default function SalonPage() {
           )
         `)
         .order('created_at', { ascending: false })
+        .range(from, to)
 
       if (error) throw error
 
@@ -306,7 +324,7 @@ export default function SalonPage() {
       setAssignmentNotes("")
       setTravailleurRatings({})
       setTravailleurNotes({})
-      fetchSalonServices()
+      fetchSalonServices(currentPage)
     } catch (error) {
       console.error('Error assigning travailleurs:', error)
       toast.error('Erreur lors de l\'assignation des travailleurs')
@@ -441,6 +459,13 @@ export default function SalonPage() {
     service.client?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     service.client?.phone?.toLowerCase().includes(searchTerm.toLowerCase())
   )
+
+  // Reset to page 1 when search term changes
+  useEffect(() => {
+    if (searchTerm) {
+      setCurrentPage(1)
+    }
+  }, [searchTerm])
 
   const totalServices = salonServices.length
 
@@ -597,6 +622,42 @@ export default function SalonPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Pagination */}
+      {totalCount > ITEMS_PER_PAGE && (
+        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-700 dark:text-gray-300">
+                Affichage de {((currentPage - 1) * ITEMS_PER_PAGE) + 1} à {Math.min(currentPage * ITEMS_PER_PAGE, totalCount)} sur {totalCount} services
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="text-gray-600 dark:text-gray-400"
+                >
+                  Précédent
+                </Button>
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  Page {currentPage} sur {Math.ceil(totalCount / ITEMS_PER_PAGE)}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(totalCount / ITEMS_PER_PAGE)))}
+                  disabled={currentPage >= Math.ceil(totalCount / ITEMS_PER_PAGE)}
+                  className="text-gray-600 dark:text-gray-400"
+                >
+                  Suivant
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Assign Travailleurs Dialog */}
       {showAssignDialog && selectedService && (
