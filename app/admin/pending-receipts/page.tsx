@@ -406,7 +406,7 @@ export default function PendingReceiptsPage() {
       text-align: center; 
       margin-bottom: 8px; 
       padding-bottom: 8px; 
-      border-bottom: 1px dashed #000000; 
+      border-bottom: 1px dashed #e5e7eb; 
     }
     .header .logo {
       max-width: 60px;
@@ -472,7 +472,7 @@ export default function PendingReceiptsPage() {
       margin-left: 10px; 
     }
     .totals { 
-      border-top: 1px dashed #000; 
+      border-top: 1px dashed #e5e7eb; 
       padding-top: 10px; 
       margin-top: 10px; 
     }
@@ -491,7 +491,7 @@ export default function PendingReceiptsPage() {
     }
     .footer { 
       text-align: center; 
-      border-top: 1px dashed #000; 
+      border-top: 1px dashed #e5e7eb; 
       padding-top: 10px; 
       margin-top: 15px; 
       font-size: 10px; 
