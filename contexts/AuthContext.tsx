@@ -7,7 +7,7 @@ import { AuthLoader } from '@/components/ui/beauty-loader'
 import { createClient } from '@/lib/supabase'
 
 interface AuthContextType {
-  user: User | null
+  user: (User & { role?: string }) | null
   session: Session | null
   loading: boolean
   signUp: (email: string, password: string) => Promise<{ data: any; error: any }>
@@ -74,7 +74,7 @@ const cleanupAppData = async () => {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<(User & { role?: string }) | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -121,16 +121,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           try {
             // Check if user exists in our dd-users table with a longer timeout (5 seconds) to avoid false disconnections
             const checkPromise = checkUserExists(session.user.id)
-            const timeoutPromise = new Promise<boolean>((resolve) => 
+            const timeoutPromise = new Promise<{ exists: boolean; userData?: any }>((resolve) => 
               setTimeout(() => {
                 console.log('AuthContext: User check timeout (5s), continuing with session but will re-check in background')
-                resolve(true) // Continue with session even if timeout - we'll verify later
+                resolve({ exists: true }) // Continue with session even if timeout - we'll verify later
               }, 5000) // 5 second timeout - give more time for database queries
             )
             
-            const userExists = await Promise.race([checkPromise, timeoutPromise])
+            const userResult = await Promise.race([checkPromise, timeoutPromise])
             
-            if (!userExists) {
+            if (!userResult.exists) {
               console.log('AuthContext: User not found in dd-users, disconnecting...')
               // Clear state immediately
               setSession(null)
@@ -152,10 +152,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               return
             }
             
-            // User exists - set session and user
+            // User exists - set session and user with role
             console.log('AuthContext: User verified, setting session and user')
             setSession(session)
-            setUser(session.user)
+            const userWithRole = { ...session.user, role: userResult.userData?.role }
+            setUser(userWithRole)
             setLoading(false)
             if (timeoutId) clearTimeout(timeoutId)
             return
@@ -229,16 +230,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           try {
             // Check with 5 second timeout - give more time
             const checkPromise = checkUserExists(currentSession.user.id)
-            const timeoutPromise = new Promise<boolean>((resolve) => 
+            const timeoutPromise = new Promise<{ exists: boolean; userData?: any }>((resolve) => 
               setTimeout(() => {
                 console.log('AuthContext: User check timeout in timeout handler, but continuing with session')
-                resolve(true) // Continue with session even if timeout - might be network issue
+                resolve({ exists: true }) // Continue with session even if timeout - might be network issue
               }, 5000) // 5 second timeout
             )
-            const userExists = await Promise.race([checkPromise, timeoutPromise])
+            const userResult = await Promise.race([checkPromise, timeoutPromise])
             
             // If user doesn't exist, disconnect immediately
-            if (!userExists) {
+            if (!userResult.exists) {
               console.log('AuthContext: User not found in dd-users after timeout - disconnecting immediately...')
               // Clear state immediately
               setSession(null)
@@ -296,16 +297,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           // Check if user exists in our dd-users table with longer timeout (5 seconds)
           const checkPromise = checkUserExists(session.user.id)
-          const timeoutPromise = new Promise<boolean>((resolve) => 
+          const timeoutPromise = new Promise<{ exists: boolean; userData?: any }>((resolve) => 
             setTimeout(() => {
               console.log('AuthContext: User check timeout in onAuthStateChange, but continuing with session')
-              resolve(true) // Continue with session even if timeout - might be network issue
+              resolve({ exists: true }) // Continue with session even if timeout - might be network issue
             }, 5000) // 5 second timeout - give more time
           )
           
-          const userExists = await Promise.race([checkPromise, timeoutPromise])
+          const userResult = await Promise.race([checkPromise, timeoutPromise])
           
-          if (!userExists) {
+          if (!userResult.exists) {
             console.log('AuthContext: User not found in dd-users (SIGNED_IN), disconnecting...')
             // Clear state immediately
             setSession(null)
@@ -327,10 +328,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return
           }
           
-          // User exists - set session and user
+          // User exists - set session and user with role
           console.log('AuthContext: User verified in onAuthStateChange, setting session and user')
           setSession(session)
-          setUser(session.user)
+          const userWithRole = { ...session.user, role: userResult.userData?.role }
+          setUser(userWithRole)
           setLoading(false)
           return
         } catch (checkError) {
@@ -358,35 +360,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const checkUserExists = async (userId: string): Promise<boolean> => {
+  const checkUserExists = async (userId: string): Promise<{ exists: boolean; userData?: any }> => {
     try {
       const supabase = createClient()
       const { data, error } = await supabase
         .from('dd-users')
-        .select('id, pseudo, email')
+        .select('id, pseudo, email, role')
         .eq('auth_user_id', userId)
         .single()
 
       if (error && error.code === 'PGRST116') {
         // No rows found - user doesn't exist in our system
-        return false
+        console.log('AuthContext: User not found in dd-users table')
+        return { exists: false }
       }
       
       if (error) {
         console.error('AuthContext: Error checking user existence:', error)
-        return false
+        return { exists: false }
       }
       
       // User exists but check if they have pseudo or email
       if (data && !data.pseudo && !data.email) {
         console.log('AuthContext: User exists but has no pseudo or email')
-        return false
+        return { exists: false }
       }
       
-      return !!data
+      console.log('AuthContext: User found in dd-users:', data?.pseudo, 'with role:', data?.role)
+      return { exists: !!data, userData: data }
     } catch (error) {
       console.error('AuthContext: Error checking user existence:', error)
-      return false
+      return { exists: false }
     }
   }
 

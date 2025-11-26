@@ -47,14 +47,17 @@ export default function ExpensesPage() {
   // Check if user has admin access
   const isAdmin = Boolean(authUser?.role && ['admin', 'superadmin'].includes(authUser.role))
   
-  // Redirect non-admin users
+  // Redirect non-admin users (only check once when user is loaded and role is determined)
   useEffect(() => {
-    if (authUser && !isAdmin) {
-      toast.error('Accès refusé. Seuls les administrateurs peuvent accéder aux dépenses.')
-      router.push('/admin')
-      return
+    // Only run the check if we have a user and their role is loaded
+    if (authUser && authUser.role) {
+      if (!['admin', 'superadmin'].includes(authUser.role)) {
+        toast.error('Accès refusé. Seuls les administrateurs peuvent accéder aux dépenses.')
+        router.push('/admin')
+        return
+      }
     }
-  }, [authUser, isAdmin, router])
+  }, [authUser?.id, authUser?.role, router]) // Include router in dependencies, check once
   const [searchTerm, setSearchTerm] = useState("")
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
@@ -87,8 +90,11 @@ export default function ExpensesPage() {
   }, [activeTab])
 
   useEffect(() => {
-    fetchExpenses()
-  }, [currentPage, dateFilter, dateRange, activeTab])
+    // Only fetch expenses if user is authenticated and admin
+    if (authUser && isAdmin) {
+      fetchExpenses()
+    }
+  }, [currentPage, dateFilter, dateRange, activeTab, authUser, isAdmin])
 
   const fetchCurrentUserRole = async () => {
     if (!authUser) return
@@ -100,16 +106,26 @@ export default function ExpensesPage() {
         .eq('auth_user_id', authUser.id)
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('Error fetching user role:', error)
+        return
+      }
 
       const role = data?.role || ''
       setCurrentUserRole(role)
     } catch (error) {
       console.error('Error fetching user role:', error)
+      // Don't show error toast for role fetching issues
     }
   }
 
   const fetchExpenses = async () => {
+    // Don't fetch if user is not authenticated or not admin
+    if (!authUser || !isAdmin) {
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
       const from = (currentPage - 1) * itemsPerPage
@@ -203,8 +219,13 @@ export default function ExpensesPage() {
       setTotalPages(Math.max(1, Math.ceil(totalFiltered / itemsPerPage)))
     } catch (error: any) {
       console.error('Error fetching expenses:', error)
-      const errorMessage = error?.message || 'Erreur inconnue lors du chargement des dépenses'
-      toast.error(`Erreur: ${errorMessage}`)
+      
+      // Only show error toast if it's not a permission/auth issue
+      if (!error?.message?.includes('permission') && !error?.message?.includes('policy')) {
+        const errorMessage = error?.message || 'Erreur lors du chargement des dépenses'
+        toast.error(`Erreur: ${errorMessage}`)
+      }
+      
       setExpenses([]) // Set empty array on error to prevent display issues
     } finally {
       setLoading(false)
@@ -309,10 +330,27 @@ export default function ExpensesPage() {
     return expenseDate.getMonth() === now.getMonth() && expenseDate.getFullYear() === now.getFullYear()
   }).length
 
+  // Show loading while checking user authentication
+  if (!authUser) {
+    return <TableLoadingState />
+  }
+
+  // Show loading while user role is being determined
+  if (authUser && !authUser.role) {
+    return <TableLoadingState />
+  }
+
+  // Don't render anything if user is not admin (prevents flash of content and multiple redirects)
+  if (authUser && authUser.role && !isAdmin) {
+    return null
+  }
+
   if (showCreateForm) {
     return <AddExpense onExpenseCreated={() => {
       setShowCreateForm(false)
       fetchExpenses()
+      // Update URL without causing a reload
+      window.history.replaceState({}, '', '/admin/expenses')
     }} expenseType={activeTab} isAdmin={isAdmin} />
   }
 

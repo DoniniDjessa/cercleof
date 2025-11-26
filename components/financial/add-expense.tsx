@@ -215,8 +215,9 @@ export function AddExpense({ onExpenseCreated, expenseType = 'main', isAdmin = f
   }
 
   const handleCancel = () => {
-    window.history.replaceState({}, '', '/admin/expenses')
-    window.location.reload()
+    if (onExpenseCreated) {
+      onExpenseCreated()
+    }
   }
 
   return (

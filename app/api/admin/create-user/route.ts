@@ -6,6 +6,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { email, password, pseudo, first_name, last_name, phone, role, created_by } = body
 
+    // Debug logging
+    console.log('Creating user with role:', role)
+    console.log('All body data:', { email, pseudo, first_name, last_name, phone, role, created_by })
+
     // Create a Supabase client with service role key for admin operations
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -66,6 +70,20 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (profileError) {
+      console.error('Profile creation error:', profileError)
+      console.error('Data being inserted:', {
+        auth_user_id: authData.user.id,
+        email,
+        pseudo,
+        first_name,
+        last_name,
+        phone: phone || null,
+        role,
+        salary: 0,
+        hire_date: null,
+        created_by: created_by || null,
+        is_active: true
+      })
       // If profile creation fails, try to clean up the auth user
       await supabase.auth.admin.deleteUser(authData.user.id)
       return NextResponse.json(
