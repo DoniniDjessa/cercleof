@@ -2837,6 +2837,7 @@ export default function POSPage() {
                 <div className="text-center text-[10px] text-gray-600 dark:text-gray-400 mt-4 pt-3 border-t border-dashed border-gray-200 dark:border-gray-700 mb-8">
                   <p>Merci de votre visite!</p>
                   <p className="mt-1">Vendu par: {receiptData.user}</p>
+                  <p className="pb-4">.</p>
                 </div>
               </div>
 
