@@ -308,6 +308,36 @@ export default function ClientDetailsPage() {
     }
 
     try {
+      // Check if client has any sales
+      const { data: sales, error: salesError } = await supabase
+        .from('dd-ventes')
+        .select('id')
+        .eq('client_id', client.id)
+
+      if (salesError) throw salesError
+
+      if (sales && sales.length > 0) {
+        // Check if all sales have been deleted (have deletion markers)
+        const saleIds = sales.map(sale => sale.id)
+        
+        const { data: deletedMarkers, error: markersError } = await supabase
+          .from('dd-revenues')
+          .select('source_id')
+          .eq('type', 'deleted_pos_sale')
+          .in('source_id', saleIds)
+
+        if (markersError) throw markersError
+
+        const deletedSaleIds = new Set((deletedMarkers || []).map(m => m.source_id))
+        const allSalesDeleted = saleIds.every(id => deletedSaleIds.has(id))
+
+        if (!allSalesDeleted) {
+          toast.error('Cannot delete client: Some sales linked to this client have not been deleted. Please delete all associated sales first.')
+          return
+        }
+      }
+
+      // All sales are deleted (or client has no sales), proceed with deletion
       const { error } = await supabase
         .from('dd-clients')
         .delete()
@@ -318,7 +348,7 @@ export default function ClientDetailsPage() {
       router.push('/admin/clients')
     } catch (error) {
       console.error('Error deleting client:', error)
-      toast.error('Error deleting client')
+      toast.error('Error deleting client: ' + (error as Error).message)
     }
   }
 
