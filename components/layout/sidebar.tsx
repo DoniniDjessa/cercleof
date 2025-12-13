@@ -55,7 +55,8 @@ import {
   Camera,
   BarChart,
   Mic,
-  Receipt
+  Receipt,
+  Edit
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -271,6 +272,11 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
               icon: Tag,
             },
           ]
+        },
+        {
+          name: 'Édition Menu',
+          icon: Edit,
+          href: '/admin/menu-edition',
         },
         // Only show Users section for admin and superadmin
         ...(userRole === 'admin' || userRole === 'superadmin' ? [{

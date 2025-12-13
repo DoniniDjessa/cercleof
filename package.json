@@ -9,6 +9,10 @@
     "lint": "next lint",
     "check-types": "node scripts/check-any-types.js",
     "fix-types": "node scripts/fix-common-any-types.js",
+    "test-menu-json": "node scripts/test-json-extraction.js",
+    "test-menu-api": "node scripts/test-menu-api.js",
+    "test-api-endpoint": "node scripts/test-api-direct.js",
+    "migrate-menu": "node scripts/migrate-menu-data.js",
     "prebuild": "echo 'Running pre-build checks...'"
   },
   "dependencies": {
