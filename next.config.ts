@@ -3,6 +3,10 @@ import type { NextConfig } from "next";
 import withPWA from "next-pwa";
 
 const nextConfig: NextConfig = {
+  // Use webpack for production builds (more stable on Vercel)
+  // Turbopack is only used in development with --turbopack flag
+  // Explicitly set turbopack config to avoid build errors
+  turbopack: {},
   images: {
     remotePatterns: [
       {
