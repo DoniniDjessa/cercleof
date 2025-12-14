@@ -29,8 +29,12 @@ import {
   Save,
   ArrowLeft,
   Eye,
-  EyeOff
+  EyeOff,
+  Link as LinkIcon
 } from 'lucide-react'
+import { FileUpload } from '@/components/ui/file-upload'
+import { MultipleFileUpload } from '@/components/ui/multiple-file-upload'
+import { MixedFileUpload } from '@/components/ui/mixed-file-upload'
 
 // Type definitions matching todo.md
 interface MediaItem {
@@ -963,13 +967,48 @@ function CategoryForm({ category, onSave, onCancel, isSuperAdmin }: CategoryForm
         </div>
         {/* Video URL - Only visible to superAdmin */}
         {isSuperAdmin && (
-          <div>
-            <Label>Video URL (YouTube Shorts) *</Label>
-            <Input
-              value={formData.video}
-              onChange={(e) => setFormData({ ...formData, video: e.target.value })}
-              placeholder="https://youtube.com/shorts/VIDEO_ID"
-            />
+          <div className="space-y-2">
+            <Label>Video (YouTube ou Cloudinary) *</Label>
+            <Tabs defaultValue="link" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="link" className="text-xs">
+                  <LinkIcon className="w-3 h-3 mr-1" />
+                  Lien
+                </TabsTrigger>
+                <TabsTrigger value="upload" className="text-xs">
+                  <Video className="w-3 h-3 mr-1" />
+                  Upload
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="link" className="mt-2">
+                <div className="flex gap-2">
+                  <Input
+                    value={formData.video}
+                    onChange={(e) => setFormData({ ...formData, video: e.target.value })}
+                    placeholder="https://youtube.com/shorts/VIDEO_ID ou https://res.cloudinary.com/..."
+                  />
+                  {formData.video && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setFormData({ ...formData, video: '' })}
+                      title="Supprimer le lien"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+              </TabsContent>
+              <TabsContent value="upload" className="mt-2">
+                <FileUpload
+                  type="video"
+                  onUploadComplete={(url) => setFormData({ ...formData, video: url })}
+                  currentUrl={formData.video}
+                  folder="menu/categories/videos"
+                />
+              </TabsContent>
+            </Tabs>
           </div>
         )}
         <div className="flex gap-2">
@@ -1063,13 +1102,26 @@ function SubCategoryForm({ subCategory, onSave, onCancel, isSuperAdmin }: SubCat
           />
         </div>
         <div>
-          <Label className="text-sm">Video URL (YouTube Shorts) *</Label>
-          <Input
-            value={formData.video}
-            onChange={(e) => setFormData({ ...formData, video: e.target.value })}
-            placeholder="https://youtube.com/shorts/VIDEO_ID"
-            className="text-sm"
-          />
+          <Label className="text-sm">Video URL (YouTube ou Cloudinary) *</Label>
+          <div className="flex gap-2">
+            <Input
+              value={formData.video}
+              onChange={(e) => setFormData({ ...formData, video: e.target.value })}
+              placeholder="https://youtube.com/shorts/VIDEO_ID ou https://res.cloudinary.com/..."
+              className="text-sm"
+            />
+            {formData.video && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setFormData({ ...formData, video: '' })}
+                title="Supprimer le lien"
+              >
+                <X className="w-3 h-3" />
+              </Button>
+            )}
+          </div>
         </div>
         <div className="flex gap-2">
           <Button size="sm" onClick={handleSave}>
@@ -1213,23 +1265,95 @@ function ServiceForm({ service, onSave, onCancel, isSuperAdmin }: ServiceFormPro
         {/* Image URL and Fallback Video - Only visible to superAdmin */}
         {isSuperAdmin && (
           <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label className="text-xs">Image URL</Label>
-              <Input
-                value={formData.image}
-                onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-                placeholder="Main image URL"
-                className="text-xs"
-              />
+            <div className="space-y-2">
+              <Label className="text-xs">Image (Pinterest ou Cloudinary)</Label>
+              <Tabs defaultValue="link" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 h-8">
+                  <TabsTrigger value="link" className="text-xs">
+                    <LinkIcon className="w-3 h-3 mr-1" />
+                    Lien
+                  </TabsTrigger>
+                  <TabsTrigger value="upload" className="text-xs">
+                    <ImageIcon className="w-3 h-3 mr-1" />
+                    Upload
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="link" className="mt-2">
+                  <div className="flex gap-2">
+                    <Input
+                      value={formData.image}
+                      onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+                      placeholder="https://pinterest.com/... ou https://res.cloudinary.com/..."
+                      className="text-xs"
+                    />
+                    {formData.image && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setFormData({ ...formData, image: '' })}
+                        title="Supprimer le lien"
+                        className="h-8"
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    )}
+                  </div>
+                </TabsContent>
+                <TabsContent value="upload" className="mt-2">
+                  <FileUpload
+                    type="image"
+                    onUploadComplete={(url) => setFormData({ ...formData, image: url })}
+                    currentUrl={formData.image}
+                    folder="menu/services/images"
+                  />
+                </TabsContent>
+              </Tabs>
             </div>
-            <div>
-              <Label className="text-xs">Fallback Video</Label>
-              <Input
-                value={formData.fallbackVideo}
-                onChange={(e) => setFormData({ ...formData, fallbackVideo: e.target.value })}
-                placeholder="Fallback video URL"
-                className="text-xs"
-              />
+            <div className="space-y-2">
+              <Label className="text-xs">Fallback Video (YouTube ou Cloudinary)</Label>
+              <Tabs defaultValue="link" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 h-8">
+                  <TabsTrigger value="link" className="text-xs">
+                    <LinkIcon className="w-3 h-3 mr-1" />
+                    Lien
+                  </TabsTrigger>
+                  <TabsTrigger value="upload" className="text-xs">
+                    <Video className="w-3 h-3 mr-1" />
+                    Upload
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="link" className="mt-2">
+                  <div className="flex gap-2">
+                    <Input
+                      value={formData.fallbackVideo}
+                      onChange={(e) => setFormData({ ...formData, fallbackVideo: e.target.value })}
+                      placeholder="https://youtube.com/... ou https://res.cloudinary.com/..."
+                      className="text-xs"
+                    />
+                    {formData.fallbackVideo && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setFormData({ ...formData, fallbackVideo: '' })}
+                        title="Supprimer le lien"
+                        className="h-8"
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    )}
+                  </div>
+                </TabsContent>
+                <TabsContent value="upload" className="mt-2">
+                  <FileUpload
+                    type="video"
+                    onUploadComplete={(url) => setFormData({ ...formData, fallbackVideo: url })}
+                    currentUrl={formData.fallbackVideo}
+                    folder="menu/services/videos"
+                  />
+                </TabsContent>
+              </Tabs>
             </div>
           </div>
         )}
@@ -1271,12 +1395,26 @@ function ServiceForm({ service, onSave, onCancel, isSuperAdmin }: ServiceFormPro
                   <SelectItem value="video">Video</SelectItem>
                 </SelectContent>
               </Select>
-              <Input
-                value={heroMedia?.src || ''}
-                onChange={(e) => setHeroMedia({ ...heroMedia!, src: e.target.value, type: heroMedia?.type || 'image' })}
-                placeholder="Media URL"
-                className="text-xs flex-1"
-              />
+              <div className="flex gap-2 flex-1">
+                <Input
+                  value={heroMedia?.src || ''}
+                  onChange={(e) => setHeroMedia({ ...heroMedia!, src: e.target.value, type: heroMedia?.type || 'image' })}
+                  placeholder={heroMedia?.type === 'video' ? 'YouTube ou Cloudinary URL' : 'Pinterest ou Cloudinary URL'}
+                  className="text-xs flex-1"
+                />
+                {heroMedia?.src && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setHeroMedia({ ...heroMedia!, src: '', type: heroMedia?.type || 'image' })}
+                    title="Supprimer le lien"
+                    className="h-8"
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                )}
+              </div>
               <Input
                 value={heroMedia?.label || ''}
                 onChange={(e) => setHeroMedia({ ...heroMedia!, label: e.target.value })}
@@ -1341,12 +1479,26 @@ function ServiceForm({ service, onSave, onCancel, isSuperAdmin }: ServiceFormPro
                     <SelectItem value="video">Video</SelectItem>
                   </SelectContent>
                 </Select>
-                <Input
-                  value={item.src}
-                  onChange={(e) => updateMediaItem(index, 'src', e.target.value)}
-                  placeholder="Media URL"
-                  className="text-xs flex-1"
-                />
+                <div className="flex gap-2 flex-1">
+                  <Input
+                    value={item.src}
+                    onChange={(e) => updateMediaItem(index, 'src', e.target.value)}
+                    placeholder={item.type === 'video' ? 'YouTube ou Cloudinary URL' : 'Pinterest ou Cloudinary URL'}
+                    className="text-xs flex-1"
+                  />
+                  {item.src && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => updateMediaItem(index, 'src', '')}
+                      title="Supprimer le lien"
+                      className="h-8"
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  )}
+                </div>
                 <Input
                   value={item.label || ''}
                   onChange={(e) => updateMediaItem(index, 'label', e.target.value)}
@@ -1363,39 +1515,84 @@ function ServiceForm({ service, onSave, onCancel, isSuperAdmin }: ServiceFormPro
 
         {/* Gallery Media Array - Only visible to superAdmin */}
         {isSuperAdmin && (
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <Label className="text-xs">Gallery Media</Label>
-              <Button size="sm" variant="outline" onClick={addGalleryMediaItem}>
-                <Plus className="w-3 h-3 mr-1" />
-                Add
-              </Button>
-            </div>
-            {galleryMedia.map((item, index) => (
-              <div key={index} className="flex gap-2 mb-2">
-                <Select
-                  value={item.type}
-                  onValueChange={(value) => updateGalleryMediaItem(index, 'type', value)}
-                >
-                  <SelectTrigger className="text-xs w-24">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="image">Image</SelectItem>
-                    <SelectItem value="video">Video</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Input
-                  value={item.src}
-                  onChange={(e) => updateGalleryMediaItem(index, 'src', e.target.value)}
-                  placeholder="Media URL"
-                  className="text-xs flex-1"
+          <div className="space-y-3">
+            <Label className="text-xs">Gallery Media (Images et Vidéos)</Label>
+            <Tabs defaultValue="link" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 h-8">
+                <TabsTrigger value="link" className="text-xs">
+                  <LinkIcon className="w-3 h-3 mr-1" />
+                  Liens
+                </TabsTrigger>
+                <TabsTrigger value="upload" className="text-xs">
+                  <ImageIcon className="w-3 h-3 mr-1" />
+                  Upload Multiple
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="link" className="mt-2">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-xs">Ajouter un média</Label>
+                    <Button size="sm" variant="outline" onClick={addGalleryMediaItem}>
+                      <Plus className="w-3 h-3 mr-1" />
+                      Add
+                    </Button>
+                  </div>
+                  {galleryMedia.map((item, index) => (
+                    <div key={index} className="flex gap-2 mb-2">
+                      <Select
+                        value={item.type}
+                        onValueChange={(value) => updateGalleryMediaItem(index, 'type', value)}
+                      >
+                        <SelectTrigger className="text-xs w-24">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="image">Image</SelectItem>
+                          <SelectItem value="video">Video</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <div className="flex gap-2 flex-1">
+                        <Input
+                          value={item.src}
+                          onChange={(e) => updateGalleryMediaItem(index, 'src', e.target.value)}
+                          placeholder={item.type === 'video' ? 'YouTube ou Cloudinary URL' : 'Pinterest ou Cloudinary URL'}
+                          className="text-xs flex-1"
+                        />
+                        {item.src && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => updateGalleryMediaItem(index, 'src', '')}
+                            title="Supprimer le lien"
+                            className="h-8"
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        )}
+                      </div>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={() => removeGalleryMediaItem(index)}
+                        title="Supprimer l'élément"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </TabsContent>
+              <TabsContent value="upload" className="mt-2">
+                <MixedFileUpload
+                  onUploadComplete={(items: Array<{ type: 'image' | 'video', src: string }>) => {
+                    setGalleryMedia(items)
+                  }}
+                  currentItems={galleryMedia}
+                  folder="menu/services/gallery"
                 />
-                <Button size="sm" variant="outline" onClick={() => removeGalleryMediaItem(index)}>
-                  <X className="w-3 h-3" />
-                </Button>
-              </div>
-            ))}
+              </TabsContent>
+            </Tabs>
           </div>
         )}
 
