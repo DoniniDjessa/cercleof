@@ -65,9 +65,9 @@ interface Service {
 
 interface SubCategory {
   title: string
-  subtitle: string
+  subtitle?: string
   description?: string
-  video: string
+  video?: string
   image?: string
   services: Service[]
 }
@@ -1233,7 +1233,7 @@ function SubCategoryForm({ subCategory, onSave, onCancel, isSuperAdmin }: SubCat
       title: formData.title,
       subtitle: formData.subtitle || undefined,
       description: formData.description || undefined,
-      video: finalVideo || subCategory.video,
+      video: finalVideo || subCategory.video || '',
       image: finalImage || undefined
     }
 
