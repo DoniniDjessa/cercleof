@@ -11,8 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/contexts/AuthContext"
 import { supabase } from "@/lib/supabase"
 import { ButtonLoadingSpinner } from "@/components/ui/context-loaders"
-import { X } from "lucide-react"
+import { X, Image as ImageIcon, Camera, Video } from "lucide-react"
 import toast from "react-hot-toast"
+import { compressImage } from "@/lib/image-utils"
 
 interface AddCategoryProps {
   onCategoryCreated?: () => void
@@ -34,6 +35,11 @@ export function AddCategory({ onCategoryCreated, categoryType, categoryId }: Add
     type: categoryType,
     parent_id: ""
   })
+  const [categoryImage, setCategoryImage] = useState<File | null>(null)
+  const [categoryVideo, setCategoryVideo] = useState<File | null>(null)
+  const [mediaPreview, setMediaPreview] = useState<string | null>(null)
+  const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null) // Track if current media is image or video
+  const [uploadingMedia, setUploadingMedia] = useState(false)
   const isEditMode = !!categoryId
   
   // Check if user is admin
@@ -48,6 +54,147 @@ export function AddCategory({ onCategoryCreated, categoryType, categoryId }: Add
     // Convert special values to empty string for database
     const normalizedValue = value === "none" ? "" : value
     setFormData((prev) => ({ ...prev, [name]: normalizedValue }))
+  }
+
+  const handleMediaUpload = async (file: File | null, type: 'image' | 'video', compress: boolean = true) => {
+    if (!file) return
+    
+    if (type === 'image' && !file.type.startsWith('image/')) {
+      toast.error('Veuillez sélectionner un fichier image valide')
+      return
+    }
+    
+    if (type === 'video' && !file.type.startsWith('video/')) {
+      toast.error('Veuillez sélectionner un fichier vidéo valide')
+      return
+    }
+
+    // Validate file size
+    const maxSize = type === 'image' ? 10 * 1024 * 1024 : 100 * 1024 * 1024 // 10MB for images, 100MB for videos
+    if (file.size > maxSize) {
+      toast.error(`La taille du fichier ne doit pas dépasser ${maxSize / 1024 / 1024}MB`)
+      return
+    }
+    
+    try {
+      let processedFile = file
+      
+      // Compress image before setting it (videos are not compressed)
+      if (type === 'image' && compress) {
+        processedFile = await compressImage(file, { maxWidth: 1920, maxHeight: 1920, quality: 0.8, maxSizeMB: 2 })
+      }
+      
+      if (type === 'image') {
+        setCategoryImage(processedFile)
+        setCategoryVideo(null)
+      } else {
+        setCategoryVideo(processedFile)
+        setCategoryImage(null)
+      }
+      
+      setMediaType(type)
+      
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setMediaPreview(e.target?.result as string)
+      }
+      reader.readAsDataURL(processedFile)
+      
+      toast.success(`${type === 'image' ? 'Image' : 'Vidéo'} ajoutée${type === 'image' && compress ? ' (compressée)' : ''}`)
+    } catch (error) {
+      console.error(`Error processing ${type}:`, error)
+      toast.error(`Erreur lors du traitement de ${type === 'image' ? 'l\'image' : 'la vidéo'}`)
+    }
+  }
+
+  const handleImageInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null
+    await handleMediaUpload(file, 'image', true)
+    // Reset input to allow selecting same file again
+    e.target.value = ''
+  }
+
+  const handleVideoInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null
+    await handleMediaUpload(file, 'video', false)
+    // Reset input to allow selecting same file again
+    e.target.value = ''
+  }
+
+  const handleCameraCapture = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.capture = 'environment' // Use back camera on mobile
+    input.onchange = async (e) => {
+      const target = e.target as HTMLInputElement
+      await handleMediaUpload(target.files?.[0] || null, 'image', true)
+    }
+    input.click()
+  }
+
+  const removeMedia = () => {
+    setCategoryImage(null)
+    setCategoryVideo(null)
+    setMediaPreview(null)
+    setMediaType(null)
+  }
+
+  const uploadMedia = async (): Promise<{ imageUrl: string | null, videoUrl: string | null }> => {
+    let imageUrl: string | null = null
+    let videoUrl: string | null = null
+
+    try {
+      setUploadingMedia(true)
+      
+      if (categoryImage) {
+        const formData = new FormData()
+        formData.append('file', categoryImage)
+        formData.append('type', 'image')
+        formData.append('folder', 'categories')
+
+        const response = await fetch('/api/upload/cloudinary', {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || 'Erreur lors de l\'upload de l\'image')
+        }
+
+        const data = await response.json()
+        imageUrl = data.url
+      }
+
+      if (categoryVideo) {
+        const formData = new FormData()
+        formData.append('file', categoryVideo)
+        formData.append('type', 'video')
+        formData.append('folder', 'categories')
+
+        const response = await fetch('/api/upload/cloudinary', {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || 'Erreur lors de l\'upload de la vidéo')
+        }
+
+        const data = await response.json()
+        videoUrl = data.url
+      }
+
+      return { imageUrl, videoUrl }
+    } catch (error: any) {
+      console.error('Error uploading media:', error)
+      toast.error(error.message || 'Erreur lors du téléchargement du média')
+      return { imageUrl: null, videoUrl: null }
+    } finally {
+      setUploadingMedia(false)
+    }
   }
 
   useEffect(() => {
@@ -110,6 +257,14 @@ export function AddCategory({ onCategoryCreated, categoryType, categoryId }: Add
           type: data.type || categoryType,
           parent_id: data.parent_id || ""
         })
+        // Load existing image or video if available
+        if (data.image) {
+          setMediaPreview(data.image)
+          setMediaType('image')
+        } else if (data.video) {
+          setMediaPreview(data.video)
+          setMediaType('video')
+        }
       }
     } catch (error) {
       console.error('Error fetching category:', error)
@@ -163,12 +318,41 @@ export function AddCategory({ onCategoryCreated, categoryType, categoryId }: Add
         return
       }
 
+      // Upload media if new ones were selected
+      let categoryImageUrl = null
+      let categoryVideoUrl = null
+      
+      if (categoryImage || categoryVideo) {
+        const { imageUrl, videoUrl } = await uploadMedia()
+        if (categoryImage && !imageUrl) {
+          toast.error('Erreur lors du téléchargement de l\'image')
+          setLoading(false)
+          return
+        }
+        if (categoryVideo && !videoUrl) {
+          toast.error('Erreur lors du téléchargement de la vidéo')
+          setLoading(false)
+          return
+        }
+        categoryImageUrl = imageUrl
+        categoryVideoUrl = videoUrl
+      } else if (isEditMode && mediaPreview) {
+        // Keep existing media if no new media uploaded
+        if (mediaType === 'image') {
+          categoryImageUrl = mediaPreview
+        } else if (mediaType === 'video') {
+          categoryVideoUrl = mediaPreview
+        }
+      }
+
       // Prepare category data
       const categoryData: Record<string, unknown> = {
         name: formData.name,
         description: formData.description || null,
         type: formData.type,
         parent_id: formData.parent_id || null,
+        image: categoryImageUrl || null,
+        video: categoryVideoUrl || null,
       }
 
       let data, error
@@ -225,6 +409,10 @@ export function AddCategory({ onCategoryCreated, categoryType, categoryId }: Add
         type: categoryType,
         parent_id: ""
       })
+      setCategoryImage(null)
+      setCategoryVideo(null)
+      setMediaPreview(null)
+      setMediaType(null)
       
       // Refresh parent categories list
       fetchParentCategories()
@@ -337,6 +525,94 @@ export function AddCategory({ onCategoryCreated, categoryType, categoryId }: Add
                 className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
               />
             </div>
+            <div className="space-y-2">
+              <Label className="text-gray-700 dark:text-gray-300">Média de la Catégorie (Image ou Vidéo)</Label>
+              <div className="flex items-center gap-4">
+                <div className="w-24 h-24 rounded-sm border-2 border-gray-200 dark:border-gray-600 overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                  {mediaPreview ? (
+                    mediaType === 'video' ? (
+                      <video
+                        src={mediaPreview}
+                        className="w-full h-full object-cover"
+                        controls
+                        muted
+                      />
+                    ) : (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={mediaPreview} alt="Preview" className="w-full h-full object-cover" />
+                    )
+                  ) : (
+                    <ImageIcon className="w-8 h-8 text-gray-400" />
+                  )}
+                </div>
+                <div className="flex-1 space-y-2">
+                  <div className="flex gap-2 flex-wrap">
+                    <input
+                      type="file"
+                      id="categoryImage"
+                      accept="image/*"
+                      onChange={handleImageInputChange}
+                      className="hidden"
+                    />
+                    <input
+                      type="file"
+                      id="categoryVideo"
+                      accept="video/*"
+                      onChange={handleVideoInputChange}
+                      className="hidden"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => document.getElementById('categoryImage')?.click()}
+                      disabled={uploadingMedia}
+                      className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                    >
+                      <ImageIcon className="w-4 h-4 mr-2" />
+                      {uploadingMedia ? 'Upload...' : 'Choisir une image'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCameraCapture}
+                      disabled={uploadingMedia}
+                      className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                    >
+                      <Camera className="w-4 h-4 mr-2" />
+                      Caméra
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => document.getElementById('categoryVideo')?.click()}
+                      disabled={uploadingMedia}
+                      className="bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
+                    >
+                      <Video className="w-4 h-4 mr-2" />
+                      {uploadingMedia ? 'Upload...' : 'Choisir une vidéo'}
+                    </Button>
+                    {mediaPreview && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={removeMedia}
+                        disabled={uploadingMedia}
+                        className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Images: JPG, PNG, WebP (max 10MB) | Vidéos: MP4, MOV, AVI (max 100MB)
+                  </p>
+                </div>
+              </div>
+            </div>
             {categoryType === 'service' && (
               <div className="space-y-2">
                 <Label htmlFor="parent_id" className="text-gray-700 dark:text-gray-300">
@@ -375,8 +651,8 @@ export function AddCategory({ onCategoryCreated, categoryType, categoryId }: Add
           >
             Annuler
           </Button>
-          <Button type="submit" disabled={loading || fetching}>
-            {loading ? <ButtonLoadingSpinner /> : isEditMode ? 'Mettre à jour la Catégorie' : 'Créer la Catégorie'}
+          <Button type="submit" disabled={loading || fetching || uploadingMedia}>
+            {loading || uploadingMedia ? <ButtonLoadingSpinner /> : isEditMode ? 'Mettre à jour la Catégorie' : 'Créer la Catégorie'}
           </Button>
         </div>
       </form>

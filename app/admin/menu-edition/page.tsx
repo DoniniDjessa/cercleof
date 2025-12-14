@@ -30,11 +30,13 @@ import {
   ArrowLeft,
   Eye,
   EyeOff,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Camera
 } from 'lucide-react'
 import { FileUpload } from '@/components/ui/file-upload'
 import { MultipleFileUpload } from '@/components/ui/multiple-file-upload'
 import { MixedFileUpload } from '@/components/ui/mixed-file-upload'
+import { compressImage } from '@/lib/image-utils'
 
 // Type definitions matching todo.md
 interface MediaItem {
@@ -66,6 +68,7 @@ interface SubCategory {
   subtitle: string
   description?: string
   video: string
+  image?: string
   services: Service[]
 }
 
@@ -281,6 +284,7 @@ export default function MenuEditionPage() {
       title: '',
       subtitle: '',
       video: '',
+      image: '',
       services: []
     })
     setMenuData(newData)
@@ -1039,28 +1043,198 @@ function SubCategoryForm({ subCategory, onSave, onCancel, isSuperAdmin }: SubCat
     title: subCategory.title,
     subtitle: subCategory.subtitle,
     description: subCategory.description || '',
-    video: subCategory.video
+    video: subCategory.video,
+    image: subCategory.image || ''
   })
+  const [subCategoryImage, setSubCategoryImage] = useState<File | null>(null)
+  const [subCategoryVideo, setSubCategoryVideo] = useState<File | null>(null)
+  const [mediaPreview, setMediaPreview] = useState<string | null>(subCategory.image || subCategory.video || null)
+  const [mediaType, setMediaType] = useState<'image' | 'video' | null>(subCategory.image ? 'image' : subCategory.video ? 'video' : null)
+  const [uploadingMedia, setUploadingMedia] = useState(false)
 
-  const handleSave = () => {
-    if (!formData.title || !formData.subtitle) {
-      toast.error('Please fill in all required fields')
+  const handleMediaUpload = async (file: File | null, type: 'image' | 'video', compress: boolean = true) => {
+    if (!file) return
+    
+    if (type === 'image' && !file.type.startsWith('image/')) {
+      toast.error('Veuillez sélectionner un fichier image valide')
+      return
+    }
+    
+    if (type === 'video' && !file.type.startsWith('video/')) {
+      toast.error('Veuillez sélectionner un fichier vidéo valide')
       return
     }
 
-    // Video is required only for superAdmin, for admin preserve existing value
-    if (isSuperAdmin && !formData.video) {
-      toast.error('Please fill in all required fields')
+    // Validate file size
+    const maxSize = type === 'image' ? 10 * 1024 * 1024 : 100 * 1024 * 1024 // 10MB for images, 100MB for videos
+    if (file.size > maxSize) {
+      toast.error(`La taille du fichier ne doit pas dépasser ${maxSize / 1024 / 1024}MB`)
       return
     }
+    
+    try {
+      let processedFile = file
+      
+      // Compress image before setting it (videos are not compressed)
+      if (type === 'image' && compress) {
+        processedFile = await compressImage(file, { maxWidth: 1920, maxHeight: 1920, quality: 0.8, maxSizeMB: 2 })
+      }
+      
+      if (type === 'image') {
+        setSubCategoryImage(processedFile)
+        setSubCategoryVideo(null)
+      } else {
+        setSubCategoryVideo(processedFile)
+        setSubCategoryImage(null)
+      }
+      
+      setMediaType(type)
+      
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setMediaPreview(e.target?.result as string)
+      }
+      reader.readAsDataURL(processedFile)
+      
+      toast.success(`${type === 'image' ? 'Image' : 'Vidéo'} ajoutée${type === 'image' && compress ? ' (compressée)' : ''}`)
+    } catch (error) {
+      console.error(`Error processing ${type}:`, error)
+      toast.error(`Erreur lors du traitement de ${type === 'image' ? 'l\'image' : 'la vidéo'}`)
+    }
+  }
+
+  const handleImageInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null
+    await handleMediaUpload(file, 'image', true)
+    e.target.value = ''
+  }
+
+  const handleVideoInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null
+    await handleMediaUpload(file, 'video', false)
+    e.target.value = ''
+  }
+
+  const handleCameraCapture = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.capture = 'environment'
+    input.onchange = async (e) => {
+      const target = e.target as HTMLInputElement
+      await handleMediaUpload(target.files?.[0] || null, 'image', true)
+    }
+    input.click()
+  }
+
+  const removeMedia = () => {
+    setSubCategoryImage(null)
+    setSubCategoryVideo(null)
+    setMediaPreview(null)
+    setMediaType(null)
+    setFormData({ ...formData, image: '', video: '' })
+  }
+
+  const uploadMedia = async (): Promise<{ imageUrl: string | null, videoUrl: string | null }> => {
+    let imageUrl: string | null = null
+    let videoUrl: string | null = null
+
+    try {
+      setUploadingMedia(true)
+      
+      if (subCategoryImage) {
+        const formData = new FormData()
+        formData.append('file', subCategoryImage)
+        formData.append('type', 'image')
+        formData.append('folder', 'categories')
+
+        const response = await fetch('/api/upload/cloudinary', {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || 'Erreur lors de l\'upload de l\'image')
+        }
+
+        const data = await response.json()
+        imageUrl = data.url
+      }
+
+      if (subCategoryVideo) {
+        const formData = new FormData()
+        formData.append('file', subCategoryVideo)
+        formData.append('type', 'video')
+        formData.append('folder', 'categories')
+
+        const response = await fetch('/api/upload/cloudinary', {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || 'Erreur lors de l\'upload de la vidéo')
+        }
+
+        const data = await response.json()
+        videoUrl = data.url
+      }
+
+      return { imageUrl, videoUrl }
+    } catch (error: any) {
+      console.error('Error uploading media:', error)
+      toast.error(error.message || 'Erreur lors du téléchargement du média')
+      return { imageUrl: null, videoUrl: null }
+    } finally {
+      setUploadingMedia(false)
+    }
+  }
+
+  const handleSave = async () => {
+    if (!formData.title) {
+      toast.error('Please fill in the title')
+      return
+    }
+
+    // Upload media if new ones were selected
+    let imageUrl: string | null = null
+    let videoUrl: string | null = null
+    
+    if (subCategoryImage || subCategoryVideo) {
+      const { imageUrl: uploadedImageUrl, videoUrl: uploadedVideoUrl } = await uploadMedia()
+      if (subCategoryImage && !uploadedImageUrl) {
+        toast.error('Erreur lors du téléchargement de l\'image')
+        return
+      }
+      if (subCategoryVideo && !uploadedVideoUrl) {
+        toast.error('Erreur lors du téléchargement de la vidéo')
+        return
+      }
+      imageUrl = uploadedImageUrl
+      videoUrl = uploadedVideoUrl
+    } else if (mediaPreview) {
+      // Keep existing media if no new media uploaded
+      if (mediaType === 'image') {
+        imageUrl = mediaPreview
+      } else if (mediaType === 'video') {
+        videoUrl = mediaPreview
+      }
+    }
+
+    // Use uploaded media or form data URL
+    const finalVideo = videoUrl || formData.video
+    const finalImage = imageUrl || formData.image
 
     // For non-superAdmin, preserve existing video value
     const savedSubCategory: SubCategory = {
       ...subCategory,
       title: formData.title,
-      subtitle: formData.subtitle,
+      subtitle: formData.subtitle || undefined,
       description: formData.description || undefined,
-      video: isSuperAdmin ? formData.video : subCategory.video
+      video: finalVideo || subCategory.video,
+      image: finalImage || undefined
     }
 
     onSave(savedSubCategory)
@@ -1083,11 +1257,11 @@ function SubCategoryForm({ subCategory, onSave, onCancel, isSuperAdmin }: SubCat
           />
         </div>
         <div>
-          <Label className="text-sm">Subtitle *</Label>
+          <Label className="text-sm">Subtitle</Label>
           <Input
             value={formData.subtitle}
             onChange={(e) => setFormData({ ...formData, subtitle: e.target.value })}
-            placeholder="SubCategory subtitle"
+            placeholder="SubCategory subtitle (optional)"
             className="text-sm"
           />
         </div>
@@ -1102,33 +1276,132 @@ function SubCategoryForm({ subCategory, onSave, onCancel, isSuperAdmin }: SubCat
           />
         </div>
         <div>
-          <Label className="text-sm">Video URL (YouTube ou Cloudinary) *</Label>
-          <div className="flex gap-2">
-            <Input
-              value={formData.video}
-              onChange={(e) => setFormData({ ...formData, video: e.target.value })}
-              placeholder="https://youtube.com/shorts/VIDEO_ID ou https://res.cloudinary.com/..."
-              className="text-sm"
-            />
-            {formData.video && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setFormData({ ...formData, video: '' })}
-                title="Supprimer le lien"
-              >
-                <X className="w-3 h-3" />
-              </Button>
-            )}
+          <Label className="text-sm">Média de la Sous-Catégorie (Image ou Vidéo)</Label>
+          <div className="space-y-2">
+            <div className="flex items-center gap-4">
+              <div className="w-20 h-20 rounded-sm border-2 border-gray-200 dark:border-gray-600 overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                {mediaPreview ? (
+                  mediaType === 'video' ? (
+                    <video
+                      src={mediaPreview}
+                      className="w-full h-full object-cover"
+                      controls
+                      muted
+                    />
+                  ) : (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={mediaPreview} alt="Preview" className="w-full h-full object-cover" />
+                  )
+                ) : (
+                  <ImageIcon className="w-6 h-6 text-gray-400" />
+                )}
+              </div>
+              <div className="flex-1 space-y-2">
+                <div className="flex gap-2 flex-wrap">
+                  <input
+                    type="file"
+                    id="subCategoryImage"
+                    accept="image/*"
+                    onChange={handleImageInputChange}
+                    className="hidden"
+                  />
+                  <input
+                    type="file"
+                    id="subCategoryVideo"
+                    accept="video/*"
+                    onChange={handleVideoInputChange}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => document.getElementById('subCategoryImage')?.click()}
+                    disabled={uploadingMedia}
+                    className="text-xs"
+                  >
+                    <ImageIcon className="w-3 h-3 mr-1" />
+                    {uploadingMedia ? 'Upload...' : 'Image'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCameraCapture}
+                    disabled={uploadingMedia}
+                    className="text-xs"
+                  >
+                    <Camera className="w-3 h-3 mr-1" />
+                    Caméra
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => document.getElementById('subCategoryVideo')?.click()}
+                    disabled={uploadingMedia}
+                    className="text-xs"
+                  >
+                    <Video className="w-3 h-3 mr-1" />
+                    {uploadingMedia ? 'Upload...' : 'Vidéo'}
+                  </Button>
+                  {mediaPreview && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={removeMedia}
+                      disabled={uploadingMedia}
+                      className="text-xs bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400"
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Images: JPG, PNG, WebP (max 10MB) | Vidéos: MP4, MOV, AVI (max 100MB)
+                </p>
+              </div>
+            </div>
+            <div>
+              <Label className="text-sm">Ou Video URL (YouTube ou Cloudinary)</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={formData.video}
+                  onChange={(e) => setFormData({ ...formData, video: e.target.value })}
+                  placeholder="https://youtube.com/shorts/VIDEO_ID ou https://res.cloudinary.com/..."
+                  className="text-sm"
+                />
+                {formData.video && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setFormData({ ...formData, video: '' })}
+                    title="Supprimer le lien"
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" onClick={handleSave}>
-            <Save className="w-3 h-3 mr-2" />
-            Save
+          <Button size="sm" onClick={handleSave} disabled={uploadingMedia}>
+            {uploadingMedia ? (
+              <>
+                <ButtonLoadingSpinner />
+                Uploading...
+              </>
+            ) : (
+              <>
+                <Save className="w-3 h-3 mr-2" />
+                Save
+              </>
+            )}
           </Button>
-          <Button size="sm" variant="outline" onClick={onCancel}>
+          <Button size="sm" variant="outline" onClick={onCancel} disabled={uploadingMedia}>
             <X className="w-3 h-3 mr-2" />
             Cancel
           </Button>
