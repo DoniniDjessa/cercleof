@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Upload to Cloudinary
-    return new Promise((resolve, reject) => {
+    return new Promise<NextResponse>((resolve, reject) => {
       const uploadOptions: any = {
         folder: folder,
         resource_type: resourceType,
