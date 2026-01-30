@@ -1,89 +1,100 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { useAuth } from '@/contexts/AuthContext'
-import { createClient } from '@/lib/supabase'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { PageTransition } from '@/components/ui/page-transition'
-import { ButtonLoadingSpinner } from '@/components/ui/context-loaders'
-import { ThemeToggle, LanguageToggle } from '@/components/ui/theme-toggle'
-import { useTheme } from '@/contexts/ThemeContext'
-import { motion } from 'framer-motion'
-import Image from 'next/image'
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useAuth } from "@/contexts/AuthContext";
+import { createClient } from "@/lib/supabase";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { PageTransition } from "@/components/ui/page-transition";
+import { ButtonLoadingSpinner } from "@/components/ui/context-loaders";
+import { ThemeToggle, LanguageToggle } from "@/components/ui/theme-toggle";
+import { useTheme } from "@/contexts/ThemeContext";
+import { motion } from "framer-motion";
+import Image from "next/image";
 
 export default function LoginPage() {
-  const [loginField, setLoginField] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const { signIn, user } = useAuth()
-  const { t } = useTheme()
-  const router = useRouter()
+  const [loginField, setLoginField] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const { signIn, user } = useAuth();
+  const { t } = useTheme();
+  const router = useRouter();
 
   // Redirect if user is already authenticated
   useEffect(() => {
     if (user) {
-      console.log('User already authenticated, redirecting to home...')
-      router.push('/')
+      console.log("User already authenticated, redirecting to home...");
+      router.push("/");
     }
-  }, [user, router])
+  }, [user, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    // TEMPORARY: Block all login attempts - Remove this line to re-enable
+    return;
 
     try {
       // Try to sign in with the field as email first
-      const { error } = await signIn(loginField, password)
+      const { error } = await signIn(loginField, password);
       if (error) {
-        setError(error.message)
-        setLoading(false)
+        setError(error.message);
+        setLoading(false);
       } else {
-        console.log('Login successful, checking user role for redirect...')
+        console.log("Login successful, checking user role for redirect...");
         // Small delay to ensure session is properly established
         setTimeout(async () => {
           try {
             // Get user role to determine redirect destination
-            const supabase = createClient()
-            const { data: { user: authUser } } = await supabase.auth.getUser()
-            
+            const supabase = createClient();
+            const {
+              data: { user: authUser },
+            } = await supabase.auth.getUser();
+
             if (authUser) {
               const { data: userData } = await supabase
-                .from('dd-users')
-                .select('role')
-                .eq('auth_user_id', authUser.id)
-                .single()
+                .from("dd-users")
+                .select("role")
+                .eq("auth_user_id", authUser.id)
+                .single();
 
-              const role = userData?.role?.toLowerCase() || ''
-              
+              const role = userData?.role?.toLowerCase() || "";
+
               // Redirect admins to dashboard, others to POS
-              if (['admin', 'superadmin', 'manager'].includes(role)) {
-                window.location.href = '/'
+              if (["admin", "superadmin", "manager"].includes(role)) {
+                window.location.href = "/";
               } else {
-                window.location.href = '/admin/pos'
+                window.location.href = "/admin/pos";
               }
             } else {
-              window.location.href = '/admin/pos'
+              window.location.href = "/admin/pos";
             }
           } catch (err) {
-            console.error('Error checking user role:', err)
+            console.error("Error checking user role:", err);
             // Default to POS on error
-            window.location.href = '/admin/pos'
+            window.location.href = "/admin/pos";
           }
-        }, 200)
+        }, 200);
       }
     } catch (err) {
-      setError('An unexpected error occurred')
-      setLoading(false)
+      setError("An unexpected error occurred");
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <PageTransition>
@@ -105,19 +116,21 @@ export default function LoginPage() {
             >
               <div className="relative h-20 w-20 mb-4 flex items-center justify-center">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img 
-                  src="/cbmin.png" 
-                  alt="Cercle Of Logo" 
+                <img
+                  src="/cbmin.png"
+                  alt="Cercle Of Logo"
                   className="h-full w-full object-contain"
-                  style={{ maxWidth: '100%', height: 'auto' }}
+                  style={{ maxWidth: "100%", height: "auto" }}
                   onError={(e) => {
-                    console.error('Failed to load logo')
-                    const target = e.target as HTMLImageElement
-                    target.style.display = 'none'
+                    console.error("Failed to load logo");
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = "none";
                   }}
                 />
               </div>
-              <h1 className="font-display text-5xl text-foreground mb-2">{t('app.title')}</h1>
+              <h1 className="font-display text-5xl text-foreground mb-2">
+                {t("app.title")}
+              </h1>
             </motion.div>
 
             <motion.div
@@ -131,19 +144,22 @@ export default function LoginPage() {
                     {t('login.welcome')}
                   </CardTitle> */}
                   <CardDescription className="font-body text-center text-muted-foreground">
-                    {t('login.subtitle')}
+                    {t("login.subtitle")}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="space-y-2">
-                      <Label htmlFor="loginField" className="font-body text-sm font-medium text-foreground">
-                        {t('login.emailOrUsername')}
+                      <Label
+                        htmlFor="loginField"
+                        className="font-body text-sm font-medium text-foreground"
+                      >
+                        {t("login.emailOrUsername")}
                       </Label>
                       <Input
                         id="loginField"
                         type="text"
-                        placeholder={t('login.emailOrUsername')}
+                        placeholder={t("login.emailOrUsername")}
                         value={loginField}
                         onChange={(e) => setLoginField(e.target.value)}
                         required
@@ -151,14 +167,17 @@ export default function LoginPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="password" className="font-body text-sm font-medium text-foreground">
-                        {t('login.password')}
+                      <Label
+                        htmlFor="password"
+                        className="font-body text-sm font-medium text-foreground"
+                      >
+                        {t("login.password")}
                       </Label>
                       <div className="relative">
                         <Input
                           id="password"
                           type={showPassword ? "text" : "password"}
-                          placeholder={t('login.password')}
+                          placeholder={t("login.password")}
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                           required
@@ -170,13 +189,38 @@ export default function LoginPage() {
                           className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                         >
                           {showPassword ? (
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21"
+                              />
                             </svg>
                           ) : (
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                              />
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                              />
                             </svg>
                           )}
                         </button>
@@ -191,15 +235,19 @@ export default function LoginPage() {
                         {error}
                       </motion.div>
                     )}
-                    <Button type="submit" className="w-full font-body text-base" disabled={loading}>
-                      {loading ? <ButtonLoadingSpinner /> : t('login.signIn')}
+                    <Button
+                      type="submit"
+                      className="w-full font-body text-base"
+                      disabled={loading}
+                    >
+                      {loading ? <ButtonLoadingSpinner /> : t("login.signIn")}
                     </Button>
                   </form>
                   <div className="mt-6 text-center">
                     <p className="font-body text-sm text-muted-foreground">
-                      {t('login.needAccount')}{' '}
+                      {t("login.needAccount")}{" "}
                       <span className="text-slate-600 dark:text-slate-400 font-medium">
-                        {t('login.contactAdmin')}
+                        {t("login.contactAdmin")}
                       </span>
                     </p>
                   </div>
@@ -224,5 +272,5 @@ export default function LoginPage() {
         </div>
       </div>
     </PageTransition>
-  )
+  );
 }
