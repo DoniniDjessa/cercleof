@@ -1,88 +1,88 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { useAuth } from '@/contexts/AuthContext'
-import { useTheme } from '@/contexts/ThemeContext'
-import { AuthLoadingScreen } from '@/components/ui/context-loaders'
-import { createClient } from '@/lib/supabase'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { DashboardOverview } from '@/components/dashboard/dashboard-overview'
-import { AnalysePage } from '@/components/dashboard/analyse-page'
-import { DetailsPage } from '@/components/dashboard/details-page'
+import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
+import { AuthLoadingScreen } from "@/components/ui/context-loaders";
+import { createClient } from "@/lib/supabase";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DashboardOverview } from "@/components/dashboard/dashboard-overview";
+import { AnalysePage } from "@/components/dashboard/analyse-page";
+import { DetailsPage } from "@/components/dashboard/details-page";
 
 interface UserProfile {
-  id: string
-  pseudo: string
-  first_name: string
-  last_name: string
-  role: string
-  phone?: string
-  hire_date?: string
+  id: string;
+  pseudo: string;
+  first_name: string;
+  last_name: string;
+  role: string;
+  phone?: string;
+  hire_date?: string;
 }
 
 export default function Home() {
-  const { user, loading } = useAuth()
-  const { t } = useTheme()
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
-  const [profileLoading, setProfileLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState('dashboard')
+  const { user, loading } = useAuth();
+  const { t } = useTheme();
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("dashboard");
 
   useEffect(() => {
     if (user) {
-      fetchUserProfile()
+      fetchUserProfile();
     }
-  }, [user])
+  }, [user]);
 
   const fetchUserProfile = async () => {
     try {
-      const supabase = createClient()
+      const supabase = createClient();
       const { data, error } = await supabase
-        .from('dd-users')
-        .select('*')
-        .eq('auth_user_id', user?.id)
-        .single()
+        .from("dd-users")
+        .select("*")
+        .eq("auth_user_id", user?.id)
+        .single();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching user profile:', error)
-        setUserProfile(null)
+      if (error && error.code !== "PGRST116") {
+        console.error("Error fetching user profile:", error);
+        setUserProfile(null);
       } else {
-        setUserProfile(data)
+        setUserProfile(data);
       }
     } catch (error) {
-      console.error('Error fetching user profile:', error)
-      setUserProfile(null)
+      console.error("Error fetching user profile:", error);
+      setUserProfile(null);
     } finally {
-      setProfileLoading(false)
+      setProfileLoading(false);
     }
-  }
+  };
 
   // Redirect non-admins to POS page
   useEffect(() => {
     if (userProfile && !profileLoading) {
-      const role = userProfile.role?.toLowerCase() || ''
-      if (!['admin', 'superadmin', 'manager'].includes(role)) {
-        window.location.href = '/admin/pos'
+      const role = userProfile.role?.toLowerCase() || "";
+      if (!["admin", "superadmin", "manager"].includes(role)) {
+        window.location.href = "/admin/pos";
       }
     }
-  }, [userProfile, profileLoading])
+  }, [userProfile, profileLoading]);
 
   if (loading) {
-    return <AuthLoadingScreen />
+    return <AuthLoadingScreen />;
   }
 
   if (!user) {
-    return <AuthLoadingScreen />
+    return <AuthLoadingScreen />;
   }
 
   // Show loading while checking role
   if (profileLoading || !userProfile) {
-    return <AuthLoadingScreen />
+    return <AuthLoadingScreen />;
   }
 
   // Redirect non-admins - this is a safeguard
-  const role = userProfile.role?.toLowerCase() || ''
-  if (!['admin', 'superadmin', 'manager'].includes(role)) {
-    return <AuthLoadingScreen />
+  const role = userProfile.role?.toLowerCase() || "";
+  if (!["admin", "superadmin", "manager"].includes(role)) {
+    return <AuthLoadingScreen />;
   }
 
   return (
@@ -90,7 +90,7 @@ export default function Home() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="mb-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm">
           <TabsTrigger value="dashboard" className="text-xs">
-            Tableau de bord
+            Tableau de bord.
           </TabsTrigger>
           <TabsTrigger value="analyse" className="text-xs">
             Analyse
@@ -113,5 +113,5 @@ export default function Home() {
         </TabsContent>
       </Tabs>
     </div>
-  )
+  );
 }
