@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Edit, Trash2, ArrowLeft, Plus, X, Camera, ImageIcon } from "lucide-react"
+import { Edit, Trash2, ArrowLeft, Plus, X, Camera, ImageIcon, Maximize2, ChevronLeft, ChevronRight } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { ButtonLoadingSpinner } from "@/components/ui/context-loaders"
 import toast from "react-hot-toast"
@@ -88,11 +88,14 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
   const [isUploadingImages, setIsUploadingImages] = useState(false)
   const [replaceMode, setReplaceMode] = useState(false)
   const [imageToReplace, setImageToReplace] = useState<string | null>(null)
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0)
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false)
 
   useEffect(() => {
     if (productId) {
       fetchProduct()
       fetchCurrentUserRole()
+      setSelectedImageIndex(0)
     }
   }, [productId])
 
@@ -745,30 +748,94 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
             </CardHeader>
             <CardContent>
               {product.images && product.images.length > 0 ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {product.images.map((image, index) => (
-                    <div key={index} className="relative group">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={image}
-                        alt={`${product.name} - Image ${index + 1}`}
-                        className="w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
-                      />
-                      {canEditLimitedFields && (
-                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg flex items-center justify-center gap-2">
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => openImageDialog(image)}
-                            className="bg-white/90 hover:bg-white text-gray-900 text-xs px-2 py-1 h-auto"
-                          >
-                            <Camera className="w-3 h-3 mr-1" />
-                            Remplacer
-                          </Button>
+                <div className="space-y-4">
+                  {/* Main Large Image View */}
+                  <div className="relative group rounded-xl overflow-hidden bg-gray-50 dark:bg-gray-900 aspect-square md:aspect-video max-h-[500px] border border-gray-200 dark:border-gray-700 flex items-center justify-center">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={product.images[selectedImageIndex]}
+                      alt={`${product.name} - Vue principale`}
+                      className="max-w-full max-h-full object-contain transition-all duration-700 group-hover:scale-[1.02]"
+                    />
+                    
+                    {/* Controls overlay */}
+                    <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      <div className="flex items-center justify-between">
+                        <div className="flex gap-2">
+                          {canEditLimitedFields && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => openImageDialog(product.images[selectedImageIndex])}
+                              className="bg-white/90 hover:bg-white text-gray-900 h-8 shadow-sm"
+                            >
+                              <Camera className="w-3.5 h-3.5 mr-2" />
+                              Remplacer
+                            </Button>
+                          )}
                         </div>
-                      )}
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => setIsLightboxOpen(true)}
+                          className="bg-white/90 hover:bg-white text-gray-900 h-8 shadow-sm"
+                        >
+                          <Maximize2 className="w-3.5 h-3.5 mr-2" />
+                          Agrandir
+                        </Button>
+                      </div>
                     </div>
-                  ))}
+
+                    {/* Navigation Arrows (if multiple images) */}
+                    {product.images.length > 1 && (
+                      <>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setSelectedImageIndex((prev) => (prev === 0 ? product.images.length - 1 : prev - 1));
+                          }}
+                          className="absolute left-4 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-black/20 hover:bg-black/40 backdrop-blur-md text-white border border-white/20 transition-all opacity-0 group-hover:opacity-100 shadow-xl"
+                        >
+                          <ChevronLeft className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setSelectedImageIndex((prev) => (prev === product.images.length - 1 ? 0 : prev + 1));
+                          }}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-black/20 hover:bg-black/40 backdrop-blur-md text-white border border-white/20 transition-all opacity-0 group-hover:opacity-100 shadow-xl"
+                        >
+                          <ChevronRight className="w-5 h-5" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Thumbnails list */}
+                  {product.images.length > 1 && (
+                    <div className="flex gap-3 overflow-x-auto pb-2 pt-1 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
+                      {product.images.map((image, index) => (
+                        <button
+                          key={index}
+                          onClick={() => setSelectedImageIndex(index)}
+                          className={`relative flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-all duration-200 ${
+                            selectedImageIndex === index 
+                              ? 'border-blue-600 ring-2 ring-blue-600/10 scale-105' 
+                              : 'border-transparent opacity-60 hover:opacity-100 hover:scale-105'
+                          }`}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={image}
+                            alt={`${product.name} vignette ${index + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 p-6 text-center">
@@ -1396,6 +1463,61 @@ export function ProductsDetails({ productId }: ProductsDetailsProps) {
               </div>
             </CardContent>
           </Card>
+        </div>
+      )}
+
+      {/* Lightbox Modal */}
+      {isLightboxOpen && product && product.images && product.images.length > 0 && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-sm animate-in fade-in duration-300 pointer-events-auto"
+          onClick={() => setIsLightboxOpen(false)}
+        >
+          <button
+            onClick={() => setIsLightboxOpen(false)}
+            className="absolute top-6 right-6 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all z-[110] border border-white/20"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          
+          <div 
+            className="relative max-w-[95vw] max-h-[95vh] w-full flex items-center justify-center px-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={product.images[selectedImageIndex]}
+              alt={product.name}
+              className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl animate-in zoom-in-95 duration-300"
+            />
+            
+            {/* Lightbox Navigation */}
+            {product.images.length > 1 && (
+              <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedImageIndex((prev) => (prev === 0 ? product.images.length - 1 : prev - 1));
+                  }}
+                  className="absolute left-4 md:left-10 p-3 md:p-4 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all border border-white/10 shadow-2xl"
+                >
+                  <ChevronLeft className="w-6 h-6 md:w-8 md:h-8" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedImageIndex((prev) => (prev === product.images.length - 1 ? 0 : prev + 1));
+                  }}
+                  className="absolute right-4 md:right-10 p-3 md:p-4 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all border border-white/10 shadow-2xl"
+                >
+                  <ChevronRight className="w-6 h-6 md:w-8 md:h-8" />
+                </button>
+              </>
+            )}
+            
+            <div className="absolute -bottom-12 left-0 right-0 text-center text-white/80 text-sm font-medium">
+              Image {selectedImageIndex + 1} sur {product.images.length} • {product.name}
+            </div>
+          </div>
         </div>
       )}
     </div>

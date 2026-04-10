@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { AnimatedButton } from '@/components/ui/animated-button'
 import { TableLoadingState, ButtonLoadingSpinner } from '@/components/ui/context-loaders'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Search, Eye, Trash2, Package, DollarSign, TrendingUp, Plus, X, Image as ImageIcon, ArrowRightLeft } from 'lucide-react'
+import { Search, Eye, Trash2, Package, DollarSign, TrendingUp, Plus, X, Image as ImageIcon, ArrowRightLeft, Edit2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
@@ -81,6 +81,11 @@ export default function ProductsPage() {
   const [activeTab, setActiveTab] = useState('products')
   const [lowStockFilter, setLowStockFilter] = useState(false)
   const [missingImagesFilter, setMissingImagesFilter] = useState(false)
+  const [fastEditDialog, setFastEditDialog] = useState<{ open: boolean; product: Product | null }>({ open: false, product: null })
+  const [previewImage, setPreviewImage] = useState<{ url: string; name: string } | null>(null)
+  const [editPrice, setEditPrice] = useState('')
+  const [editQuantity, setEditQuantity] = useState('')
+  const [updatingProduct, setUpdatingProduct] = useState(false)
 
   useEffect(() => {
     fetchProducts()
@@ -455,6 +460,59 @@ export default function ProductsPage() {
     }
   }
 
+  const openFastEditDialog = (product: Product) => {
+    if (!canManageProducts) {
+      toast.error('Vous n\'avez pas la permission de modifier les produits')
+      return
+    }
+    setFastEditDialog({ open: true, product })
+    setEditPrice(product.price.toString())
+    setEditQuantity(product.stock_quantity.toString())
+  }
+
+  const closeFastEditDialog = () => {
+    setFastEditDialog({ open: false, product: null })
+    setEditPrice('')
+    setEditQuantity('')
+  }
+
+  const handleFastUpdate = async () => {
+    if (!fastEditDialog.product || !editPrice || !editQuantity) {
+      toast.error('Veuillez remplir tous les champs')
+      return
+    }
+
+    const price = parseFloat(editPrice)
+    const quantity = parseInt(editQuantity)
+
+    if (isNaN(price) || price < 0 || isNaN(quantity) || quantity < 0) {
+      toast.error('Veuillez entrer des valeurs valides')
+      return
+    }
+
+    try {
+      setUpdatingProduct(true)
+      const { error } = await supabase
+        .from('dd-products')
+        .update({ 
+          price: price,
+          stock_quantity: quantity 
+        })
+        .eq('id', fastEditDialog.product.id)
+
+      if (error) throw error
+
+      toast.success('Produit mis à jour avec succès')
+      closeFastEditDialog()
+      fetchProducts()
+    } catch (error) {
+      console.error('Error updating product:', error)
+      toast.error('Erreur lors de la mise à jour du produit')
+    } finally {
+      setUpdatingProduct(false)
+    }
+  }
+
   // Determine which products to filter (allProducts if filtering, products if not)
   const productsToFilter = (searchTerm || lowStockFilter || missingImagesFilter) ? allProducts : products
 
@@ -749,7 +807,9 @@ export default function ProductsPage() {
                             <img
                               src={product.images[0]}
                               alt={product.name}
-                              className="w-12 h-12 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
+                              className="w-12 h-12 object-cover rounded-lg border border-gray-200 dark:border-gray-600 cursor-zoom-in hover:scale-110 transition-all duration-200 shadow-sm"
+                              onClick={() => setPreviewImage({ url: product.images[0], name: product.name })}
+                              title="Cliquez pour agrandir"
                             />
                           ) : (
                             <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
@@ -811,24 +871,39 @@ export default function ProductsPage() {
                         <TableCell>
                           <div className="flex gap-2">
                             <Link href={`/admin/products/${product.id}`}>
-                              <Button size="sm" variant="ghost" className="text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20">
+                              <Button size="sm" variant="ghost" className="text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20" title="Voir l'article">
                                 <Eye className="w-4 h-4" />
                               </Button>
                             </Link>
                             {canManageProducts && !isReceptionniste && (
-                              <Button 
-                                size="sm" 
-                                variant="ghost" 
-                                className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
-                                onClick={(e) => {
-                                  e.preventDefault()
-                                  e.stopPropagation()
-                                  deleteProduct(product.id, product.name)
-                                }}
-                                title={product.status === 'archived' || !product.is_active ? 'Supprimer définitivement' : 'Archiver'}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
+                              <>
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost" 
+                                  className="text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-900/20"
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    openFastEditDialog(product)
+                                  }}
+                                  title="Modification Rapide"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </Button>
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost" 
+                                  className="text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    deleteProduct(product.id, product.name)
+                                  }}
+                                  title={product.status === 'archived' || !product.is_active ? 'Supprimer définitivement' : 'Archiver'}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </>
                             )}
                           </div>
                         </TableCell>
@@ -1046,6 +1121,120 @@ export default function ProductsPage() {
               </div>
             </CardContent>
           </Card>
+        </div>
+      )}
+
+      {/* Fast Edit Dialog */}
+      {fastEditDialog.open && fastEditDialog.product && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <Card className="w-full max-w-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-2xl animate-in zoom-in-95 duration-200">
+            <CardHeader className="flex flex-row items-center justify-between border-b dark:border-gray-700 pb-3">
+              <div>
+                <CardTitle className="text-base font-bold text-gray-900 dark:text-white-800">
+                  Modification Rapide
+                </CardTitle>
+                <p className="text-xs text-muted-foreground mt-1 truncate max-w-[200px]">
+                  {fastEditDialog.product.name}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={closeFastEditDialog}
+                className="h-8 w-8 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-4">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-price" className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                    Prix de vente
+                  </Label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="edit-price"
+                      type="number"
+                      step="0.01"
+                      value={editPrice}
+                      onChange={(e) => setEditPrice(e.target.value)}
+                      placeholder="0.00"
+                      className="pl-9 bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600 focus:ring-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-quantity" className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                    Quantité en stock
+                  </Label>
+                  <div className="relative">
+                    <Package className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="edit-quantity"
+                      type="number"
+                      value={editQuantity}
+                      onChange={(e) => setEditQuantity(e.target.value)}
+                      placeholder="0"
+                      className="pl-9 bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600 focus:ring-amber-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={closeFastEditDialog}
+                  disabled={updatingProduct}
+                  className="flex-1 bg-transparent border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  onClick={handleFastUpdate}
+                  disabled={updatingProduct}
+                  className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-semibold transition-all shadow-md hover:shadow-lg active:scale-95"
+                >
+                  {updatingProduct ? <ButtonLoadingSpinner /> : 'Enregistrer'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Image Preview Overlay */}
+      {previewImage && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div className="relative max-w-2xl w-full flex flex-col items-center">
+            <button
+              onClick={() => setPreviewImage(null)}
+              className="absolute -top-12 right-0 p-2 text-white hover:text-gray-300 transition-colors"
+            >
+              <X className="w-8 h-8" />
+            </button>
+            <div 
+              className="bg-white dark:bg-gray-800 p-2 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                src={previewImage.url}
+                alt={previewImage.name}
+                className="max-w-full max-h-[70vh] rounded-xl object-contain"
+              />
+              <div className="mt-4 px-4 pb-2">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">{previewImage.name}</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Aperçu du produit</p>
+              </div>
+            </div>
+            <p className="mt-8 text-white/60 text-sm">Cliquez n'importe où pour fermer</p>
+          </div>
         </div>
       )}
     </div>

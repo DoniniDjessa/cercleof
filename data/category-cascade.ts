@@ -41,6 +41,10 @@ const BASE_CASCADE = [
         "Matifiant",
         "Réparateur",
         "Anti-taches",
+        "Éclat",
+        "Protection UV",
+        "Éclatant",
+        "Unifiant",
         "Démaquillant"
       ]
     }
@@ -75,6 +79,11 @@ const BASE_CASCADE = [
         "Exfoliant",
         "Régénérant",
         "Anti-vergetures",
+        "Anti-taches",
+        "Éclat",
+        "Protection UV",
+        "Éclatant",
+        "Unifiant",
         "Nettoyant"
       ]
     }
