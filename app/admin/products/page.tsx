@@ -808,7 +808,7 @@ export default function ProductsPage() {
                               src={product.images[0]}
                               alt={product.name}
                               className="w-12 h-12 object-cover rounded-lg border border-gray-200 dark:border-gray-600 cursor-zoom-in hover:scale-110 transition-all duration-200 shadow-sm"
-                              onClick={() => setPreviewImage({ url: product.images[0], name: product.name })}
+                              onClick={() => product.images && product.images.length > 0 && setPreviewImage({ url: product.images[0], name: product.name })}
                               title="Cliquez pour agrandir"
                             />
                           ) : (
