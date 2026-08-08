@@ -2,21 +2,23 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { cn } from '@/lib/utils'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useAuth } from '@/contexts/AuthContext'
+import { useDashboardYear } from '@/contexts/DashboardYearContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ThemeToggle, LanguageToggle } from '@/components/ui/theme-toggle'
 import { createClient } from '@/lib/supabase'
-import { 
-  Search, 
-  Bell, 
-  Menu, 
-  User, 
+import {
+  Search,
+  Bell,
+  Menu,
+  User,
   Settings,
   ChevronDown,
-  LogOut
+  LogOut,
+  CalendarDays,
 } from 'lucide-react'
 
 interface NavbarProps {
@@ -27,6 +29,7 @@ interface NavbarProps {
 export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
   const { t } = useTheme()
   const { user, signOut } = useAuth()
+  const { selectedYear, setSelectedYear, availableYears, loadingYears } = useDashboardYear()
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [userProfile, setUserProfile] = useState<{ pseudo?: string; email?: string } | null>(null)
   const [loading, setLoading] = useState(true)
@@ -40,11 +43,6 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
     }
   }, [user])
 
-  // Debug: Log when userProfile changes
-  useEffect(() => {
-    console.log('Navbar: userProfile state changed:', userProfile)
-  }, [userProfile])
-
   const fetchUserProfile = async () => {
     if (!user?.id) {
       setLoading(false)
@@ -54,52 +52,32 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
     try {
       setLoading(true)
       const supabase = createClient()
-      console.log('Navbar: Fetching profile for auth_user_id:', user.id)
       const { data, error } = await supabase
         .from('dd-users')
         .select('pseudo, email')
         .eq('auth_user_id', user.id)
         .single()
 
-      console.log('Navbar: Query result - data:', data, 'error:', error)
-
       if (error && error.code === 'PGRST116') {
-        // User not found in dd-users - don't disconnect immediately, might be a network issue
-        console.log('Navbar: User not found in dd-users, but continuing (might be network issue)')
         setLoading(false)
-        // Don't disconnect - let AuthContext handle it
         return
       }
 
       if (error) {
         console.error('Navbar: Error fetching user profile:', error)
         setLoading(false)
-        // Keep userProfile null, will use user.email as fallback
-        // Don't disconnect on error - might be a network issue
         return
       }
 
-      // Check if data exists and has pseudo or email
       if (!data || (!data.pseudo && !data.email)) {
-        console.log('Navbar: User has no pseudo or email, but continuing (might be temporary)')
         setLoading(false)
-        // Don't disconnect immediately - might be a temporary issue
-        // Let AuthContext handle verification
         return
       }
 
-      // User has valid pseudo or email - set profile
-      console.log('Navbar: Profile data received:', JSON.stringify(data, null, 2))
-      console.log('Navbar: Pseudo:', data.pseudo, '(type:', typeof data.pseudo, ')')
-      console.log('Navbar: Email:', data.email, '(type:', typeof data.email, ')')
-      
-      // Verify data structure
       if (data.pseudo || data.email) {
-        console.log('Navbar: Setting userProfile with pseudo/email')
         setUserProfile(data)
         setLoading(false)
       } else {
-        console.error('Navbar: Data received but no pseudo or email:', data)
         setLoading(false)
       }
     } catch (error) {
@@ -108,26 +86,10 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
     }
   }
 
-  const getUserDisplayName = () => {
-    console.log('Navbar: getUserDisplayName called - userProfile:', userProfile)
-    // Prefer profile pseudo/email, fallback to auth user email
-    if (userProfile) {
-      const displayName = userProfile.pseudo || userProfile.email || null
-      console.log('Navbar: Display name from profile:', displayName)
-      return displayName
-    }
-    // Fallback to auth user email while loading
-    const fallback = user?.email?.split('@')[0] || null
-    console.log('Navbar: Fallback to auth email:', fallback)
-    return fallback
-  }
-
   const handleSignOut = async () => {
     try {
       setShowUserMenu(false)
-      console.log('Navbar: handleSignOut called, user:', user)
       await signOut()
-      // Ensure redirect even if signOut doesn't redirect
       if (typeof window !== 'undefined') {
         setTimeout(() => {
           window.location.href = '/login'
@@ -135,7 +97,6 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
       }
     } catch (error) {
       console.error('Navbar: Error in handleSignOut:', error)
-      // Force redirect on error
       if (typeof window !== 'undefined') {
         window.location.href = '/login'
       }
@@ -150,7 +111,6 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
       className="sticky top-0 z-40 w-full border-b-0 shadow-sm bg-gray-100/80 dark:bg-gray-800/80 backdrop-blur-md transition-colors duration-300"
     >
       <div className="flex h-16 items-center justify-between px-4 lg:px-6">
-        {/* Left side - Menu button and search */}
         <div className="flex items-center space-x-4">
           <Button
             variant="ghost"
@@ -161,7 +121,6 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
             <Menu className="h-5 w-5" />
           </Button>
 
-          {/* Search bar - hidden on mobile */}
           <div className="hidden md:block">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -173,9 +132,27 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
           </div>
         </div>
 
-        {/* Right side - Notifications, theme controls, and user menu */}
         <div className="flex items-center space-x-2">
-          {/* Notifications */}
+          <div className="flex items-center gap-1.5">
+            <CalendarDays className="hidden sm:block h-4 w-4 text-gray-500 dark:text-gray-400" />
+            <Select
+              value={String(selectedYear)}
+              onValueChange={(value) => setSelectedYear(parseInt(value, 10))}
+              disabled={loadingYears}
+            >
+              <SelectTrigger className="h-9 w-[100px] text-xs bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                <SelectValue placeholder="Année" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableYears.map((year) => (
+                  <SelectItem key={year} value={String(year)}>
+                    {year}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <Button
             variant="ghost"
             size="icon"
@@ -187,13 +164,11 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
             </span>
           </Button>
 
-          {/* Theme and Language toggles */}
           <div className="hidden sm:flex items-center space-x-1">
             <ThemeToggle />
             <LanguageToggle />
           </div>
 
-          {/* User menu */}
           <div className="relative">
             <Button
               variant="ghost"
@@ -206,24 +181,29 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
               <div className="hidden sm:block text-left">
                 <p className="text-sm font-medium text-gray-900 dark:text-white">
                   {(() => {
-                    // Show loading only if we don't have any data yet
                     if (loading && !userProfile && !user?.email) {
                       return 'Chargement...'
                     }
-                    // Prefer profile data, fallback to auth user email
-                    return userProfile?.pseudo || userProfile?.email || user?.email?.split('@')[0] || user?.email || 'Utilisateur'
+                    return (
+                      userProfile?.pseudo ||
+                      userProfile?.email ||
+                      user?.email?.split('@')[0] ||
+                      user?.email ||
+                      'Utilisateur'
+                    )
                   })()}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {userProfile 
-                    ? `Travail sur ${userProfile.pseudo || userProfile.email}` 
-                    : (loading && !user?.email ? 'Chargement...' : t('nav.online'))}
+                  {userProfile
+                    ? `Travail sur ${userProfile.pseudo || userProfile.email}`
+                    : loading && !user?.email
+                      ? 'Chargement...'
+                      : t('nav.online')}
                 </p>
               </div>
               <ChevronDown className="h-4 w-4 text-gray-400" />
             </Button>
 
-            {/* User dropdown menu */}
             {showUserMenu && (
               <motion.div
                 initial={{ opacity: 0, y: -10, scale: 0.95 }}
@@ -235,26 +215,30 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
                 <div className="px-4 py-3 border-b-0 shadow-sm">
                   <p className="text-sm font-medium text-gray-900 dark:text-white">
                     {(() => {
-                      // Show loading only if we don't have any data yet
                       if (loading && !userProfile && !user?.email) {
                         return 'Chargement...'
                       }
-                      // Prefer profile data, fallback to auth user email
-                      return userProfile?.pseudo || userProfile?.email || user?.email?.split('@')[0] || user?.email || 'Utilisateur'
+                      return (
+                        userProfile?.pseudo ||
+                        userProfile?.email ||
+                        user?.email?.split('@')[0] ||
+                        user?.email ||
+                        'Utilisateur'
+                      )
                     })()}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {userProfile 
-                      ? `Travail sur ${userProfile.pseudo || userProfile.email}` 
-                      : (loading && !user?.email ? 'Chargement...' : t('nav.online'))}
+                    {userProfile
+                      ? `Travail sur ${userProfile.pseudo || userProfile.email}`
+                      : loading && !user?.email
+                        ? 'Chargement...'
+                        : t('nav.online')}
                   </p>
                   {userProfile?.pseudo && userProfile?.email && (
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                      {userProfile.email}
-                    </p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{userProfile.email}</p>
                   )}
                 </div>
-                
+
                 <div className="py-1">
                   <button className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
                     <User className="h-4 w-4 mr-3" />
@@ -265,7 +249,7 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
                     {t('nav.settings')}
                   </button>
                 </div>
-                
+
                 <div className="border-t-0 shadow-sm py-1">
                   <button
                     onClick={handleSignOut}
@@ -281,7 +265,6 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
         </div>
       </div>
 
-      {/* Mobile search bar */}
       <div className="md:hidden px-4 pb-3">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />

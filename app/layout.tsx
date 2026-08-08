@@ -3,6 +3,7 @@ import { Bebas_Neue, Roboto_Condensed, Poppins } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+import { DashboardYearProvider } from "@/contexts/DashboardYearContext";
 import { VoiceNavigationProvider } from "@/contexts/VoiceNavigationContext";
 import { ToastProvider } from "@/components/providers/toast-provider";
 import { AppLayout } from "@/components/layout/app-layout";
@@ -111,14 +112,16 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <AuthProvider>
-            <VoiceNavigationProvider>
-              <ToastProvider />
-              <AppLayout>
-                {children}
-              </AppLayout>
-              <UnregisterSW />
-              <InstallPrompt />
-            </VoiceNavigationProvider>
+            <DashboardYearProvider>
+              <VoiceNavigationProvider>
+                <ToastProvider />
+                <AppLayout>
+                  {children}
+                </AppLayout>
+                <UnregisterSW />
+                <InstallPrompt />
+              </VoiceNavigationProvider>
+            </DashboardYearProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>
