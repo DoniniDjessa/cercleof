@@ -284,25 +284,83 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
     }
   }
 
+  const fetchAllPaged = async <T,>(
+    buildQuery: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: any }>
+  ): Promise<T[]> => {
+    const pageSize = 1000
+    const all: T[] = []
+    let from = 0
+
+    while (true) {
+      const to = from + pageSize - 1
+      const { data, error } = await buildQuery(from, to)
+      if (error) {
+        console.error('Paged fetch error:', error)
+        break
+      }
+      const rows = data || []
+      all.push(...rows)
+      if (rows.length < pageSize) break
+      from += pageSize
+      // Safety cap (~50k rows)
+      if (from > 50000) break
+    }
+
+    return all
+  }
+
   const fetchChartData = async () => {
     try {
       setChartLoading(true)
       const minYear = availableYears.length ? Math.min(...availableYears) : currentYear - 10
       const chartRange = getRevenueChartRange(chartMode, chartYear, minYear)
 
-      const [chartSalesResult, chartRevenuesResult] = await Promise.all([
-        supabase
-          .from('dd-ventes')
-          .select('total_net, date')
-          .eq('status', 'paye')
-          .gte('date', chartRange.start.toISOString())
-          .lte('date', chartRange.end.toISOString()),
-        supabase
-          .from('dd-revenues')
-          .select('montant, date, source_id')
-          .gte('date', chartRange.start.toISOString())
-          .lte('date', chartRange.end.toISOString()),
+      let rangeStart = chartRange.start.toISOString()
+      let rangeEnd = chartRange.end.toISOString()
+      if (chartMode === 'month') {
+        rangeStart = new Date(chartYear, 0, 1, 0, 0, 0, 0).toISOString()
+        rangeEnd =
+          chartYear === currentYear
+            ? new Date().toISOString()
+            : new Date(chartYear, 11, 31, 23, 59, 59, 999).toISOString()
+      }
+
+      // Paginate: Supabase caps at 1000 rows/request. Asc order was cutting off July/August.
+      const [sales, revenues] = await Promise.all([
+        fetchAllPaged<any>((from, to) =>
+          supabase
+            .from('dd-ventes')
+            .select('total_net, date, created_at')
+            .eq('status', 'paye')
+            .gte('date', rangeStart)
+            .lte('date', rangeEnd)
+            .order('date', { ascending: true })
+            .range(from, to)
+        ),
+        fetchAllPaged<any>((from, to) =>
+          supabase
+            .from('dd-revenues')
+            .select('montant, date, source_id, created_at')
+            .gte('date', rangeStart)
+            .lte('date', rangeEnd)
+            .order('date', { ascending: true })
+            .range(from, to)
+        ),
       ])
+
+      let salesRows = sales
+      if (salesRows.length === 0) {
+        salesRows = await fetchAllPaged<any>((from, to) =>
+          supabase
+            .from('dd-ventes')
+            .select('total_net, date, created_at')
+            .eq('status', 'paye')
+            .gte('created_at', rangeStart)
+            .lte('created_at', rangeEnd)
+            .order('created_at', { ascending: true })
+            .range(from, to)
+        )
+      }
 
       const series =
         chartMode === 'month'
@@ -314,21 +372,36 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
               : buildEmptyYearSeries(minYear, currentYear)
 
       const bucketMap = new Map(series.map((item) => [item.key, item]))
-      const chartManualRevenues = (chartRevenuesResult.data || []).filter((r: any) => !r.source_id)
 
-      chartSalesResult.data?.forEach((sale: any) => {
-        const key = getBucketKey(sale.date, chartMode)
+      // Same revenue rules as summary card:
+      // - POS paid sales (dd-ventes)
+      // - manual revenues only (dd-revenues without source_id)
+      const chartManualRevenues = revenues.filter((r: any) => !r.source_id)
+
+      salesRows.forEach((sale: any) => {
+        const rawDate = sale.date || sale.created_at
+        if (!rawDate) return
+        const key = getBucketKey(rawDate, chartMode)
         const bucket = bucketMap.get(key)
-        if (bucket) bucket.sales += sale.total_net || 0
+        if (bucket) bucket.sales += Number(sale.total_net) || 0
       })
 
       chartManualRevenues.forEach((rev: any) => {
-        const key = getBucketKey(rev.date, chartMode)
+        const rawDate = rev.date || rev.created_at
+        if (!rawDate) return
+        const key = getBucketKey(rawDate, chartMode)
         const bucket = bucketMap.get(key)
-        if (bucket) bucket.revenue += rev.montant || 0
+        if (bucket) bucket.revenue += Number(rev.montant) || 0
       })
 
-      setRevenueChart(series.map(({ label, revenue, sales }) => ({ label, revenue, sales })))
+      // Single business revenue curve (= card "Revenus")
+      setRevenueChart(
+        series.map(({ label, revenue, sales: posSales }) => ({
+          label,
+          revenue: revenue + posSales,
+          sales: posSales,
+        }))
+      )
     } catch (error) {
       console.error('Error fetching chart data:', error)
     } finally {
@@ -843,8 +916,7 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
                     formatter={(value: number) => formatCurrency(value)}
                   />
                   <Legend fontSize={10} />
-                  <Line type="monotone" dataKey="revenue" stroke="#9333ea" strokeWidth={2} name="Revenus" />
-                  <Line type="monotone" dataKey="sales" stroke="#a855f7" strokeWidth={2} name="Ventes POS" />
+                  <Line type="monotone" dataKey="revenue" stroke="#9333ea" strokeWidth={2} name="Revenus" dot={{ r: 3 }} />
                 </LineChart>
               </ResponsiveContainer>
             )}

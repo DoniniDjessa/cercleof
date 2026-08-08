@@ -191,10 +191,14 @@ export function getRevenueChartRange(
     case 'month':
     default: {
       const year = chartYear || currentYear
-      const start = new Date(year, 0, 1)
-      const end = year === currentYear ? endOfDay(now) : endOfDay(new Date(year, 11, 31))
+      const start = startOfDay(new Date(year, 0, 1))
+      // Always include the full current day for the selected current year
+      const end =
+        year === currentYear
+          ? endOfDay(now)
+          : endOfDay(new Date(year, 11, 31))
       return {
-        start: startOfDay(start),
+        start,
         end,
         label: `Année ${year}`,
       }
@@ -263,19 +267,62 @@ export function buildEmptyYearSeries(
   return series
 }
 
+export function parseChartDate(dateValue: string | Date): Date {
+  if (dateValue instanceof Date) {
+    return startOfDay(dateValue)
+  }
+
+  // Prefer calendar date part to avoid UTC shifting a day/month (e.g. "2026-08-01" → July in UTC+1)
+  const datePart = dateValue.slice(0, 10)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+    const [y, m, d] = datePart.split('-').map(Number)
+    return new Date(y, m - 1, d)
+  }
+
+  return startOfDay(new Date(dateValue))
+}
+
+/** Extract YYYY-MM from a DB timestamp/date without timezone shifting the month */
+export function getYearMonthParts(dateValue: string | Date): { year: number; monthIndex: number } | null {
+  const raw = typeof dateValue === 'string' ? dateValue : dateValue.toISOString()
+  const match = raw.match(/(\d{4})-(\d{2})/)
+  if (!match) return null
+  return {
+    year: parseInt(match[1], 10),
+    monthIndex: parseInt(match[2], 10) - 1,
+  }
+}
+
+export function toQueryStart(date: Date): string {
+  return `${toDateInputValue(date)}T00:00:00`
+}
+
+export function toQueryEnd(date: Date): string {
+  return `${toDateInputValue(date)}T23:59:59.999`
+}
+
 export function getBucketKey(dateValue: string | Date, mode: RevenueChartMode): string {
-  const date = typeof dateValue === 'string' ? new Date(dateValue) : dateValue
   switch (mode) {
-    case 'week':
+    case 'week': {
+      const date = parseChartDate(dateValue)
       return toDateInputValue(getIsoWeekStart(date))
+    }
     case 'weekday': {
+      const date = parseChartDate(dateValue)
       const day = date.getDay()
       return String(day === 0 ? 6 : day - 1)
     }
-    case 'year':
-      return String(date.getFullYear())
+    case 'year': {
+      const parts = getYearMonthParts(dateValue)
+      if (parts) return String(parts.year)
+      return String(parseChartDate(dateValue).getFullYear())
+    }
     case 'month':
-    default:
+    default: {
+      const parts = getYearMonthParts(dateValue)
+      if (parts) return `${parts.year}-${parts.monthIndex}`
+      const date = parseChartDate(dateValue)
       return `${date.getFullYear()}-${date.getMonth()}`
+    }
   }
 }
