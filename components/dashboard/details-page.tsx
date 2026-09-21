@@ -638,7 +638,7 @@ export function DetailsPage({ userRole }: DetailsPageProps) {
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Mois</label>
                   <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                    <SelectTrigger className="w-36 h-9 text-sm border-gray-200 dark:border-gray-700">
+                    <SelectTrigger className="w-36 h-9 text-sm border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -654,7 +654,7 @@ export function DetailsPage({ userRole }: DetailsPageProps) {
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Année</label>
                 <Select value={String(selectedYear2)} onValueChange={v => setSelectedYear2(Number(v))}>
-                  <SelectTrigger className="w-28 h-9 text-sm border-gray-200 dark:border-gray-700">
+                  <SelectTrigger className="w-28 h-9 text-sm border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
