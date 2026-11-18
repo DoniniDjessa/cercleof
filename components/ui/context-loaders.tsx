@@ -2,14 +2,11 @@
 
 import { motion } from 'framer-motion'
 import { BeautyLoader } from './beauty-loader'
+import { AppLoader } from './app-loader'
 
 // Authentication loading states
 export function AuthLoadingScreen() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <BeautyLoader size="lg" />
-    </div>
-  )
+  return <AppLoader />
 }
 
 // Data loading states
@@ -41,11 +38,7 @@ export function TableLoadingState() {
 
 // Profile setup loading
 export function ProfileSetupLoading() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <BeautyLoader size="lg" />
-    </div>
-  )
+  return <AppLoader message="Préparation du profil" />
 }
 
 // Button loading state

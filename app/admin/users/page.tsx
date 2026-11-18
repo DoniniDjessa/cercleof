@@ -16,6 +16,7 @@ import { Search, Mail, Phone, User, Shield, Crown, Users, CreditCard, Briefcase 
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
+import { StatCard, StatGrid } from '@/components/ui/stat-card'
 
 interface User {
   id: string
@@ -753,40 +754,12 @@ export default function UsersManagementPage() {
       {activeTab === 'users' && !showCreateForm && (
         <>
           {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Total Users</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">{users.length}</div>
-              </CardContent>
-            </Card>
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Active Users</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">{users.filter((u) => u.is_active).length}</div>
-              </CardContent>
-            </Card>
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Admins</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">{users.filter((u) => u.role === 'admin' || u.role === 'superadmin').length}</div>
-              </CardContent>
-            </Card>
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Staff</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">{users.filter((u) => u.role === 'employe' || u.role === 'caissiere' || u.role === 'receptionniste' || u.role === 'manager').length}</div>
-              </CardContent>
-            </Card>
-          </div>
+          <StatGrid cols={4}>
+        <StatCard index={0} label="Total Users" value={users.length} tone="violet" />
+        <StatCard index={1} label="Active Users" value={users.filter((u) => u.is_active).length} tone="emerald" />
+        <StatCard index={2} label="Admins" value={users.filter((u) => u.role === 'admin' || u.role === 'superadmin').length} tone="sky" />
+        <StatCard index={3} label="Staff" value={users.filter((u) => u.role === 'employe' || u.role === 'caissiere' || u.role === 'receptionniste' || u.role === 'manager').length} tone="amber" />
+      </StatGrid>
 
           {/* Search */}
           <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
@@ -916,46 +889,12 @@ export default function UsersManagementPage() {
       {activeTab === 'travailleurs' && !showCreateTravailleurForm && (
         <>
           {/* Stats for Travailleurs */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-xs font-medium text-muted-foreground dark:text-gray-400">Total Travailleurs</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-base font-bold text-gray-900 dark:text-white">{travailleurs.length}</div>
-              </CardContent>
-            </Card>
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-xs font-medium text-muted-foreground dark:text-gray-400">Actifs</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-base font-bold text-gray-900 dark:text-white">
-                  {travailleurs.filter(t => t.is_active).length}
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-xs font-medium text-muted-foreground dark:text-gray-400">Inactifs</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-base font-bold text-gray-900 dark:text-white">
-                  {travailleurs.filter(t => !t.is_active).length}
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-xs font-medium text-muted-foreground dark:text-gray-400">Spécialités</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-base font-bold text-gray-900 dark:text-white">
-                  {new Set(travailleurs.filter(t => t.specialite).map(t => t.specialite)).size}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <StatGrid cols={4}>
+        <StatCard index={0} label="Total Travailleurs" value={travailleurs.length} tone="violet" />
+        <StatCard index={1} label="Actifs" value={travailleurs.filter(t => t.is_active).length} tone="emerald" />
+        <StatCard index={2} label="Inactifs" value={travailleurs.filter(t => !t.is_active).length} tone="sky" />
+        <StatCard index={3} label="Spécialités" value={new Set(travailleurs.filter(t => t.specialite).map(t => t.specialite)).size} tone="amber" />
+      </StatGrid>
 
           {/* Search for Travailleurs */}
           <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">

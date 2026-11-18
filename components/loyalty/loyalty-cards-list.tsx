@@ -21,6 +21,7 @@ import {
   Award
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
+import { StatCard, StatGrid } from '@/components/ui/stat-card'
 
 interface LoyaltyCard {
   id: string
@@ -215,63 +216,12 @@ export function LoyaltyCardsList({ onCardCreated: _onCardCreated, onCardUpdated:
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                <CreditCard className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Cartes</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.total}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
-                <Star className="h-6 w-6 text-green-600 dark:text-green-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Actives</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.active}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
-                <Award className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Gold</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.gold}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
-                <Gift className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Platinum</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.platinum}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <StatGrid cols={4}>
+        <StatCard index={0} label="Total Cartes" value={stats.total} icon={CreditCard} tone="sky" />
+        <StatCard index={1} label="Actives" value={stats.active} icon={Star} tone="emerald" />
+        <StatCard index={2} label="Gold" value={stats.gold} icon={Award} tone="amber" />
+        <StatCard index={3} label="Platinum" value={stats.platinum} icon={Gift} tone="violet" />
+      </StatGrid>
 
       {/* Search */}
       <Card>

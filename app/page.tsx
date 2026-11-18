@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DashboardOverview } from "@/components/dashboard/dashboard-overview";
 import { AnalysePage } from "@/components/dashboard/analyse-page";
 import { DetailsPage } from "@/components/dashboard/details-page";
+import { LayoutDashboard, BarChart3, ListChecks } from "lucide-react";
 
 interface UserProfile {
   id: string;
@@ -86,16 +87,19 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-gray-900 p-6">
+    <div>
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="mb-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm">
-          <TabsTrigger value="dashboard" className="text-xs">
-            Tableau de bord.
+        <TabsList className="mb-6">
+          <TabsTrigger value="dashboard">
+            <LayoutDashboard className="h-3.5 w-3.5" />
+            Tableau de bord
           </TabsTrigger>
-          <TabsTrigger value="analyse" className="text-xs">
+          <TabsTrigger value="analyse">
+            <BarChart3 className="h-3.5 w-3.5" />
             Analyse
           </TabsTrigger>
-          <TabsTrigger value="details" className="text-xs">
+          <TabsTrigger value="details">
+            <ListChecks className="h-3.5 w-3.5" />
             Détails
           </TabsTrigger>
         </TabsList>

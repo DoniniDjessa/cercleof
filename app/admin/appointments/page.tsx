@@ -13,6 +13,7 @@ import { Search, Eye, Trash2, Calendar, Clock, User, Scissors, Plus } from "luci
 import { AddAppointment } from "@/components/appointments/add-appointment"
 import { supabase } from "@/lib/supabase"
 import toast from "react-hot-toast"
+import { StatCard, StatGrid } from '@/components/ui/stat-card'
 
 interface Appointment {
   id: string
@@ -283,63 +284,12 @@ export default function AppointmentsPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
-                <Calendar className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total RDV</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalAppointments}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-yellow-100 dark:bg-yellow-900/20 rounded-lg">
-                <Clock className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">En Attente</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{pendingAppointments}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-lg">
-                <User className="w-6 h-6 text-green-600 dark:text-green-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Confirmés</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{confirmedAppointments}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                <Scissors className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Terminés</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{completedAppointments}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <StatGrid cols={4}>
+        <StatCard index={0} label="Total RDV" value={totalAppointments} icon={Calendar} tone="sky" />
+        <StatCard index={1} label="En Attente" value={pendingAppointments} icon={Clock} tone="amber" />
+        <StatCard index={2} label="Confirmés" value={confirmedAppointments} icon={User} tone="emerald" />
+        <StatCard index={3} label="Terminés" value={completedAppointments} icon={Scissors} tone="violet" />
+      </StatGrid>
 
       {/* Search */}
       <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">

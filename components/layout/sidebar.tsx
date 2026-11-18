@@ -8,7 +8,6 @@ import { cn } from '@/lib/utils'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { createClient } from '@/lib/supabase'
-import { Button } from '@/components/ui/button'
 import { 
   LayoutDashboard, 
   Users, 
@@ -62,6 +61,9 @@ import {
 interface SidebarProps {
   isCollapsed: boolean
   onToggle: () => void
+  /** Mobile drawer state (below lg) */
+  mobileOpen?: boolean
+  onMobileClose?: () => void
 }
 
 interface NavItem {
@@ -79,7 +81,7 @@ interface NavSection {
   items: NavItem[]
 }
 
-export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
+export function Sidebar({ isCollapsed, onToggle, mobileOpen = false, onMobileClose }: SidebarProps) {
   const { t } = useTheme()
   const { user, signOut } = useAuth()
   const pathname = usePathname()
@@ -521,171 +523,155 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     await signOut()
   }
 
-  return (
-    <motion.div
-      initial={false}
-      animate={{ width: isCollapsed ? 80 : 280 }}
-      transition={{ duration: 0.3, ease: 'easeInOut' }}
-      className="fixed left-0 top-0 h-screen bg-slate-50 dark:bg-gray-900 border-r border-slate-200 dark:border-gray-800 flex flex-col z-30 transition-colors duration-300"
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between p-2 border-b border-slate-200 dark:border-gray-800">
-        <AnimatePresence mode="wait">
-          {!isCollapsed && (
-            <motion.div
-              key="logo"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.2 }}
-              className="flex items-center space-x-2 dark:space-x-2"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img 
-                src="/cbmin.png" 
-                alt="Cercle Of Logo" 
-                className="w-8 h-8 object-contain rounded-lg"
-              />
-              <span className="font-bold text-sm text-blue-600 dark:text-white">
-                Cercleof
-              </span>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        
-        {isCollapsed && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="w-8 h-8 mx-auto"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img 
-                src="/cbmin.png" 
-                alt="Cercle Of Logo" 
-                className="w-8 h-8 object-contain rounded-lg"
-              />
-            </motion.div>
-        )}
+  // Current query string (some menu links differ only by ?flow= / ?type=)
+  const [search, setSearch] = useState('')
+  useEffect(() => {
+    setSearch(typeof window !== 'undefined' ? window.location.search : '')
+  }, [pathname])
 
-        <Button
-          variant="ghost"
-          size="icon"
+  const isHrefActive = (href?: string) => {
+    if (!href) return false
+    const [path, query] = href.split('?')
+    if (path !== pathname) return false
+    if (!query) return !search || href === '/' || !navigationSections.some(sec => sec.items.some(it =>
+      it.href?.startsWith(path + '?') && search === '?' + it.href.split('?')[1]
+    ))
+    return search === '?' + query
+  }
+  const isItemActive = (item: NavItem): boolean =>
+    isHrefActive(item.href) || (item.children?.some(child => isHrefActive(child.href)) ?? false)
+
+  // Open the group that holds the current page
+  useEffect(() => {
+    const active = navigationSections.flatMap(sec => sec.items).filter(it => it.children?.some(c => isHrefActive(c.href)))
+    if (active.length) {
+      setExpandedItems(prev => {
+        const next = new Set(prev)
+        active.forEach(it => next.add(it.name))
+        return next
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, search, userRole])
+
+  const displayName = getUserDisplayName() || user?.email?.split('@')[0] || 'Utilisateur'
+  const initial = displayName.charAt(0).toUpperCase()
+  const roleLabel = userRole ? userRole.charAt(0).toUpperCase() + userRole.slice(1) : t('nav.online')
+
+  const handleParentClick = (item: NavItem) => {
+    if (isCollapsed) {
+      // Collapsed rail: open the menu on this group
+      setExpandedItems(prev => new Set(prev).add(item.name))
+      onToggle()
+      return
+    }
+    toggleExpanded(item.name)
+  }
+
+  return (
+    <aside
+      className={cn('app-sidebar', isCollapsed && 'is-collapsed', mobileOpen && 'is-mobile-open')}
+      aria-label="Menu principal"
+    >
+      {/* Brand */}
+      <div className={cn('flex h-16 shrink-0 items-center gap-3 border-b border-border px-4', isCollapsed && 'lg:justify-center lg:px-2')}>
+        <Link href="/" className="flex min-w-0 items-center gap-3" onClick={onMobileClose}>
+          <span className="brand-mark h-9 w-9 shrink-0 overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/cbmin.png" alt="Cercle of Beauty" className="h-7 w-7 object-contain" />
+          </span>
+          <span className={cn('min-w-0', isCollapsed && 'lg:hidden')}>
+            <span className="block truncate font-display text-base font-bold uppercase tracking-wide text-foreground">Cercle of Beauty</span>
+            <span className="block truncate text-[11px] text-muted-foreground">Institut de beauté</span>
+          </span>
+        </Link>
+        <button
+          type="button"
           onClick={onToggle}
-          className="ml-auto h-8 w-8 hover:bg-gray-100 dark:hover:bg-gray-800"
+          aria-label={isCollapsed ? 'Déplier le menu' : 'Replier le menu'}
+          className={cn('ml-auto hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:flex', isCollapsed && 'lg:hidden')}
         >
-          {isCollapsed ? (
-            <ChevronRight className="h-4 w-4" />
-          ) : (
-            <ChevronLeft className="h-4 w-4" />
-          )}
-        </Button>
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={onMobileClose}
+          aria-label="Fermer le menu"
+          className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden"
+        >
+          <X className="h-4 w-4" />
+        </button>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-2 py-2 space-y-2 overflow-y-auto">
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3">
         {navigationSections.map((section, sectionIndex) => (
-          <div key={sectionIndex} className="space-y-1">
-            {/* Section Title */}
-            {section.title && !isCollapsed && (
-              <div className="px-2 py-1">
-                <h3 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  {section.title}
-                </h3>
-                <div className="mt-0.5 h-px bg-slate-200 dark:bg-slate-700"></div>
-              </div>
-            )}
+          <div key={sectionIndex} className="mb-1">
+            {section.title && !isCollapsed && <div className="nav-label">{section.title}</div>}
+            {section.title && isCollapsed && <div className="mx-auto my-2 hidden h-px w-6 bg-border lg:block" />}
+            {section.title && isCollapsed && <div className="nav-label lg:hidden">{section.title}</div>}
 
-            {/* Section Items */}
             <div className="space-y-0.5">
               {section.items.map((item) => {
-                const isActive = pathname === item.href || (item.children && item.children.some(child => pathname === child.href))
                 const Icon = item.icon
+                const active = isItemActive(item)
+                const expanded = expandedItems.has(item.name)
+
+                if (!item.children) {
+                  // Plain <a>: full navigation, as before (pages read their ?query on load)
+                  return (
+                    <a
+                      key={item.name}
+                      href={item.href}
+                      title={isCollapsed ? item.name : undefined}
+                      aria-current={active ? 'page' : undefined}
+                      className={cn('nav-item', active && 'is-active', isCollapsed && 'lg:justify-center lg:px-0')}
+                    >
+                      <Icon className="nav-icon" />
+                      <span className={cn('flex-1 truncate', isCollapsed && 'lg:hidden')}>{item.name}</span>
+                      {item.badge && <span className={cn('nav-badge', isCollapsed && 'lg:absolute lg:-right-1 lg:-top-1 lg:ml-0')}>{item.badge}</span>}
+                    </a>
+                  )
+                }
 
                 return (
                   <div key={item.name}>
-                    {/* Main Item */}
-                    <div
-                      className={cn(
-                        "flex items-center space-x-2 px-2 py-1.5 rounded-lg transition-all duration-200 group relative cursor-pointer text-xs",
-                        isActive
-                          ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
-                          : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-200",
-                        item.disabled && "opacity-50 cursor-not-allowed"
-                      )}
-                      onClick={() => {
-                        if (item.children) {
-                          toggleExpanded(item.name)
-                        } else if (item.href) {
-                          window.location.href = item.href
-                        }
-                      }}
+                    <button
+                      type="button"
+                      onClick={() => handleParentClick(item)}
+                      title={isCollapsed ? item.name : undefined}
+                      aria-expanded={expanded}
+                      className={cn('nav-item', active && 'is-parent-active', isCollapsed && 'lg:justify-center lg:px-0', isCollapsed && active && 'is-active')}
                     >
-                      <Icon className={cn(
-                        "h-4 w-4 flex-shrink-0",
-                        isActive ? "text-blue-600 dark:text-blue-400" : "text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300"
-                      )} />
-                      
-                      <AnimatePresence>
-                        {!isCollapsed && (
-                          <motion.div
-                            key="content"
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -10 }}
-                            transition={{ duration: 0.2 }}
-                            className="flex-1 flex items-center justify-between"
-                          >
-                            <span className="font-medium text-xs">{item.name}</span>
-                            <div className="flex items-center space-x-2">
-                              {item.badge && (
-                                <span className="px-2 py-0.5 text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded-full">
-                                  {item.badge}
-                                </span>
-                              )}
-                              {item.children && (
-                                <ChevronDown className={cn(
-                                  "h-4 w-4 transition-transform duration-200",
-                                  expandedItems.has(item.name) ? "rotate-180" : ""
-                                )} />
-                              )}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-
-                    {/* Sub Items */}
-                    {item.children && expandedItems.has(item.name) && !isCollapsed && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="ml-4 space-y-0.5 mt-0.5"
-                      >
-                        {item.children.map((child) => {
-                          const isChildActive = pathname === child.href
-                          const ChildIcon = child.icon
-
-                          return (
-                            <Link key={child.name} href={child.href || '#'}>
-                              <div
-                                className={cn(
-                                  "flex items-center space-x-2 px-2 py-1 rounded-lg transition-all duration-200 group relative text-xs",
-                                  isChildActive
-                                    ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
-                                    : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-300"
-                                )}
+                      <Icon className="nav-icon" />
+                      <span className={cn('flex-1 truncate', isCollapsed && 'lg:hidden')}>{item.name}</span>
+                      <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200', expanded && 'rotate-180', isCollapsed && 'lg:hidden')} />
+                    </button>
+                    <AnimatePresence initial={false}>
+                      {expanded && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.18 }}
+                          className={cn('overflow-hidden', isCollapsed && 'lg:hidden')}
+                        >
+                          <div className="nav-sub">
+                            {item.children.map((child) => (
+                              <Link
+                                key={child.name}
+                                href={child.href || '#'}
+                                onClick={onMobileClose}
+                                aria-current={isHrefActive(child.href) ? 'page' : undefined}
+                                className={cn('nav-subitem', isHrefActive(child.href) && 'is-active')}
                               >
-                                <ChildIcon className="h-3 w-3 flex-shrink-0" />
-                                <span className="font-medium text-xs">{child.name}</span>
-                              </div>
-                            </Link>
-                          )
-                        })}
-                      </motion.div>
-                    )}
+                                {child.name}
+                              </Link>
+                            ))}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 )
               })}
@@ -694,67 +680,37 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         ))}
       </nav>
 
-      {/* User Profile Section */}
-      <div className="p-2 border-t border-slate-200 dark:border-gray-800">
-        <AnimatePresence mode="wait">
-          {!isCollapsed ? (
-            <motion.div
-              key="expanded"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              transition={{ duration: 0.2 }}
-              className="space-y-2"
-            >
-              <div className="flex items-center space-x-2 p-2 rounded-lg bg-slate-100 dark:bg-gray-800">
-                <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center">
-                  <User className="h-3 w-3 text-white" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-gray-900 dark:text-white truncate">
-                    {getUserDisplayName() || user?.email?.split('@')[0] || 'Utilisateur'}
-                  </p>
-                  <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">
-                    {userProfile ? `Travail sur ${getUserDisplayName()}` : t('nav.online')}
-                  </p>
-                </div>
-              </div>
-              
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleSignOut}
-                className="w-full justify-start text-slate-600 dark:text-slate-300 hover:bg-slate-50 hover:text-slate-700 dark:hover:bg-slate-900/20 dark:hover:text-slate-400"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                {t('nav.signOut')}
-              </Button>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="collapsed"
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              transition={{ duration: 0.2 }}
-              className="flex flex-col items-center space-y-2"
-            >
-              <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center">
-                <User className="h-3 w-3 text-white" />
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleSignOut}
-                className="h-6 w-6 hover:bg-slate-50 hover:text-slate-700 dark:hover:bg-slate-900/20 dark:hover:text-slate-400"
-                title={t('nav.signOut')}
-              >
-                <LogOut className="h-3 w-3" />
-              </Button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+      {/* Expand button on the collapsed rail */}
+      {isCollapsed && (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label="Déplier le menu"
+          className="mx-auto mb-2 hidden h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground lg:flex"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      )}
+
+      {/* User */}
+      <div className="shrink-0 border-t border-border p-3">
+        <div className={cn('flex items-center gap-3 rounded-lg p-2', isCollapsed && 'lg:flex-col lg:gap-2 lg:p-0')}>
+          <span className="avatar avatar-sm" title={displayName}>{initial}</span>
+          <div className={cn('min-w-0 flex-1', isCollapsed && 'lg:hidden')}>
+            <p className="truncate text-sm font-bold text-foreground">{displayName}</p>
+            <p className="truncate text-[11px] text-muted-foreground">{roleLabel}</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            title={t('nav.signOut')}
+            aria-label={t('nav.signOut')}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
       </div>
-    </motion.div>
+    </aside>
   )
 }

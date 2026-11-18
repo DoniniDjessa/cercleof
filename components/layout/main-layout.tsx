@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { usePathname } from 'next/navigation'
 import { Sidebar } from './sidebar'
 import { Navbar } from './navbar'
 import { VoiceNavigationButton } from '@/components/ai/voice-navigation-button'
@@ -11,67 +11,62 @@ interface MainLayoutProps {
   children: React.ReactNode
 }
 
+const COLLAPSE_KEY = 'sidebar-collapsed'
+
 export function MainLayout({ children }: MainLayoutProps) {
+  // Desktop: full sidebar or icon rail (remembered). Mobile: drawer over the page.
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
-  const [isMobile, setIsMobile] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const pathname = usePathname()
 
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 1024)
-      if (window.innerWidth < 1024) {
-        setIsSidebarCollapsed(true)
-      }
-    }
-
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
+    try {
+      if (localStorage.getItem(COLLAPSE_KEY) === '1') setIsSidebarCollapsed(true)
+    } catch { /* storage unavailable */ }
   }, [])
 
+  // Close the mobile drawer on navigation
+  useEffect(() => {
+    setMobileOpen(false)
+  }, [pathname])
+
   const toggleSidebar = () => {
-    setIsSidebarCollapsed(!isSidebarCollapsed)
+    setIsSidebarCollapsed(prev => {
+      const next = !prev
+      try { localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0') } catch { /* private mode */ }
+      return next
+    })
+  }
+
+  const handleMenuClick = () => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) setMobileOpen(open => !open)
+    else toggleSidebar()
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex transition-colors duration-300">
-      {/* Sidebar */}
-      <Sidebar 
-        isCollapsed={isSidebarCollapsed} 
-        onToggle={toggleSidebar} 
+    <div className="min-h-screen bg-[rgb(var(--bg-body))]">
+      <Sidebar
+        isCollapsed={isSidebarCollapsed}
+        onToggle={toggleSidebar}
+        mobileOpen={mobileOpen}
+        onMobileClose={() => setMobileOpen(false)}
       />
 
       {/* Mobile overlay */}
-      {isMobile && !isSidebarCollapsed && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black bg-opacity-50 z-20 lg:hidden"
-          onClick={() => setIsSidebarCollapsed(true)}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-[35] bg-black/50 backdrop-blur-[2px] lg:hidden"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
         />
       )}
 
-      {/* Main content */}
-      <div className={cn(
-        "flex-1 flex flex-col min-w-0 transition-all duration-300",
-        isSidebarCollapsed ? "ml-20" : "ml-72"
-      )}>
-        {/* Navbar */}
-        <Navbar 
-          onMenuClick={toggleSidebar}
-          isSidebarCollapsed={isSidebarCollapsed}
-        />
-
-        {/* Page content */}
-        <main className="flex-1 p-6 lg:p-8 bg-slate-50 dark:bg-gray-900 transition-colors duration-300">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className="max-w-7xl mx-auto"
-          >
+      <div className={cn('app-main', isSidebarCollapsed && 'is-collapsed')}>
+        <Navbar onMenuClick={handleMenuClick} isSidebarCollapsed={isSidebarCollapsed} />
+        <main id="main-content" className="app-content">
+          <div key={pathname} className="rise">
             {children}
-          </motion.div>
+          </div>
         </main>
       </div>
 

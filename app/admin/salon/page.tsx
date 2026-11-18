@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Search, User, Calendar, Star, Edit, Check, X, Users } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import toast from "react-hot-toast"
+import { StatCard, StatGrid } from '@/components/ui/stat-card'
 
 interface SalonService {
   id: string
@@ -486,21 +487,9 @@ export default function SalonPage() {
       </div>
 
       {/* Stats Card */}
-      <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <CardContent className="p-4">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-lg">
-                <Check className="w-5 h-5 text-green-600 dark:text-green-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Total Services</p>
-                <p className="text-base font-bold text-gray-900 dark:text-white">{totalServices}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <StatGrid cols={4}>
+        <StatCard index={0} label="Total Services" value={totalServices} icon={Check} tone="emerald" />
+      </StatGrid>
 
       {/* Search */}
       <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">

@@ -27,6 +27,7 @@ import {
   Package
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
+import { StatCard, StatGrid } from '@/components/ui/stat-card'
 
 interface Promotion {
   id: string
@@ -326,63 +327,12 @@ export default function PromotionsPage() {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                    <Tag className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total</p>
-                    <p className="text-base font-bold text-gray-900 dark:text-white">{stats.total}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
-                    <Calendar className="h-6 w-6 text-green-600 dark:text-green-400" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Actives</p>
-                    <p className="text-base font-bold text-gray-900 dark:text-white">{stats.active}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
-                    <Calendar className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Programmées</p>
-                    <p className="text-base font-bold text-gray-900 dark:text-white">{stats.scheduled}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
-                    <Calendar className="h-6 w-6 text-red-600 dark:text-red-400" />
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Expirées</p>
-                    <p className="text-base font-bold text-gray-900 dark:text-white">{stats.expired}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <StatGrid cols={4}>
+        <StatCard index={0} label="Total" value={stats.total} icon={Tag} tone="sky" />
+        <StatCard index={1} label="Actives" value={stats.active} icon={Calendar} tone="emerald" />
+        <StatCard index={2} label="Programmées" value={stats.scheduled} icon={Calendar} tone="amber" />
+        <StatCard index={3} label="Expirées" value={stats.expired} icon={Calendar} tone="rose" />
+      </StatGrid>
 
           {/* Search */}
           <Card>

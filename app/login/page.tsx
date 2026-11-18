@@ -2,19 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { createClient } from '@/lib/supabase'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { PageTransition } from '@/components/ui/page-transition'
 import { ButtonLoadingSpinner } from '@/components/ui/context-loaders'
 import { ThemeToggle, LanguageToggle } from '@/components/ui/theme-toggle'
 import { useTheme } from '@/contexts/ThemeContext'
 import { motion } from 'framer-motion'
 import Image from 'next/image'
+import { ArrowRight, Eye, EyeOff } from 'lucide-react'
 
 export default function LoginPage() {
   const [loginField, setLoginField] = useState('')
@@ -85,133 +81,139 @@ export default function LoginPage() {
     }
   }
 
+  const [titleFirst, ...titleRest] = t('login.welcome').split(' ')
+
+  const stagger = {
+    hidden: {},
+    show: { transition: { staggerChildren: 0.09, delayChildren: 0.1 } },
+  }
+  const item = {
+    hidden: { opacity: 0, y: 24 },
+    show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.2, 0.8, 0.2, 1] as const } },
+  }
+
   return (
     <PageTransition>
-      <div className="min-h-screen flex">
-        {/* Theme and Language Toggle */}
-        <div className="absolute top-4 right-4 flex space-x-2 z-10">
-          <ThemeToggle />
-          <LanguageToggle />
-        </div>
+      <div className="min-h-screen flex bg-[rgb(var(--bg-body))]">
+        {/* Left side - Login form (no frame) */}
+        <div className="relative flex-1 flex flex-col overflow-hidden px-6 py-6 sm:px-12 lg:px-16 xl:px-24">
+          <div className="login-rings" aria-hidden="true">
+            <span className="r1" />
+            <span className="r2" />
+            <span className="r3" />
+            <span className="glow" />
+          </div>
 
-        {/* Left side - Login Form */}
-        <div className="flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8">
-          <div className="w-full max-w-md">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="text-center mb-8 flex flex-col items-center"
-            >
-              <div className="relative h-20 w-20 mb-4 flex items-center justify-center">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img 
-                  src="/cbmin.png" 
-                  alt="Cercle Of Logo" 
-                  className="h-full w-full object-contain"
-                  style={{ maxWidth: '100%', height: 'auto' }}
-                  onError={(e) => {
-                    console.error('Failed to load logo')
-                    const target = e.target as HTMLImageElement
-                    target.style.display = 'none'
-                  }}
-                />
-              </div>
-              <h1 className="font-display text-5xl text-foreground mb-2">{t('app.title')}</h1>
-            </motion.div>
+          {/* Top bar: wordmark + toggles */}
+          <motion.div
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="relative z-10 flex items-center justify-between"
+          >
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-primary">
+                <span className="h-2.5 w-2.5 rounded-full bg-gradient-to-br from-primary to-[rgb(var(--color-accent-2))]" />
+              </span>
+              <span className="font-anton text-xl uppercase text-foreground">Cercle of Beauty</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <ThemeToggle />
+              <LanguageToggle />
+            </div>
+          </motion.div>
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-            >
-              <Card className="border-0 shadow-none bg-transparent">
-                <CardHeader className="space-y-1 pb-8">
-                  {/* <CardTitle className="font-title text-2xl text-center text-foreground">
-                    {t('login.welcome')}
-                  </CardTitle> */}
-                  <CardDescription className="font-body text-center text-muted-foreground">
-                    {t('login.subtitle')}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="space-y-2">
-                      <Label htmlFor="loginField" className="font-body text-sm font-medium text-foreground">
-                        {t('login.emailOrUsername')}
-                      </Label>
-                      <Input
-                        id="loginField"
-                        type="text"
-                        placeholder={t('login.emailOrUsername')}
-                        value={loginField}
-                        onChange={(e) => setLoginField(e.target.value)}
-                        required
-                        className="font-body"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="password" className="font-body text-sm font-medium text-foreground">
-                        {t('login.password')}
-                      </Label>
-                      <div className="relative">
-                        <Input
-                          id="password"
-                          type={showPassword ? "text" : "password"}
-                          placeholder={t('login.password')}
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          required
-                          className="font-body pr-10"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          {showPassword ? (
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
-                            </svg>
-                          ) : (
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                    {error && (
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-full text-sm font-body"
-                      >
-                        {error}
-                      </motion.div>
+          {/* Form */}
+          <div className="relative z-10 flex flex-1 items-center">
+            <motion.div variants={stagger} initial="hidden" animate="show" className="w-full max-w-md py-12">
+              <motion.p variants={item} className="mb-5 font-script text-2xl leading-tight text-primary sm:text-3xl">
+                {t('app.subtitle')}
+              </motion.p>
+              <motion.h1 variants={item} className="login-title font-anton">
+                {titleFirst}
+                {titleRest.length > 0 && <><br /><span className="accent">{titleRest.join(' ')}</span></>}
+              </motion.h1>
+              <motion.p variants={item} className="mt-4 text-base text-muted-foreground">
+                {t('login.subtitle')}
+              </motion.p>
+
+              <form onSubmit={handleSubmit} className="mt-10 space-y-7">
+                <motion.div variants={item} className="login-field">
+                  <input
+                    id="loginField"
+                    type="text"
+                    placeholder=" "
+                    autoComplete="username"
+                    value={loginField}
+                    onChange={(e) => setLoginField(e.target.value)}
+                    required
+                  />
+                  <label htmlFor="loginField">{t('login.emailOrUsername')}</label>
+                </motion.div>
+
+                <motion.div variants={item} className="login-field">
+                  <input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder=" "
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="pr-10"
+                  />
+                  <label htmlFor="password">{t('login.password')}</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                    className="absolute right-0 bottom-2.5 p-1 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </motion.div>
+
+                {error && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1, x: [0, -6, 6, -3, 0] }}
+                    transition={{ duration: 0.4 }}
+                    className="badge-danger rounded-lg border px-4 py-3 text-sm font-semibold"
+                  >
+                    {error}
+                  </motion.div>
+                )}
+
+                <motion.div variants={item}>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="group relative flex h-12 w-full items-center justify-center gap-2 overflow-hidden rounded-full bg-gradient-to-r from-primary to-[rgb(var(--color-accent-2))] text-sm font-extrabold uppercase tracking-widest text-primary-foreground shadow-[0_10px_30px_-10px_rgb(var(--color-primary)/0.7)] transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-70"
+                  >
+                    <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+                    {loading ? <ButtonLoadingSpinner /> : (
+                      <>
+                        {t('login.signIn')}
+                        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                      </>
                     )}
-                    <Button type="submit" className="w-full font-body text-base" disabled={loading}>
-                      {loading ? <ButtonLoadingSpinner /> : t('login.signIn')}
-                    </Button>
-                  </form>
-                  <div className="mt-6 text-center">
-                    <p className="font-body text-sm text-muted-foreground">
-                      {t('login.needAccount')}{' '}
-                      <span className="text-slate-600 dark:text-slate-400 font-medium">
-                        {t('login.contactAdmin')}
-                      </span>
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
+                  </button>
+                </motion.div>
+              </form>
+
+              <motion.p variants={item} className="mt-8 text-sm text-muted-foreground">
+                {t('login.needAccount')}{' '}
+                <span className="font-bold text-foreground">{t('login.contactAdmin')}</span>
+              </motion.p>
             </motion.div>
           </div>
+
+          <p className="relative z-10 text-xs text-muted-foreground">© {new Date().getFullYear()} Cercle of Beauty</p>
         </div>
 
         {/* Right side - Image */}
-        <div className="hidden lg:flex lg:flex-1 relative">
-          <div className="absolute inset-0">
+        <div className="hidden lg:flex lg:flex-1 relative overflow-hidden">
+          <div className="absolute inset-0 login-photo">
             <Image
               src="https://images.unsplash.com/photo-1560066984-138dadb4c035?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1974&q=80"
               alt="Beauty salon interior"
@@ -219,8 +221,18 @@ export default function LoginPage() {
               className="object-cover"
               priority
             />
-            <div className="absolute inset-0 bg-gradient-to-br from-pink-500/20 to-purple-600/20"></div>
           </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-purple-900/30" />
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.4, ease: [0.2, 0.8, 0.2, 1] }}
+            className="absolute bottom-12 left-12 right-12 text-white"
+          >
+            <p className="font-anton text-6xl uppercase leading-none xl:text-7xl">Cercle of<br />Beauty</p>
+            <div className="mt-4 h-1 w-16 rounded-full bg-gradient-to-r from-primary to-[rgb(var(--color-accent-2))]" />
+            <p className="mt-4 max-w-sm font-script text-2xl leading-snug text-white/90">{t('app.subtitle')}</p>
+          </motion.div>
         </div>
       </div>
     </PageTransition>

@@ -1,5 +1,7 @@
 "use client"
 
+import { PeriodFilter } from '@/components/ui/period-filter'
+
 import { useState, useEffect } from "react"
 import { useAuth } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
@@ -12,6 +14,7 @@ import { TableLoadingState } from "@/components/ui/table-loading-state"
 import { Search, Eye, Trash2, ShoppingCart, DollarSign, CreditCard, User, Calendar } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import toast from "react-hot-toast"
+import { StatCard, StatGrid } from '@/components/ui/stat-card'
 
 interface Sale {
   id: string
@@ -574,115 +577,26 @@ export default function SalesPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <CardContent className="py-3 px-4">
-            <div className="flex items-center">
-              <div className="p-1.5 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
-                <ShoppingCart className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div className="ml-3">
-                <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Total Ventes</p>
-                <p className="text-lg font-bold text-gray-900 dark:text-white">{totalSales}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <StatGrid cols={4}>
+        <StatCard index={0} label="Total Ventes" value={totalSales} icon={ShoppingCart} tone="sky" />
+        <StatCard index={1} label="Chiffre d'Affaires" value={<>{totalRevenue.toFixed(0)}f</>} icon={DollarSign} tone="emerald" />
+        <StatCard index={2} label="Panier Moyen" value={<>{averageSale.toFixed(0)}f</>} icon={CreditCard} tone="violet" />
+        <StatCard index={3} label="Ventes Payées" value={paidSales} icon={User} tone="amber" />
+      </StatGrid>
 
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <CardContent className="py-3 px-4">
-            <div className="flex items-center">
-              <div className="p-1.5 bg-green-100 dark:bg-green-900/20 rounded-lg">
-                <DollarSign className="w-4 h-4 text-green-600 dark:text-green-400" />
-              </div>
-              <div className="ml-3">
-                <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Chiffre d'Affaires</p>
-                <p className="text-lg font-bold text-gray-900 dark:text-white">{totalRevenue.toFixed(0)}f</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <CardContent className="py-3 px-4">
-            <div className="flex items-center">
-              <div className="p-1.5 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                <CreditCard className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-              </div>
-              <div className="ml-3">
-                <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Panier Moyen</p>
-                <p className="text-lg font-bold text-gray-900 dark:text-white">{averageSale.toFixed(0)}f</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <CardContent className="py-3 px-4">
-            <div className="flex items-center">
-              <div className="p-1.5 bg-orange-100 dark:bg-orange-900/20 rounded-lg">
-                <User className="w-4 h-4 text-orange-600 dark:text-orange-400" />
-              </div>
-              <div className="ml-3">
-                <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Ventes Payées</p>
-                <p className="text-lg font-bold text-gray-900 dark:text-white">{paidSales}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Search and Filters */}
-      <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-        <CardContent className="p-4">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                placeholder="Rechercher par référence, client, vendeur, montant, produit..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-gray-400" />
-              <select
-                value={dateFilter}
-                onChange={(e) => {
-                  setDateFilter(e.target.value)
-                  setCurrentPage(1)
-                }}
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-xs"
-              >
-                <option value="all">Toutes les dates</option>
-                <option value="today">Aujourd'hui</option>
-                <option value="yesterday">Hier</option>
-                <option value="week">7 derniers jours</option>
-                <option value="month">30 derniers jours</option>
-                <option value="range">Période personnalisée</option>
-              </select>
-              {dateFilter === 'range' && (
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="date"
-                    value={dateRange.start}
-                    onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                    className="text-xs h-8"
-                  />
-                  <span className="text-xs text-gray-500">à</span>
-                  <Input
-                    type="date"
-                    value={dateRange.end}
-                    onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                    className="text-xs h-8"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Search and period filters (same bar as the dashboard) */}
+      <PeriodFilter
+        dateFilter={dateFilter}
+        dateRange={dateRange}
+        onChange={(filter, range) => {
+          setDateFilter(filter)
+          setDateRange(range)
+          setCurrentPage(1)
+        }}
+        searchValue={searchTerm}
+        onSearchChange={setSearchTerm}
+        searchPlaceholder="Rechercher par référence, client, vendeur, montant, produit..."
+      />
 
       {/* Sales Table */}
       <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">

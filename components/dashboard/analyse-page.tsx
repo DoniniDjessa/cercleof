@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
@@ -19,7 +19,10 @@ import {
   CreditCard,
   RefreshCw
 } from 'lucide-react'
-import { LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { ComposedChart, Line, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { StatCard, StatGrid } from '@/components/ui/stat-card'
+import { PageHeader, SectionTitle, EmptyState } from '@/components/ui/page-header'
 import { toast } from 'react-hot-toast'
 
 interface AnalysePageProps {
@@ -36,7 +39,7 @@ interface AnalyseData {
   paymentMethods: Array<{ method: string; count: number; amount: number }>
 }
 
-const COLORS = ['#9333ea', '#a855f7', '#c084fc', '#d8b4fe', '#e9d5ff']
+const COLORS = ['#b8922a', '#d4af37', '#dfc27a', '#8f6b1f', '#ead8a6']
 
 export function AnalysePage({ userRole }: AnalysePageProps) {
   const [data, setData] = useState<AnalyseData | null>(null)
@@ -214,219 +217,230 @@ export function AnalysePage({ userRole }: AnalysePageProps) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto"></div>
-          <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">Chargement des analyses...</p>
+      <div className="space-y-6">
+        <StatGrid cols={4}>
+          {[0, 1, 2, 3].map(i => <StatCard key={i} index={i} label="Chargement" value="" loading />)}
+        </StatGrid>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {[0, 1].map(i => <div key={i} className="skeleton h-[340px]" />)}
         </div>
       </div>
     )
   }
 
   if (!data) {
-    return <div className="text-center text-gray-500">Aucune donnée disponible</div>
+    return <EmptyState icon={BarChart3} title="Aucune donnée disponible" />
   }
+
+  const totals = data.revenueByMonth.reduce(
+    (acc, m) => ({ revenue: acc.revenue + (Number(m.revenue) || 0), expenses: acc.expenses + (Number(m.expenses) || 0) }),
+    { revenue: 0, expenses: 0 }
+  )
+  const profit = totals.revenue - totals.expenses
+  const salesCount = data.salesByDay.reduce((sum, d) => sum + (Number(d.count) || 0), 0)
+  const newClients = data.clientsByMonth.reduce((sum, m) => sum + (Number(m.new) || 0), 0)
+  const compact = (v: number) => (Math.abs(v) >= 1000 ? `${Math.round(v / 1000).toLocaleString('fr-FR')}k` : String(v))
+  const maxProduct = Math.max(1, ...data.topSellingProducts.map(p => Number(p.revenue) || 0))
+  const maxService = Math.max(1, ...data.topSellingServices.map(s => Number(s.revenue) || 0))
+
+  const axisProps = { fontSize: 11, tickLine: false, axisLine: false } as const
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Analyses Précises</h2>
-          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Analyses détaillées basées sur toutes vos données</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Select value={timeRange} onValueChange={setTimeRange}>
-            <SelectTrigger className="w-40 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-200 dark:border-gray-700 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7">7 derniers jours</SelectItem>
-              <SelectItem value="30">30 derniers jours</SelectItem>
-              <SelectItem value="90">90 derniers jours</SelectItem>
-              <SelectItem value="365">1 an</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button onClick={fetchAnalyseData} variant="outline" size="sm" className="text-xs">
-            <RefreshCw className="w-3 h-3 mr-2" />
-            Actualiser
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        icon={BarChart3}
+        title="Analyses"
+        description="Analyses détaillées basées sur toutes vos données"
+        actions={
+          <>
+            <Select value={timeRange} onValueChange={setTimeRange}>
+              <SelectTrigger className="w-40" aria-label="Période">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7">7 derniers jours</SelectItem>
+                <SelectItem value="30">30 derniers jours</SelectItem>
+                <SelectItem value="90">90 derniers jours</SelectItem>
+                <SelectItem value="365">1 an</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button onClick={fetchAnalyseData} variant="outline" size="sm">
+              <RefreshCw className="h-3.5 w-3.5" />
+              Actualiser
+            </Button>
+          </>
+        }
+      />
+
+      <StatGrid cols={4}>
+        <StatCard index={0} label="Revenus" value={formatCurrency(totals.revenue)} icon={TrendingUp} tone="emerald" hint="Sur la période" />
+        <StatCard index={1} label="Dépenses" value={formatCurrency(totals.expenses)} icon={TrendingDown} tone="rose" hint="Sur la période" />
+        <StatCard index={2} label="Bénéfice" value={formatCurrency(profit)} icon={DollarSign} tone={profit >= 0 ? 'violet' : 'rose'}
+          hint={totals.revenue > 0 ? `Marge ${Math.round((profit / totals.revenue) * 100)}%` : 'Revenus − dépenses'} />
+        <StatCard index={3} label="Ventes" value={salesCount.toLocaleString('fr-FR')} icon={ShoppingCart} tone="sky"
+          hint={`${newClients.toLocaleString('fr-FR')} nouveau${newClients > 1 ? 'x' : ''} client${newClients > 1 ? 's' : ''}`} />
+      </StatGrid>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Revenue Analysis */}
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Analyse Revenus/Expenses</CardTitle>
+        <Card className="lg:col-span-2">
+          <CardHeader className="pb-2">
+            <SectionTitle title="Revenus, dépenses et bénéfice" description="Par mois" />
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={data.revenueByMonth}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="month" stroke="#6b7280" fontSize={10} />
-                <YAxis stroke="#6b7280" fontSize={10} />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'white', 
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '6px',
-                    fontSize: '12px'
-                  }} 
-                />
-                <Legend fontSize={10} />
-                <Area type="monotone" dataKey="revenue" stackId="1" stroke="#9333ea" fill="#9333ea" fillOpacity={0.6} name="Revenus" />
-                <Area type="monotone" dataKey="expenses" stackId="1" stroke="#ef4444" fill="#ef4444" fillOpacity={0.6} name="Dépenses" />
-                <Area type="monotone" dataKey="profit" stroke="#10b981" fill="#10b981" fillOpacity={0.4} name="Profit" />
+              <AreaChart data={data.revenueByMonth} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
+                <defs>
+                  {[['fillRevenue', '#c9a227'], ['fillExpenses', '#a89d8c'], ['fillProfit', '#e07f24']].map(([id, color]) => (
+                    <linearGradient key={id} id={id} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={color} stopOpacity={0.28} />
+                      <stop offset="100%" stopColor={color} stopOpacity={0} />
+                    </linearGradient>
+                  ))}
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="month" {...axisProps} />
+                <YAxis {...axisProps} width={64} tickFormatter={compact} />
+                <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                <Legend iconType="circle" iconSize={8} />
+                <Area type="monotone" dataKey="revenue" stroke="#c9a227" strokeWidth={2.5} fill="url(#fillRevenue)" name="Revenus" />
+                <Area type="monotone" dataKey="expenses" stroke="#a89d8c" strokeWidth={2} fill="url(#fillExpenses)" name="Dépenses" />
+                <Area type="monotone" dataKey="profit" stroke="#e07f24" strokeWidth={2} fill="url(#fillProfit)" name="Bénéfice" />
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
         {/* Sales by Day */}
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Ventes par Jour</CardTitle>
+        <Card>
+          <CardHeader className="pb-2">
+            <SectionTitle title="Ventes par jour" description="Montant (barres) et nombre de ventes (ligne)" />
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={data.salesByDay}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="day" stroke="#6b7280" fontSize={10} />
-                <YAxis stroke="#6b7280" fontSize={10} />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'white', 
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '6px',
-                    fontSize: '12px'
-                  }} 
-                />
-                <Legend fontSize={10} />
-                <Bar dataKey="sales" fill="#9333ea" name="Montant" />
-                <Bar dataKey="count" fill="#a855f7" name="Nombre" />
-              </BarChart>
+            <ResponsiveContainer width="100%" height={280}>
+              <ComposedChart data={data.salesByDay} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="day" {...axisProps} />
+                <YAxis yAxisId="amount" {...axisProps} width={56} tickFormatter={compact} />
+                <YAxis yAxisId="count" orientation="right" {...axisProps} width={32} allowDecimals={false} />
+                <Tooltip formatter={(value: number, name: string) => (name === 'Montant' ? formatCurrency(value) : value)} />
+                <Legend iconType="circle" iconSize={8} />
+                <Bar yAxisId="amount" dataKey="sales" fill="#c9a227" radius={[4, 4, 0, 0]} maxBarSize={28} name="Montant" />
+                <Line yAxisId="count" type="monotone" dataKey="count" stroke="#dca54f" strokeWidth={2} dot={false} name="Nombre" />
+              </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
         {/* Clients Growth */}
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Croissance Clients</CardTitle>
+        <Card>
+          <CardHeader className="pb-2">
+            <SectionTitle title="Croissance clients" description="Nouveaux clients et total cumulé" />
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={data.clientsByMonth}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="month" stroke="#6b7280" fontSize={10} />
-                <YAxis stroke="#6b7280" fontSize={10} />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'white', 
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '6px',
-                    fontSize: '12px'
-                  }} 
-                />
-                <Legend fontSize={10} />
-                <Line type="monotone" dataKey="new" stroke="#9333ea" strokeWidth={2} name="Nouveaux" />
-                <Line type="monotone" dataKey="total" stroke="#a855f7" strokeWidth={2} name="Total" />
-              </LineChart>
+            <ResponsiveContainer width="100%" height={280}>
+              <ComposedChart data={data.clientsByMonth} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="month" {...axisProps} />
+                <YAxis yAxisId="new" {...axisProps} width={36} allowDecimals={false} />
+                <YAxis yAxisId="total" orientation="right" {...axisProps} width={40} allowDecimals={false} />
+                <Tooltip />
+                <Legend iconType="circle" iconSize={8} />
+                <Bar yAxisId="new" dataKey="new" fill="#e07f24" radius={[4, 4, 0, 0]} maxBarSize={28} name="Nouveaux" />
+                <Line yAxisId="total" type="monotone" dataKey="total" stroke="#c9a227" strokeWidth={2.5} dot={false} name="Total" />
+              </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
         {/* Payment Methods */}
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Méthodes de Paiement</CardTitle>
+        <Card className="lg:col-span-2">
+          <CardHeader className="pb-2">
+            <SectionTitle title="Méthodes de paiement" description="Montant encaissé et nombre d’opérations" />
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={data.paymentMethods}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="method" stroke="#6b7280" fontSize={10} />
-                <YAxis stroke="#6b7280" fontSize={10} />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'white', 
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '6px',
-                    fontSize: '12px'
-                  }} 
-                />
-                <Legend fontSize={10} />
-                <Bar dataKey="count" fill="#9333ea" name="Nombre" />
-                <Bar dataKey="amount" fill="#a855f7" name="Montant" />
-              </BarChart>
-            </ResponsiveContainer>
+            {data.paymentMethods.length === 0 ? (
+              <EmptyState icon={CreditCard} title="Aucun paiement sur la période" />
+            ) : (
+              <div className="overflow-hidden rounded-lg border border-border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Méthode</TableHead>
+                      <TableHead className="text-right">Opérations</TableHead>
+                      <TableHead className="text-right">Montant</TableHead>
+                      <TableHead className="w-[40%]">Part</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(() => {
+                      const totalAmount = data.paymentMethods.reduce((s, m) => s + (Number(m.amount) || 0), 0) || 1
+                      return [...data.paymentMethods]
+                        .sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0))
+                        .map((m) => {
+                          const share = Math.round(((Number(m.amount) || 0) / totalAmount) * 100)
+                          return (
+                            <TableRow key={m.method}>
+                              <TableCell className="font-bold text-foreground capitalize">{m.method}</TableCell>
+                              <TableCell className="text-right">{Number(m.count).toLocaleString('fr-FR')}</TableCell>
+                              <TableCell className="text-right font-extrabold text-foreground">{formatCurrency(m.amount)}</TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <div className="progress-track flex-1"><div className="progress-bar" style={{ width: `${Math.max(2, share)}%` }} /></div>
+                                  <span className="w-9 text-right text-[11px] font-bold text-muted-foreground">{share}%</span>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })
+                    })()}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
 
       {/* Top Products and Services */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Top Products */}
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Top Produits</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {data.topSellingProducts.map((product, index) => (
-                <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                      <Package className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-gray-900 dark:text-white">{product.name}</p>
-                      <p className="text-[10px] text-gray-500 dark:text-gray-400">
-                        {product.quantity} vendus
-                      </p>
-                    </div>
-                  </div>
-                  <p className="text-xs font-bold text-purple-600 dark:text-purple-400">
-                    {formatCurrency(product.revenue)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Top Services */}
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Top Services</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {data.topSellingServices.map((service, index) => (
-                <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                      <Scissors className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-gray-900 dark:text-white">{service.name}</p>
-                      <p className="text-[10px] text-gray-500 dark:text-gray-400">
-                        {service.count} vendus
-                      </p>
-                    </div>
-                  </div>
-                  <p className="text-xs font-bold text-purple-600 dark:text-purple-400">
-                    {formatCurrency(service.revenue)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {[
+          { title: 'Top produits', icon: Package, max: maxProduct, rows: data.topSellingProducts.map(p => ({ name: p.name, sub: `${p.quantity} vendus`, revenue: p.revenue })) },
+          { title: 'Top services', icon: Scissors, max: maxService, rows: data.topSellingServices.map(s => ({ name: s.name, sub: `${s.count} vendus`, revenue: s.revenue })) },
+        ].map(list => (
+          <Card key={list.title}>
+            <CardHeader className="pb-2">
+              <SectionTitle title={list.title} description="Classés par chiffre d’affaires" />
+            </CardHeader>
+            <CardContent className="pt-1">
+              {list.rows.length === 0 ? (
+                <EmptyState icon={list.icon} title="Aucune vente sur la période" />
+              ) : (
+                <ul className="space-y-3">
+                  {list.rows.map((row, index) => (
+                    <li key={index} className="flex items-center gap-3">
+                      <span className="rank">{index + 1}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <p className="truncate text-xs font-bold text-foreground">{row.name}</p>
+                          <p className="shrink-0 text-xs font-extrabold text-primary">{formatCurrency(row.revenue)}</p>
+                        </div>
+                        <div className="mt-1 flex items-center gap-2">
+                          <div className="progress-track flex-1">
+                            <div className="progress-bar" style={{ width: `${Math.max(4, Math.round(((Number(row.revenue) || 0) / list.max) * 100))}%` }} />
+                          </div>
+                          <span className="shrink-0 text-[10px] text-muted-foreground">{row.sub}</span>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        ))}
       </div>
     </div>
   )
 }
-

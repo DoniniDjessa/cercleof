@@ -1,5 +1,7 @@
 "use client"
 
+import { PeriodFilter } from '@/components/ui/period-filter'
+
 import { useState, useEffect } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -15,6 +17,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { supabase } from "@/lib/supabase"
 import toast from "react-hot-toast"
 import { AuthLoadingScreen } from "@/components/ui/context-loaders"
+import { StatCard, StatGrid } from '@/components/ui/stat-card'
 
 interface Revenue {
   id: string
@@ -260,22 +263,44 @@ export default function RevenuesPage() {
 
       // Fetch sale items to categorize as product or service
       const saleIds = (salesData || []).map((s: any) => s.id)
+      // Read-only, in chunks: one .in() with every sale id of the period makes the URL
+      // too long and the request failed silently ("Aucun détail"). Names are read
+      // separately, like the sale detail page does.
+      const chunk = <T,>(arr: T[], size: number) =>
+        Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, (i + 1) * size))
+      const fetchInChunks = async (table: string, columns: string, column: string, ids: string[]) => {
+        const rows: any[] = []
+        const groups = chunk(chunk(ids, 150), 6) // 150 ids per request, 6 requests at a time
+        for (const group of groups) {
+          const results = await Promise.all(
+            group.map(part => supabase.from(table).select(columns).in(column, part))
+          )
+          results.forEach(({ data, error }) => {
+            if (error) console.error(`Error fetching ${table}:`, error)
+            else if (data) rows.push(...data)
+          })
+        }
+        return rows
+      }
+
       let saleItemsData: any[] = []
       if (saleIds.length > 0) {
-        const { data: items, error: itemsError } = await supabase
-          .from('dd-ventes-items')
-          .select(`
-            vente_id,
-            product_id,
-            service_id,
-            product:dd-products(name),
-            service:dd-services(name)
-          `)
-          .in('vente_id', saleIds)
-
-        if (!itemsError && items) {
-          saleItemsData = items
-        }
+        const items = await fetchInChunks(
+          'dd-ventes-items', 'vente_id, product_id, service_id, quantite', 'vente_id', saleIds
+        )
+        const productIds = [...new Set(items.map((i: any) => i.product_id).filter(Boolean))] as string[]
+        const serviceIds = [...new Set(items.map((i: any) => i.service_id).filter(Boolean))] as string[]
+        const [products, services] = await Promise.all([
+          productIds.length ? fetchInChunks('dd-products', 'id, name', 'id', productIds) : Promise.resolve([]),
+          serviceIds.length ? fetchInChunks('dd-services', 'id, name', 'id', serviceIds) : Promise.resolve([]),
+        ])
+        const productNames = new Map(products.map((p: any) => [p.id, p.name]))
+        const serviceNames = new Map(services.map((s: any) => [s.id, s.name]))
+        saleItemsData = items.map((item: any) => ({
+          ...item,
+          product: item.product_id ? { name: productNames.get(item.product_id) || 'Produit inconnu' } : null,
+          service: item.service_id ? { name: serviceNames.get(item.service_id) || 'Service inconnu' } : null,
+        }))
       }
 
       // Group sale items by vente_id
@@ -676,114 +701,26 @@ export default function RevenuesPage() {
       </Card>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-lg">
-                <TrendingUp className="w-6 h-6 text-green-600 dark:text-green-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Revenus</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalRevenues}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <StatGrid cols={4}>
+        <StatCard index={0} label="Total Revenus" value={totalRevenues} icon={TrendingUp} tone="emerald" />
+        <StatCard index={1} label="Montant Total" value={<>{totalRevenueAmount.toFixed(0)} FCFA</>} icon={DollarSign} tone="sky" />
+        <StatCard index={2} label="Ce Mois" value={thisMonthRevenues} icon={Calendar} tone="violet" />
+        <StatCard index={3} label="Moyenne" value={<>{averageRevenue.toFixed(0)} FCFA</>} icon={TrendingUp} tone="amber" />
+      </StatGrid>
 
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
-                <DollarSign className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Montant Total</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalRevenueAmount.toFixed(0)} FCFA</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                <Calendar className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Ce Mois</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{thisMonthRevenues}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-orange-100 dark:bg-orange-900/20 rounded-lg">
-                <TrendingUp className="w-6 h-6 text-orange-600 dark:text-orange-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Moyenne</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{averageRevenue.toFixed(0)} FCFA</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Search and Filters */}
-      <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-        <CardContent className="p-4">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <Input
-                  placeholder="Rechercher des revenus..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white border-gray-200 dark:border-gray-600"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-gray-400" />
-                <select
-                  value={dateFilter}
-                  onChange={(e) => {
-                    setDateFilter(e.target.value)
-                    setCurrentPage(1)
-                  }}
-                  className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-xs"
-                >
-                  <option value="all">Toutes les dates</option>
-                  <option value="today">Aujourd'hui</option>
-                  <option value="yesterday">Hier</option>
-                  <option value="week">7 derniers jours</option>
-                  <option value="month">Ce mois</option>
-                  <option value="range">Période personnalisée</option>
-                </select>
-                {dateFilter === 'range' && (
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="date"
-                      value={dateRange.start}
-                      onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                      className="text-xs h-8"
-                    />
-                    <span className="text-xs text-gray-500">à</span>
-                    <Input
-                      type="date"
-                      value={dateRange.end}
-                      onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                      className="text-xs h-8"
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
+      {/* Search and period filters (same bar as the dashboard) */}
+      <PeriodFilter
+        dateFilter={dateFilter}
+        dateRange={dateRange}
+        onChange={(filter, range) => {
+          setDateFilter(filter)
+          setDateRange(range)
+          setCurrentPage(1)
+        }}
+        searchValue={searchTerm}
+        onSearchChange={setSearchTerm}
+        searchPlaceholder="Rechercher des revenus..."
+      >
             {/* Revenue Source Filter Buttons */}
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Filtrer par source:</span>
@@ -832,9 +769,7 @@ export default function RevenuesPage() {
                 Revenus Manuels
               </Button>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+      </PeriodFilter>
 
       {/* Revenues Table */}
       <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">

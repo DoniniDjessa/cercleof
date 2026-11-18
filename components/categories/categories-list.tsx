@@ -11,6 +11,7 @@ import { Search, Edit, Trash2, Tag, Package, Scissors } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/contexts/AuthContext"
 import toast from "react-hot-toast"
+import { StatCard, StatGrid } from '@/components/ui/stat-card'
 
 interface Category {
   id: string
@@ -179,32 +180,11 @@ export function CategoriesList({ categoryType }: CategoriesListProps) {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Total Catégories</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">{categories.length}</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Catégories Actives</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">{categories.filter((c) => c.is_active).length}</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Catégories Principales</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">{categories.filter((c) => !c.parent_id).length}</div>
-          </CardContent>
-        </Card>
-      </div>
+      <StatGrid cols={3}>
+        <StatCard index={0} label="Total Catégories" value={categories.length} tone="violet" />
+        <StatCard index={1} label="Catégories Actives" value={categories.filter((c) => c.is_active).length} tone="emerald" />
+        <StatCard index={2} label="Catégories Principales" value={categories.filter((c) => !c.parent_id).length} tone="sky" />
+      </StatGrid>
 
       {/* Search */}
       <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">

@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
+import { AppLoader } from './app-loader'
 
 interface BeautyLoaderProps {
   size?: 'sm' | 'md' | 'lg'
@@ -74,11 +75,7 @@ export function BeautyLoader({
 
 // Specialized loaders for different contexts
 export function AuthLoader() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <BeautyLoader size="lg" />
-    </div>
-  )
+  return <AppLoader />
 }
 
 export function DataLoader() {

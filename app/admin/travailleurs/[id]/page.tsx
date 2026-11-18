@@ -344,7 +344,7 @@ export default function TravailleurDetailPage() {
                   {travailleur.total_montants_recus ? travailleur.total_montants_recus.toFixed(0) : 0}f
                 </p>
               </div>
-              <DollarSign className="w-8 h-8 text-green-400 opacity-50" />
+              <DollarSign className="w-8 h-8 text-primary opacity-50" />
             </div>
           </CardContent>
         </Card>

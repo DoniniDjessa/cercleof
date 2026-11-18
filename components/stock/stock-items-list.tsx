@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Search, Download, Package, Plus, Trash2 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import toast from "react-hot-toast"
+import { StatCard, StatGrid } from '@/components/ui/stat-card'
 
 interface StockItem {
   id: string
@@ -206,46 +207,12 @@ export function StockItemsList({ stockId, stockName, stockRef }: StockItemsListP
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-white dark:bg-gray-800 ">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Total Articles</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">{stockItems.length}</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-white dark:bg-gray-800 ">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Total Quantité</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">
-              {stockItems.reduce((sum, item) => sum + item.quantity, 0)}
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-white dark:bg-gray-800 ">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Coût Total</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">
-              {stockItems.reduce((sum, item) => sum + item.total_cost, 0).toFixed(2)} XOF
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-white dark:bg-gray-800 ">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Produits Uniques</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">
-              {new Set(stockItems.map(item => item.product_id)).size}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <StatGrid cols={4}>
+        <StatCard index={0} label="Total Articles" value={stockItems.length} tone="violet" />
+        <StatCard index={1} label="Total Quantité" value={stockItems.reduce((sum, item) => sum + item.quantity, 0)} tone="emerald" />
+        <StatCard index={2} label="Coût Total" value={<>{stockItems.reduce((sum, item) => sum + item.total_cost, 0).toFixed(2)} XOF</>} tone="sky" />
+        <StatCard index={3} label="Produits Uniques" value={new Set(stockItems.map(item => item.product_id)).size} tone="amber" />
+      </StatGrid>
 
       {/* Search */}
       <Card className="bg-white dark:bg-gray-800 ">

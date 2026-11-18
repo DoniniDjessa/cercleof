@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { useState, useEffect, useRef } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { cn } from '@/lib/utils'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { useDashboardYear } from '@/contexts/DashboardYearContext'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ThemeToggle, LanguageToggle } from '@/components/ui/theme-toggle'
@@ -103,177 +103,153 @@ export function Navbar({ onMenuClick, isSidebarCollapsed }: NavbarProps) {
     }
   }
 
-  return (
-    <motion.header
-      initial={{ y: -20, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.3 }}
-      className="sticky top-0 z-40 w-full border-b-0 shadow-sm bg-gray-100/80 dark:bg-gray-800/80 backdrop-blur-md transition-colors duration-300"
-    >
-      <div className="flex h-16 items-center justify-between px-4 lg:px-6">
-        <div className="flex items-center space-x-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onMenuClick}
-            className="h-9 w-9 hover:bg-gray-100 dark:hover:bg-gray-800"
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
+  const displayName = (() => {
+    if (loading && !userProfile && !user?.email) return 'Chargement...'
+    return userProfile?.pseudo || userProfile?.email || user?.email?.split('@')[0] || user?.email || 'Utilisateur'
+  })()
+  const subtitle = userProfile
+    ? `Travail sur ${userProfile.pseudo || userProfile.email}`
+    : loading && !user?.email ? 'Chargement...' : t('nav.online')
 
-          <div className="hidden md:block">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder={t('nav.search')}
-                className="pl-10 w-64 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 focus:bg-white dark:focus:bg-gray-900"
-              />
-            </div>
-          </div>
+  // Close the user menu on outside click / Escape
+  const menuRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!showUserMenu) return
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setShowUserMenu(false)
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowUserMenu(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [showUserMenu])
+
+  return (
+    <header className="app-topbar">
+      <button
+        type="button"
+        onClick={onMenuClick}
+        aria-label={isSidebarCollapsed ? 'Ouvrir le menu' : 'Menu'}
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+
+      {/* Search */}
+      <div className="relative hidden max-w-md flex-1 md:block">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input placeholder={t('nav.search')} className="h-9 w-full bg-muted pl-9 border-transparent focus:bg-card" />
+      </div>
+      <div className="flex-1 md:hidden" />
+
+      <div className="flex items-center gap-1.5 sm:gap-2">
+        {/* Dashboard year */}
+        <div className="flex items-center gap-1.5">
+          <CalendarDays className="hidden h-4 w-4 text-muted-foreground sm:block" />
+          <Select
+            value={String(selectedYear)}
+            onValueChange={(value) => setSelectedYear(parseInt(value, 10))}
+            disabled={loadingYears}
+          >
+            <SelectTrigger className="h-9 w-[92px]" aria-label="Année">
+              <SelectValue placeholder="Année" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableYears.map((year) => (
+                <SelectItem key={year} value={String(year)}>
+                  {year}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        <div className="flex items-center space-x-2">
-          <div className="flex items-center gap-1.5">
-            <CalendarDays className="hidden sm:block h-4 w-4 text-gray-500 dark:text-gray-400" />
-            <Select
-              value={String(selectedYear)}
-              onValueChange={(value) => setSelectedYear(parseInt(value, 10))}
-              disabled={loadingYears}
-            >
-              <SelectTrigger className="h-9 w-[100px] text-xs bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-                <SelectValue placeholder="Année" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableYears.map((year) => (
-                  <SelectItem key={year} value={String(year)}>
-                    {year}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="mx-1 hidden h-6 w-px bg-border sm:block" />
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="relative h-9 w-9 hover:bg-gray-100 dark:hover:bg-gray-800"
+        <ThemeToggle />
+        <div className="hidden sm:block"><LanguageToggle /></div>
+
+        <a
+          href="/admin/notifications"
+          aria-label="Notifications"
+          className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <Bell className="h-[18px] w-[18px]" />
+          <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[rgb(var(--color-brand-pink))] ring-2 ring-[rgb(var(--bg-topbar))]" />
+        </a>
+
+        {/* User menu */}
+        <div className="relative" ref={menuRef}>
+          <button
+            type="button"
+            onClick={() => setShowUserMenu(!showUserMenu)}
+            aria-haspopup="menu"
+            aria-expanded={showUserMenu}
+            className="flex items-center gap-2 rounded-lg p-1 pr-2 transition-colors hover:bg-muted"
           >
-            <Bell className="h-5 w-5" />
-            <span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full flex items-center justify-center">
-              <span className="h-1.5 w-1.5 bg-white rounded-full"></span>
+            <span className="avatar avatar-sm">{displayName.charAt(0).toUpperCase()}</span>
+            <span className="hidden min-w-0 text-left md:block">
+              <span className="block max-w-[140px] truncate text-xs font-bold text-foreground">{displayName}</span>
+              <span className="block max-w-[140px] truncate text-[11px] text-muted-foreground">{subtitle}</span>
             </span>
-          </Button>
+            <ChevronDown className={cn('h-3.5 w-3.5 text-muted-foreground transition-transform', showUserMenu && 'rotate-180')} />
+          </button>
 
-          <div className="hidden sm:flex items-center space-x-1">
-            <ThemeToggle />
-            <LanguageToggle />
-          </div>
-
-          <div className="relative">
-            <Button
-              variant="ghost"
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center space-x-2 h-9 px-3 hover:bg-gray-100 dark:hover:bg-gray-800"
-            >
-              <div className="w-7 h-7 bg-gradient-to-br from-pink-300 to-pink-600 rounded-full flex items-center justify-center">
-                <User className="h-4 w-4 text-white" />
-              </div>
-              <div className="hidden sm:block text-left">
-                <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  {(() => {
-                    if (loading && !userProfile && !user?.email) {
-                      return 'Chargement...'
-                    }
-                    return (
-                      userProfile?.pseudo ||
-                      userProfile?.email ||
-                      user?.email?.split('@')[0] ||
-                      user?.email ||
-                      'Utilisateur'
-                    )
-                  })()}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {userProfile
-                    ? `Travail sur ${userProfile.pseudo || userProfile.email}`
-                    : loading && !user?.email
-                      ? 'Chargement...'
-                      : t('nav.online')}
-                </p>
-              </div>
-              <ChevronDown className="h-4 w-4 text-gray-400" />
-            </Button>
-
+          <AnimatePresence>
             {showUserMenu && (
               <motion.div
-                initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                role="menu"
+                initial={{ opacity: 0, y: -6, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                transition={{ duration: 0.2 }}
-                className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-sm border-0 py-1 z-50"
+                exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                transition={{ duration: 0.15 }}
+                className="app-card absolute right-0 z-50 mt-2 w-60 overflow-hidden p-0 shadow-[var(--shadow-pop)]"
               >
-                <div className="px-4 py-3 border-b-0 shadow-sm">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">
-                    {(() => {
-                      if (loading && !userProfile && !user?.email) {
-                        return 'Chargement...'
-                      }
-                      return (
-                        userProfile?.pseudo ||
-                        userProfile?.email ||
-                        user?.email?.split('@')[0] ||
-                        user?.email ||
-                        'Utilisateur'
-                      )
-                    })()}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {userProfile
-                      ? `Travail sur ${userProfile.pseudo || userProfile.email}`
-                      : loading && !user?.email
-                        ? 'Chargement...'
-                        : t('nav.online')}
-                  </p>
-                  {userProfile?.pseudo && userProfile?.email && (
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{userProfile.email}</p>
-                  )}
+                <div className="flex items-center gap-3 border-b border-border p-3">
+                  <span className="avatar avatar-md">{displayName.charAt(0).toUpperCase()}</span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-foreground">{displayName}</p>
+                    <p className="truncate text-[11px] text-muted-foreground">{subtitle}</p>
+                    {userProfile?.pseudo && userProfile?.email && (
+                      <p className="truncate text-[11px] text-muted-foreground">{userProfile.email}</p>
+                    )}
+                  </div>
                 </div>
 
-                <div className="py-1">
-                  <button className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <User className="h-4 w-4 mr-3" />
+                <div className="p-1">
+                  <button type="button" role="menuitem" className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold text-foreground hover:bg-muted">
+                    <User className="h-4 w-4 text-muted-foreground" />
                     {t('nav.profile')}
                   </button>
-                  <button className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                    <Settings className="h-4 w-4 mr-3" />
+                  <button type="button" role="menuitem" className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold text-foreground hover:bg-muted">
+                    <Settings className="h-4 w-4 text-muted-foreground" />
                     {t('nav.settings')}
                   </button>
+                  <div className="flex items-center justify-between rounded-md px-3 py-1.5 sm:hidden">
+                    <span className="text-sm font-semibold text-foreground">Langue</span>
+                    <LanguageToggle />
+                  </div>
                 </div>
 
-                <div className="border-t-0 shadow-sm py-1">
+                <div className="border-t border-border p-1">
                   <button
+                    type="button"
+                    role="menuitem"
                     onClick={handleSignOut}
-                    className="flex items-center w-full px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
                   >
-                    <LogOut className="h-4 w-4 mr-3" />
+                    <LogOut className="h-4 w-4" />
                     {t('nav.signOut')}
                   </button>
                 </div>
               </motion.div>
             )}
-          </div>
+          </AnimatePresence>
         </div>
       </div>
-
-      <div className="md:hidden px-4 pb-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder={t('nav.search')}
-            className="pl-10 w-full bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
-          />
-        </div>
-      </div>
-    </motion.header>
+    </header>
   )
 }

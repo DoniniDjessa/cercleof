@@ -17,6 +17,7 @@ import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
 import { ClientsAdd } from '@/components/clients/clients-add'
+import { StatCard, StatGrid } from '@/components/ui/stat-card'
 
 interface Client {
   id: string
@@ -224,32 +225,11 @@ export default function ClientsPage() {
       {!showCreateForm && (
         <>
           {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Total Clients</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-base font-bold text-gray-900 dark:text-white">{clients.length}</div>
-              </CardContent>
-            </Card>
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Active Clients</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-base font-bold text-gray-900 dark:text-white">{clients.filter((c) => c.is_active).length}</div>
-              </CardContent>
-            </Card>
-            <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Business Clients</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-base font-bold text-gray-900 dark:text-white">{clients.filter((c) => c.preferred_contact_method === 'business').length}</div>
-              </CardContent>
-            </Card>
-          </div>
+          <StatGrid cols={3}>
+        <StatCard index={0} label="Total Clients" value={clients.length} tone="violet" />
+        <StatCard index={1} label="Active Clients" value={clients.filter((c) => c.is_active).length} tone="emerald" />
+        <StatCard index={2} label="Business Clients" value={clients.filter((c) => c.preferred_contact_method === 'business').length} tone="sky" />
+      </StatGrid>
 
           {/* Search */}
           <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">

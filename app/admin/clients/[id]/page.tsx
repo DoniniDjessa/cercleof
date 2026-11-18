@@ -464,7 +464,7 @@ export default function ClientDetailsPage() {
                   {saleStats?.totalSales ? saleStats.totalSales.toFixed(2) : client.total_spent?.toFixed(2) || '0.00'} XOF
                 </p>
               </div>
-              <DollarSign className="w-4 h-4 text-green-600" />
+              <DollarSign className="w-4 h-4 text-primary" />
             </div>
           </CardContent>
         </Card>

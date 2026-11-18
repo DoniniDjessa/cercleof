@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Bebas_Neue, Roboto_Condensed, Poppins } from "next/font/google";
+import { Anton, Playfair_Display, Fira_Sans_Condensed, Nunito_Sans, Roboto_Condensed } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
@@ -10,38 +10,54 @@ import { AppLayout } from "@/components/layout/app-layout";
 import { InstallPrompt } from "@/components/pwa/install-prompt";
 import { UnregisterSW } from "@/components/pwa/unregister-sw";
 
-const bebasNeue = Bebas_Neue({
-  variable: "--font-bebas-neue",
-  subsets: ["latin"],
+// Fonts (same pairing as biz-platform): Nunito Sans for the UI, Fira Sans Condensed for headings
+const firaCondensed = Fira_Sans_Condensed({
+  variable: "--font-fira-condensed",
+  subsets: ["latin", "latin-ext"],
+  weight: ["600", "700", "800"],
+  display: "swap",
+});
+
+// Anton: big display titles
+const anton = Anton({
+  variable: "--font-anton",
+  subsets: ["latin", "latin-ext"],
   weight: "400",
   display: "swap",
-  adjustFontFallback: false,
-  preload: true,
+});
+
+// Playfair Display italic: elegant accent on the login page
+const script = Playfair_Display({
+  variable: "--font-script",
+  subsets: ["latin", "latin-ext"],
+  weight: ["400", "500", "600"],
+  style: ["italic"],
+  display: "swap",
+});
+
+const nunito = Nunito_Sans({
+  variable: "--font-nunito",
+  subsets: ["latin", "latin-ext"],
+  display: "swap",
 });
 
 const robotoCondensed = Roboto_Condensed({
   variable: "--font-roboto-condensed",
   subsets: ["latin"],
-  weight: ["300", "400", "700"],
+  weight: ["400", "700"],
   display: "swap",
-  adjustFontFallback: false,
-  preload: true,
+  preload: false,
 });
 
-const poppins = Poppins({
-  variable: "--font-poppins",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  display: "swap",
-  adjustFontFallback: false,
-  preload: true,
-});
+// Applies the saved theme before paint (no light/dark flash)
+// Dark is the default: only an explicit 'light' choice switches to light
+const themeInitScript = `(function(){var m='dark';try{if(localStorage.getItem('app-theme')==='light')m='light'}catch(e){}var d=document.documentElement;d.classList.remove('light','dark');d.classList.add(m);d.dataset.theme=m})()`;
 
 export const metadata: Metadata = {
   title: "Cercle Of - Beauty Institute Management",
   description: "Gestion complète de votre institut de beauté - Point de vente, clients, services, produits et plus",
   manifest: "/manifest.json",
-  themeColor: "#ec4899",
+  themeColor: "#7d5a1e",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -79,8 +95,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr">
+    <html lang="fr" data-theme="dark" className={`dark ${anton.variable} ${script.variable} ${firaCondensed.variable} ${nunito.variable} ${robotoCondensed.variable}`} suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <link rel="icon" href="/favicon.ico" />
         <script
           dangerouslySetInnerHTML={{
@@ -108,7 +125,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${bebasNeue.variable} ${robotoCondensed.variable} ${poppins.variable} antialiased`}
+        className="font-sans antialiased"
       >
         <ThemeProvider>
           <AuthProvider>

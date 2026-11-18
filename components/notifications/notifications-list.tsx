@@ -21,6 +21,7 @@ import {
   User
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
+import { StatCard, StatGrid } from '@/components/ui/stat-card'
 
 interface Notification {
   id: string
@@ -262,63 +263,12 @@ export function NotificationsList({ onNotificationRead, onNotificationArchived }
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                <Bell className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.total}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
-                <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Non lues</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.unread}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
-                <User className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Clients</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.clients}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
-                <Calendar className="h-6 w-6 text-green-600 dark:text-green-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Aujourd'hui</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.today}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <StatGrid cols={4}>
+        <StatCard index={0} label="Total" value={stats.total} icon={Bell} tone="sky" />
+        <StatCard index={1} label="Non lues" value={stats.unread} icon={AlertCircle} tone="rose" />
+        <StatCard index={2} label="Clients" value={stats.clients} icon={User} tone="violet" />
+        <StatCard index={3} label="Aujourd'hui" value={stats.today} icon={Calendar} tone="emerald" />
+      </StatGrid>
 
       {/* Filters and Search */}
       <Card>

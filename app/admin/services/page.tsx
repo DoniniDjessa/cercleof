@@ -15,6 +15,7 @@ import { AddService } from "@/components/services/add-service"
 import { supabase } from "@/lib/supabase"
 import toast from "react-hot-toast"
 import { useAuth } from "@/contexts/AuthContext"
+import { StatCard, StatGrid } from '@/components/ui/stat-card'
 
 interface Service {
   id: string
@@ -269,65 +270,12 @@ export default function ServicesPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-white dark:bg-gray-800 ">
-          <CardContent className="p-4">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-sm">
-                <Scissors className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Services</p>
-                <p className="text-base font-bold text-gray-900 dark:text-white">{totalServices}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-white dark:bg-gray-800 ">
-          <CardContent className="p-4">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-sm">
-                <Users className="w-6 h-6 text-green-600 dark:text-green-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Services Actifs</p>
-                <p className="text-base font-bold text-gray-900 dark:text-white">{activeServices}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-white dark:bg-gray-800 ">
-          <CardContent className="p-4">
-            <div className="flex items-center">
-              <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-sm">
-                <DollarSign className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Prix Moyen</p>
-                <p className="text-base font-bold text-gray-900 dark:text-white">{averagePrice.toFixed(0)} FCFA</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-white dark:bg-gray-800 ">
-          <CardContent className="p-4">
-            <div className="flex items-center">
-              <div className="p-2 bg-orange-100 dark:bg-orange-900/20 rounded-sm">
-                <Clock className="w-6 h-6 text-orange-600 dark:text-orange-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Durée Moyenne</p>
-                <p className="text-base font-bold text-gray-900 dark:text-white">
-                  {totalServices > 0 ? Math.round(services.reduce((sum, s) => sum + (s.duration_minutes || s.duration || s.duree || 0), 0) / totalServices) : 0} min
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <StatGrid cols={4}>
+        <StatCard index={0} label="Total Services" value={totalServices} icon={Scissors} tone="sky" />
+        <StatCard index={1} label="Services Actifs" value={activeServices} icon={Users} tone="emerald" />
+        <StatCard index={2} label="Prix Moyen" value={<>{averagePrice.toFixed(0)} FCFA</>} icon={DollarSign} tone="violet" />
+        <StatCard index={3} label="Durée Moyenne" value={<>{totalServices > 0 ? Math.round(services.reduce((sum, s) => sum + (s.duration_minutes || s.duration || s.duree || 0), 0) / totalServices) : 0} min</>} icon={Clock} tone="amber" />
+      </StatGrid>
 
       {/* Search */}
       <Card className="bg-white dark:bg-gray-800 ">

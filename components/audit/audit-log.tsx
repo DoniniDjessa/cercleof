@@ -18,6 +18,7 @@ import {
   Download
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
+import { StatCard, StatGrid } from '@/components/ui/stat-card'
 
 interface AuditLog {
   id: string
@@ -217,77 +218,13 @@ export function AuditLog() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                <Activity className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.total}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
-                <Calendar className="h-6 w-6 text-green-600 dark:text-green-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Aujourd'hui</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.today}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
-                <Activity className="h-6 w-6 text-green-600 dark:text-green-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Créations</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.creates}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                <Activity className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Modifications</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.updates}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
-                <Activity className="h-6 w-6 text-red-600 dark:text-red-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Suppressions</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.deletes}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <StatGrid cols={5}>
+        <StatCard index={0} label="Total" value={stats.total} icon={Activity} tone="sky" />
+        <StatCard index={1} label="Aujourd'hui" value={stats.today} icon={Calendar} tone="emerald" />
+        <StatCard index={2} label="Créations" value={stats.creates} icon={Activity} tone="emerald" />
+        <StatCard index={3} label="Modifications" value={stats.updates} icon={Activity} tone="sky" />
+        <StatCard index={4} label="Suppressions" value={stats.deletes} icon={Activity} tone="rose" />
+      </StatGrid>
 
       {/* Filters and Search */}
       <Card>

@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Search, Eye, Trash2, Package, Plus } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import toast from "react-hot-toast"
+import { StatCard, StatGrid } from '@/components/ui/stat-card'
 
 interface Stock {
   id: string
@@ -136,32 +137,11 @@ export function StockList() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-white dark:bg-gray-800 ">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Total Stocks</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">{stocks.length}</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-white dark:bg-gray-800 ">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Stocks Actifs</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">{stocks.filter((s) => s.status === 'active').length}</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-white dark:bg-gray-800 ">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground dark:text-gray-400">Stocks Fermés</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">{stocks.filter((s) => s.status === 'closed').length}</div>
-          </CardContent>
-        </Card>
-      </div>
+      <StatGrid cols={3}>
+        <StatCard index={0} label="Total Stocks" value={stocks.length} tone="violet" />
+        <StatCard index={1} label="Stocks Actifs" value={stocks.filter((s) => s.status === 'active').length} tone="emerald" />
+        <StatCard index={2} label="Stocks Fermés" value={stocks.filter((s) => s.status === 'closed').length} tone="sky" />
+      </StatGrid>
 
       {/* Search */}
       <Card className="bg-white dark:bg-gray-800 ">

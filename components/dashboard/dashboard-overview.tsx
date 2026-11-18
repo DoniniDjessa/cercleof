@@ -35,9 +35,12 @@ import {
   X,
   Filter,
   RefreshCw,
+  LayoutDashboard,
+  PieChart as PieIcon,
 } from 'lucide-react'
-import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import Image from 'next/image'
+import { AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { StatCard, StatGrid, TONES } from '@/components/ui/stat-card'
+import { PageHeader, SectionTitle, EmptyState } from '@/components/ui/page-header'
 
 interface DashboardOverviewProps {
   userRole?: string
@@ -63,7 +66,8 @@ interface DashboardData {
 
 type RevenueChartPoint = { label: string; revenue: number; sales: number }
 
-const COLORS = ['#9333ea', '#a855f7', '#c084fc', '#d8b4fe', '#e9d5ff']
+// Categorical palette (distinct hues, readable on light and dark)
+const COLORS = ['#c9a227', '#8f6b1f', '#e07f24', '#dfc27a', '#f59e0b', '#a89d8c']
 
 const CHART_TITLES: Record<RevenueChartMode, string> = {
   month: 'Revenus par Mois',
@@ -646,47 +650,56 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
     return <div className="text-center text-gray-500">Aucune donnée disponible</div>
   }
 
+  const salesByTypeTotal = data.salesByType.reduce((sum, entry) => sum + (Number(entry.value) || 0), 0)
+  const maxTopProduct = Math.max(1, ...data.topProducts.map(p => Number(p.revenue) || 0))
+  const maxTopService = Math.max(1, ...data.topServices.map(s => Number(s.revenue) || 0))
+  const maxTopClient = Math.max(1, ...data.topClients.map(c => Number(c.revenue) || 0))
+
+  const topLists = [
+    { title: 'Top Produits', href: '/admin/products', empty: 'Aucun produit vendu', max: maxTopProduct,
+      rows: data.topProducts.map(p => ({ name: p.name, sub: `${p.quantity} vendus`, revenue: p.revenue })) },
+    { title: 'Top Services', href: '/admin/services', empty: 'Aucun service vendu', max: maxTopService,
+      rows: data.topServices.map(s => ({ name: s.name, sub: `${s.count} vendus`, revenue: s.revenue })) },
+    { title: 'Top Clients', href: '/admin/clients', empty: 'Aucun client', max: maxTopClient,
+      rows: data.topClients.map(c => ({ name: c.name, sub: `${c.purchases} achat${c.purchases > 1 ? 's' : ''}`, revenue: c.revenue })) },
+  ]
+
+  const overviewRows = [
+    { label: 'Produits', value: data.totalProducts, icon: Package, href: '/admin/products', tone: TONES.violet },
+    { label: 'Services', value: data.totalServices, icon: Scissors, href: '/admin/services', tone: TONES.pink },
+    { label: 'Rendez-vous', value: data.totalAppointments, icon: Calendar, href: '/admin/appointments', tone: TONES.sky },
+    { label: 'Livraisons', value: data.totalDeliveries, icon: Truck, href: '/admin/deliveries', tone: TONES.amber },
+  ]
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-2">
-        <div className="flex items-center space-x-3">
-          <Image
-            src="/cbmin.png"
-            alt="Cercle Of Logo"
-            width={48}
-            height={48}
-            className="object-contain"
-          />
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Tableau de Bord</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Vue d&apos;ensemble · {data.periodLabel}
-            </p>
-          </div>
-        </div>
-        <Button variant="outline" size="sm" onClick={resetFilters} className="self-start lg:self-auto text-xs">
-          <RefreshCw className="w-3 h-3 mr-2" />
-          Réinitialiser
-        </Button>
-      </div>
+      <PageHeader
+        icon={LayoutDashboard}
+        title="Tableau de Bord"
+        description={<>Vue d&apos;ensemble · {data.periodLabel}</>}
+        actions={
+          <Button variant="outline" size="sm" onClick={resetFilters}>
+            <RefreshCw className="h-3.5 w-3.5" />
+            Réinitialiser
+          </Button>
+        }
+      />
 
       {/* Page filters — does not affect the revenue chart */}
-      <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
+      <Card>
         <CardContent className="p-4">
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white">
-                <Filter className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                Filtrer les données
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+            <div className="flex items-center gap-2 lg:w-44 lg:shrink-0 lg:pb-2">
+              <span className="brand-mark h-8 w-8 text-primary"><Filter className="h-4 w-4" /></span>
+              <div>
+                <p className="text-xs font-extrabold text-foreground">Filtrer les données</p>
+                <p className="text-[11px] text-muted-foreground">Année : {selectedYear}</p>
               </div>
-              <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                Année navbar: {selectedYear}
-              </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-1.5">
-                <Label className="text-xs text-gray-600 dark:text-gray-300">Jour</Label>
+                <Label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Jour</Label>
                 <Select
                   value={relativeDay || 'none'}
                   onValueChange={(value) => {
@@ -699,7 +712,7 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
                     }
                   }}
                 >
-                  <SelectTrigger className="text-xs bg-white text-gray-700 border-gray-200 dark:bg-white dark:text-gray-700 dark:border-gray-300 dark:hover:bg-gray-50 [&>span]:text-gray-700 dark:[&>span]:text-gray-700">
+                  <SelectTrigger>
                     <SelectValue placeholder="Choisir un jour" />
                   </SelectTrigger>
                   <SelectContent>
@@ -712,7 +725,7 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs text-gray-600 dark:text-gray-300">Mois</Label>
+                <Label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Mois</Label>
                 <Select
                   value={filterMonth || 'none'}
                   onValueChange={(value) => {
@@ -725,7 +738,7 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
                     }
                   }}
                 >
-                  <SelectTrigger className="text-xs bg-white text-gray-700 border-gray-200 dark:bg-white dark:text-gray-700 dark:border-gray-300 dark:hover:bg-gray-50 [&>span]:text-gray-700 dark:[&>span]:text-gray-700">
+                  <SelectTrigger>
                     <SelectValue placeholder="Choisir un mois" />
                   </SelectTrigger>
                   <SelectContent>
@@ -740,7 +753,7 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs text-gray-600 dark:text-gray-300">Du</Label>
+                <Label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Du</Label>
                 <Input
                   type="date"
                   value={filterRangeStart}
@@ -751,12 +764,11 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
                       setFilterMonth('')
                     }
                   }}
-                  className="text-xs bg-white text-gray-700 border-gray-200 dark:bg-white dark:text-gray-700 dark:border-gray-300"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs text-gray-600 dark:text-gray-300">Au</Label>
+                <Label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Au</Label>
                 <Input
                   type="date"
                   value={filterRangeEnd}
@@ -767,7 +779,6 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
                       setFilterMonth('')
                     }
                   }}
-                  className="text-xs bg-white text-gray-700 border-gray-200 dark:bg-white dark:text-gray-700 dark:border-gray-300"
                 />
               </div>
             </div>
@@ -776,331 +787,199 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
       </Card>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card
-          className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-purple-300 dark:hover:border-purple-600"
-          onClick={() => fetchModalDetails('clients')}
-        >
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Clients</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data.totalClients}</p>
-              </div>
-              <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                <Users className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card
-          className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-purple-300 dark:hover:border-purple-600"
-          onClick={() => fetchModalDetails('sales')}
-        >
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Ventes</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data.totalSales}</p>
-              </div>
-              <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                <ShoppingCart className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card
-          className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-purple-300 dark:hover:border-purple-600"
-          onClick={() => fetchModalDetails('revenue')}
-        >
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Revenus</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {formatCurrency(data.totalRevenue)}
-                </p>
-              </div>
-              <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                <DollarSign className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card
-          className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-purple-300 dark:hover:border-purple-600"
-          onClick={() => fetchModalDetails('growth')}
-        >
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Croissance</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {data.revenueGrowth >= 0 ? '+' : ''}
-                  {data.revenueGrowth.toFixed(1)}%
-                </p>
-              </div>
-              <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                <BarChart3 className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <StatGrid cols={4}>
+        <StatCard index={0} label="Clients" value={data.totalClients.toLocaleString('fr-FR')} icon={Users} tone="violet"
+          hint="Voir le détail" onClick={() => fetchModalDetails('clients')} />
+        <StatCard index={1} label="Ventes" value={data.totalSales.toLocaleString('fr-FR')} icon={ShoppingCart} tone="pink"
+          trend={data.salesGrowth} hint="vs période précédente" onClick={() => fetchModalDetails('sales')} />
+        <StatCard index={2} label="Revenus" value={formatCurrency(data.totalRevenue)} icon={DollarSign} tone="emerald"
+          hint={data.periodLabel} onClick={() => fetchModalDetails('revenue')} />
+        <StatCard index={3} label="Croissance" value={`${data.revenueGrowth >= 0 ? '+' : ''}${data.revenueGrowth.toFixed(1)}%`}
+          icon={BarChart3} tone={data.revenueGrowth >= 0 ? 'sky' : 'rose'} hint="Revenus vs période précédente" onClick={() => fetchModalDetails('growth')} />
+      </StatGrid>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
-          <CardHeader className="space-y-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">
-                {CHART_TITLES[chartMode]}
-              </CardTitle>
-              {chartMode === 'month' && (
-                <Select value={String(chartYear)} onValueChange={(v) => setChartYear(parseInt(v, 10))}>
-                  <SelectTrigger className="w-[110px] h-8 text-xs bg-white text-gray-700 border-gray-200 dark:bg-white dark:text-gray-700 dark:border-gray-300 dark:hover:bg-gray-50 [&>span]:text-gray-700 dark:[&>span]:text-gray-700">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableYears.map((year) => (
-                      <SelectItem key={year} value={String(year)}>
-                        {year}
-                      </SelectItem>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <Card className="xl:col-span-2">
+          <CardHeader className="pb-2">
+            <SectionTitle
+              title={CHART_TITLES[chartMode]}
+              description="Indépendant des filtres de la page"
+              actions={
+                <>
+                  <div className="segmented" role="group" aria-label="Période du graphique">
+                    {(
+                      [
+                        { value: 'month', label: 'Mois' },
+                        { value: 'week', label: 'Semaines' },
+                        { value: 'weekday', label: '7 jours' },
+                        { value: 'year', label: 'Années' },
+                      ] as const
+                    ).map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        aria-pressed={chartMode === option.value}
+                        onClick={() => setChartMode(option.value)}
+                      >
+                        {option.label}
+                      </button>
                     ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {(
-                [
-                  { value: 'month', label: 'Par mois' },
-                  { value: 'week', label: 'Par semaine' },
-                  { value: 'weekday', label: 'Jours (7j)' },
-                  { value: 'year', label: 'Par année' },
-                ] as const
-              ).map((option) => (
-                <Button
-                  key={option.value}
-                  size="sm"
-                  variant={chartMode === option.value ? 'default' : 'outline'}
-                  className="text-[11px] h-7 px-2.5"
-                  onClick={() => setChartMode(option.value)}
-                >
-                  {option.label}
-                </Button>
-              ))}
-            </div>
+                  </div>
+                  {chartMode === 'month' && (
+                    <Select value={String(chartYear)} onValueChange={(v) => setChartYear(parseInt(v, 10))}>
+                      <SelectTrigger className="h-8 w-[92px]" aria-label="Année du graphique">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableYears.map((year) => (
+                          <SelectItem key={year} value={String(year)}>
+                            {year}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </>
+              }
+            />
           </CardHeader>
           <CardContent>
             {chartLoading ? (
-              <div className="flex items-center justify-center h-[250px]">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-500" />
-              </div>
+              <div className="skeleton h-[280px] w-full" />
             ) : (
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={revenueChart}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="label" stroke="#6b7280" fontSize={10} />
-                  <YAxis stroke="#6b7280" fontSize={10} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'white',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                    }}
-                    formatter={(value: number) => formatCurrency(value)}
-                  />
-                  <Legend fontSize={10} />
-                  <Line type="monotone" dataKey="revenue" stroke="#9333ea" strokeWidth={2} name="Revenus" dot={{ r: 3 }} />
-                </LineChart>
+              <ResponsiveContainer width="100%" height={280}>
+                <AreaChart data={revenueChart} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#c9a227" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#c9a227" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="label" fontSize={11} tickLine={false} axisLine={false} />
+                  <YAxis fontSize={11} tickLine={false} axisLine={false} width={70}
+                    tickFormatter={(v: number) => (Math.abs(v) >= 1000 ? `${Math.round(v / 1000).toLocaleString('fr-FR')}k` : String(v))} />
+                  <Tooltip formatter={(value: number) => formatCurrency(value)} cursor={{ stroke: '#c9a227', strokeOpacity: 0.3 }} />
+                  <Area type="monotone" dataKey="revenue" stroke="#c9a227" strokeWidth={2.5} fill="url(#revenueFill)" name="Revenus"
+                    dot={false} activeDot={{ r: 5, strokeWidth: 2 }} />
+                </AreaChart>
               </ResponsiveContainer>
             )}
           </CardContent>
         </Card>
 
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Ventes par Type</CardTitle>
+        <Card>
+          <CardHeader className="pb-2">
+            <SectionTitle title="Ventes par Type" description={data.periodLabel} />
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
-              <PieChart>
-                <Pie
-                  data={data.salesByType}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
+            {data.salesByType.length === 0 || salesByTypeTotal === 0 ? (
+              <EmptyState icon={PieIcon} title="Aucune vente" description="Les ventes de la période s’afficheront ici." />
+            ) : (
+              <>
+                <div className="relative">
+                  <ResponsiveContainer width="100%" height={190}>
+                    <PieChart>
+                      <Pie
+                        data={data.salesByType}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={58}
+                        outerRadius={85}
+                        paddingAngle={2}
+                        stroke="none"
+                        dataKey="value"
+                      >
+                        {data.salesByType.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Total</span>
+                    <span className="text-lg font-extrabold text-foreground">{salesByTypeTotal.toLocaleString('fr-FR')}</span>
+                  </div>
+                </div>
+                <ul className="mt-3 space-y-1.5">
                   {data.salesByType.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    <li key={entry.name} className="flex items-center gap-2 text-xs">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: COLORS[index % COLORS.length] }} />
+                      <span className="flex-1 truncate font-semibold text-foreground">{entry.name}</span>
+                      <span className="font-bold text-muted-foreground">
+                        {Math.round(((Number(entry.value) || 0) / salesByTypeTotal) * 100)}%
+                      </span>
+                    </li>
                   ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+                </ul>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
 
       {/* Bottom Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Vue d&apos;ensemble</CardTitle>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <SectionTitle title="Vue d&apos;ensemble" description="Catalogue et activité" />
           </CardHeader>
-          <CardContent className="space-y-4">
-            <Link href="/admin/products">
-              <div className="flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 p-2 rounded-lg transition-colors cursor-pointer">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                    <Package className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Produits</p>
-                    <p className="text-sm font-bold text-gray-900 dark:text-white">{data.totalProducts}</p>
-                  </div>
-                </div>
-              </div>
-            </Link>
-            <Link href="/admin/services">
-              <div className="flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 p-2 rounded-lg transition-colors cursor-pointer">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                    <Scissors className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Services</p>
-                    <p className="text-sm font-bold text-gray-900 dark:text-white">{data.totalServices}</p>
-                  </div>
-                </div>
-              </div>
-            </Link>
-            <Link href="/admin/appointments">
-              <div className="flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 p-2 rounded-lg transition-colors cursor-pointer">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                    <Calendar className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Rendez-vous</p>
-                    <p className="text-sm font-bold text-gray-900 dark:text-white">{data.totalAppointments}</p>
-                  </div>
-                </div>
-              </div>
-            </Link>
-            <Link href="/admin/deliveries">
-              <div className="flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 p-2 rounded-lg transition-colors cursor-pointer">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                    <Truck className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Livraisons</p>
-                    <p className="text-sm font-bold text-gray-900 dark:text-white">{data.totalDeliveries}</p>
-                  </div>
-                </div>
-              </div>
-            </Link>
+          <CardContent className="space-y-1 pt-1">
+            {overviewRows.map((row) => (
+              <Link key={row.label} href={row.href} className="list-row">
+                <span className="stat-card-icon h-9 w-9" style={{ '--tone': row.tone } as React.CSSProperties}>
+                  <row.icon className="h-4 w-4" />
+                </span>
+                <span className="flex-1 text-xs font-bold text-muted-foreground">{row.label}</span>
+                <span className="text-sm font-extrabold text-foreground">{Number(row.value).toLocaleString('fr-FR')}</span>
+              </Link>
+            ))}
           </CardContent>
         </Card>
 
-        <Link href="/admin/products">
-          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-purple-300 dark:hover:border-purple-600">
-            <CardHeader>
-              <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Top Produits</CardTitle>
+        {topLists.map((list) => (
+          <Card key={list.title}>
+            <CardHeader className="pb-2">
+              <SectionTitle
+                title={list.title}
+                actions={<Link href={list.href} className="text-[11px] font-bold text-primary hover:underline">Voir tout</Link>}
+              />
             </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {data.topProducts.length > 0 ? (
-                  data.topProducts.map((product, index) => (
-                    <div key={index} className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-medium text-gray-900 dark:text-white">{product.name}</p>
-                        <p className="text-[10px] text-gray-500 dark:text-gray-400">{product.quantity} vendus</p>
+            <CardContent className="pt-1">
+              {list.rows.length > 0 ? (
+                <ul className="space-y-3">
+                  {list.rows.map((row, index) => (
+                    <li key={index} className="flex items-center gap-3">
+                      <span className="rank">{index + 1}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <p className="truncate text-xs font-bold text-foreground">{row.name}</p>
+                          <p className="shrink-0 text-xs font-extrabold text-primary">{formatCurrency(row.revenue)}</p>
+                        </div>
+                        <div className="mt-1 flex items-center gap-2">
+                          <div className="progress-track flex-1">
+                            <div className="progress-bar" style={{ width: `${Math.max(4, Math.round(((Number(row.revenue) || 0) / list.max) * 100))}%` }} />
+                          </div>
+                          <span className="shrink-0 text-[10px] text-muted-foreground">{row.sub}</span>
+                        </div>
                       </div>
-                      <p className="text-xs font-bold text-purple-600 dark:text-purple-400">
-                        {formatCurrency(product.revenue)}
-                      </p>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Aucun produit vendu</p>
-                )}
-              </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <EmptyState title={list.empty} />
+              )}
             </CardContent>
           </Card>
-        </Link>
-
-        <Link href="/admin/services">
-          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-purple-300 dark:hover:border-purple-600">
-            <CardHeader>
-              <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Top Services</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {data.topServices.length > 0 ? (
-                  data.topServices.map((service, index) => (
-                    <div key={index} className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-medium text-gray-900 dark:text-white">{service.name}</p>
-                        <p className="text-[10px] text-gray-500 dark:text-gray-400">{service.count} vendus</p>
-                      </div>
-                      <p className="text-xs font-bold text-purple-600 dark:text-purple-400">
-                        {formatCurrency(service.revenue)}
-                      </p>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Aucun service vendu</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link href="/admin/clients">
-          <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer hover:border-purple-300 dark:hover:border-purple-600">
-            <CardHeader>
-              <CardTitle className="text-sm font-semibold text-gray-900 dark:text-white">Top Clients</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {data.topClients.length > 0 ? (
-                  data.topClients.map((client, index) => (
-                    <div key={index} className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-medium text-gray-900 dark:text-white">{client.name}</p>
-                        <p className="text-[10px] text-gray-500 dark:text-gray-400">
-                          {client.purchases} achat{client.purchases > 1 ? 's' : ''}
-                        </p>
-                      </div>
-                      <p className="text-xs font-bold text-purple-600 dark:text-purple-400">
-                        {formatCurrency(client.revenue)}
-                      </p>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Aucun client</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
+        ))}
       </div>
 
       {selectedModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={closeModal}>
           <div
-            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto"
+            className="app-card w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto shadow-[var(--shadow-pop)]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
@@ -1226,9 +1105,9 @@ export function DashboardOverview({ userRole }: DashboardOverviewProps) {
                         </div>
                         {modalDetails.breakdown && (
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-200 dark:border-green-800">
+                            <div className="bg-primary/10 p-3 rounded-lg border border-primary/30">
                               <p className="text-xs text-gray-600 dark:text-gray-400">Produits Vendus</p>
-                              <p className="text-lg font-bold text-green-600 dark:text-green-400">
+                              <p className="text-lg font-bold text-primary">
                                 {formatCurrency(modalDetails.breakdown.produitsVendus || 0)}
                               </p>
                             </div>

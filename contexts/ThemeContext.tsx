@@ -154,39 +154,42 @@ const translations = {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof window !== 'undefined') {
-      return (localStorage.getItem('theme') as Theme) || 'light'
-    }
-    return 'light'
-  })
-  const [language, setLanguage] = useState<Language>(() => {
-    if (typeof window !== 'undefined') {
-      return (localStorage.getItem('language') as Language) || 'en'
-    }
-    return 'en'
-  })
+  // The theme class is put on <html> before paint by the init script in app/layout.tsx:
+  // start from 'dark' (default) on the server, then sync with what the document already shows.
+  const [theme, setTheme] = useState<Theme>('dark')
+  const [language, setLanguage] = useState<Language>('en')
+  const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    // Apply theme to document immediately
-    document.documentElement.classList.remove('light', 'dark')
-    document.documentElement.classList.add(theme)
+    const current: Theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+    setTheme(current)
+    try {
+      const savedLanguage = localStorage.getItem('language') as Language | null
+      if (savedLanguage === 'en' || savedLanguage === 'fr') setLanguage(savedLanguage)
+    } catch { /* storage unavailable */ }
+    setReady(true)
   }, [])
 
   useEffect(() => {
-    // Apply theme to document
-    document.documentElement.classList.remove('light', 'dark')
-    document.documentElement.classList.add(theme)
-    localStorage.setItem('theme', theme)
-  }, [theme])
+    if (!ready) return
+    const root = document.documentElement
+    root.classList.remove('light', 'dark')
+    root.classList.add(theme)
+    root.dataset.theme = theme
+  }, [theme, ready])
 
   useEffect(() => {
-    // Save language to localStorage
-    localStorage.setItem('language', language)
-  }, [language])
+    if (!ready) return
+    try { localStorage.setItem('language', language) } catch { /* private mode */ }
+  }, [language, ready])
 
   const toggleTheme = () => {
-    setTheme(prev => prev === 'light' ? 'dark' : 'light')
+    setTheme(prev => {
+      const next: Theme = prev === 'light' ? 'dark' : 'light'
+      // Saved only on an explicit choice, so dark stays the default otherwise
+      try { localStorage.setItem('app-theme', next) } catch { /* private mode */ }
+      return next
+    })
   }
 
   const toggleLanguage = () => {
